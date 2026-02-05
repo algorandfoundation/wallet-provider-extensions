@@ -1,5 +1,3 @@
-// Strategy
-
 import type {
 	KeyStoreApi,
 	KeyStoreExtension,
@@ -13,6 +11,7 @@ import type {
 import * as bip39 from "@scure/bip39";
 import { wordlist as englishWordList } from "@scure/bip39/wordlists/english.js";
 import { v4 as uuid } from "uuid";
+
 import { cryptoBip39Hooks } from "./crypto-bip-39.hooks.js"; // LifeCycle Integrations
 
 // Extension Interfaces
@@ -141,10 +140,9 @@ export function addMnemonic({
 }: {
 	provider: BaseProvider & KeyStoreExtension;
 	secret: SecretKey;
-}) {
+}): Promise<SecretKey> {
 	const keystore = provider.keystore as KeyStoreApi | undefined;
 	if (!keystore) throw new Error("Keystore is not available");
-	console.log(keystore);
 	return keystore.add({
 		id: secret.id,
 		name: secret.name,
@@ -159,7 +157,7 @@ export function removeMnemonic({
 }: {
 	provider: BaseProvider & KeyStoreExtension;
 	id: string;
-}) {
+}): Promise<void> {
 	const keystore = provider.keystore as KeyStoreApi | undefined;
 	if (!keystore) throw new Error("Keystore is not available");
 	return keystore.remove(id);
@@ -171,7 +169,7 @@ export function importMnemonic({
 }: {
 	provider: BaseProvider & KeyStoreExtension;
 	options: BIP39ImportOptions;
-}) {
+}): Promise<SecretKey> {
 	const keystore = provider.keystore as KeyStoreApi | undefined;
 	if (!keystore) throw new Error("Keystore is not available");
 
@@ -198,7 +196,7 @@ export function exportMnemonic({
 }: {
 	provider: BaseProvider & KeyStoreExtension;
 	id: string;
-}) {
+}): Promise<SecretKey> {
 	const keystore = provider.keystore as KeyStoreApi | undefined;
 	if (!keystore) throw new Error("Keystore is not available");
 
