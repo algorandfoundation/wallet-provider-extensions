@@ -6,10 +6,12 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
-		"build": "tsc",
+		"build": "tsc -p tsconfig.build.json",
+		"clean": "rm -rf dist coverage node_modules",
 		"lint": "biome check",
 		"lint:fix": "biome check --fix",
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"test": "vitest run",
+		"bench": "vitest bench"
 	},
 	"author": "",
 	"license": "ISC",

@@ -22,7 +22,7 @@ export interface XHDCryptoApi {
 }
 export const init = (
 	provider: BaseProvider & { crypto: any },
-	options: ExtensionOptions,
+	_: ExtensionOptions,
 ): XHDCryptoExtension => {
 	return {
 		crypto: {
