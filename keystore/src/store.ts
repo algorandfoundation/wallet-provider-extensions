@@ -6,7 +6,10 @@ export interface KeyStoreState {
 	secrets: SecretKey[];
 }
 
-export function addSecret(store: Store<KeyStoreState>, secret: SecretKey) {
+export function addSecret(
+	store: Store<KeyStoreState>,
+	secret: SecretKey,
+): void {
 	store.setState((state) => {
 		return {
 			secrets: [secret, ...state.secrets],
@@ -14,7 +17,10 @@ export function addSecret(store: Store<KeyStoreState>, secret: SecretKey) {
 	});
 }
 
-export function removeSecret(store: Store<KeyStoreState>, secretKeyId: string) {
+export function removeSecret(
+	store: Store<KeyStoreState>,
+	secretKeyId: string,
+): void {
 	store.setState((state) => {
 		return {
 			secrets: state.secrets.filter((secret) => secret.id !== secretKeyId),
@@ -22,6 +28,9 @@ export function removeSecret(store: Store<KeyStoreState>, secretKeyId: string) {
 	});
 }
 
-export function getSecret(store: Store<KeyStoreState>, secretKeyId: string) {
+export function getSecret(
+	store: Store<KeyStoreState>,
+	secretKeyId: string,
+): SecretKey | undefined {
 	return store.state.secrets.find((secret) => secret.id === secretKeyId);
 }
