@@ -10,7 +10,9 @@
 		"lint": "biome check",
 		"lint:fix": "biome check --fix",
 		"docs": "typedoc",
-		"test": "echo \"Error: no test specified\" && exit 0"
+		"test": "vitest run",
+		"test:cov": "vitest run --coverage",
+		"bench": "vitest bench"
 	},
 	"author": "Algorand Foundation",
 	"license": "Apache-2.0",

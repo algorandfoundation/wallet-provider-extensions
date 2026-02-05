@@ -1,6 +1,5 @@
 {
   "name": "wallet-provider-extensions",
-  "version": "0.0.0",
   "description": "Collection of extensions for the Wallet Provider.",
   "workspaces": [
     "keystore/**",
@@ -26,6 +25,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
     "typedoc": "^0.28.16",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }
