@@ -1,6 +1,10 @@
 {
+  "name": "Wallet Provider Extensions",
   "entryPointStrategy": "packages",
-  "entryPoints": ["keystore"],
-
+  "entryPoints": [
+    "keystore",
+    "crypto/bip39-crypto-extension",
+    "crypto/xhd-crypto-extension"
+  ],
   "readme": "./README.md"
 }
