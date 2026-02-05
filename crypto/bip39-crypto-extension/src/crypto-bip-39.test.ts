@@ -1,6 +1,9 @@
 import type { SecretKey } from "@algorandfoundation/keystore-extension";
 import { describe, expect, it } from "vitest";
-import { init, MISSING_KEYSTORE_ERROR } from "./crypto-bip-39.js";
+import {
+	cryptoBIP39Extension,
+	MISSING_KEYSTORE_ERROR,
+} from "./crypto-bip-39.js";
 
 describe("BIP39 Crypto Extension", () => {
 	const mockProvider = {
@@ -8,7 +11,7 @@ describe("BIP39 Crypto Extension", () => {
 	} as any;
 
 	it("should throw error when keystore is missing and calling keystore-dependent methods", async () => {
-		const extension = init(mockProvider, { keystore: true });
+		const extension = cryptoBIP39Extension(mockProvider, { keystore: true });
 
 		expect(extension.crypto.bip39.add!()).rejects.toThrow(
 			MISSING_KEYSTORE_ERROR,
@@ -25,7 +28,7 @@ describe("BIP39 Crypto Extension", () => {
 	});
 
 	it("should generate a mnemonic without a keystore", async () => {
-		const extension = init(mockProvider, { keystore: false });
+		const extension = cryptoBIP39Extension(mockProvider, { keystore: false });
 		const secret = await extension.crypto.bip39.generate({ strength: 256 });
 
 		expect(secret.type).toBe("bip39");
@@ -59,7 +62,7 @@ describe("BIP39 Crypto Extension", () => {
 			keystore: mockKeystore,
 		} as any;
 
-		const extension = init(provider, { keystore: true });
+		const extension = cryptoBIP39Extension(provider, { keystore: true });
 		provider.crypto = extension.crypto;
 
 		// 1. Basic Initialization (simplified)

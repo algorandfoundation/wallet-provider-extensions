@@ -20,7 +20,7 @@ export interface XHDCryptoApi {
 	sha512_256: typeof sha512_256;
 	base32: typeof base32;
 }
-export const init = (
+export const cryptoXHDExtension = (
 	provider: BaseProvider & { crypto: any },
 	_: ExtensionOptions,
 ): XHDCryptoExtension => {

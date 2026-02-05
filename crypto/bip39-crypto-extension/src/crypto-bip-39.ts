@@ -45,7 +45,7 @@ export interface BIP39ImportOptions {
 export const MISSING_KEYSTORE_ERROR =
 	"Keystore is not available, ensure you have a keystore extension installed and declared above the crypto extension";
 
-export const init = (
+export const cryptoBIP39Extension = (
 	provider: BaseProvider & KeyStoreExtension & { crypto: any },
 	options: ExtensionOptions,
 ): BIP39CryptoExtension => {

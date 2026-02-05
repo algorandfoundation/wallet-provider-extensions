@@ -3,7 +3,7 @@ import {
 	XHDWalletAPI,
 } from "@algorandfoundation/xhd-wallet-api";
 import { describe, expect, it } from "vitest";
-import { init } from "./crypto-xhd.js";
+import { cryptoXHDExtension } from "./crypto-xhd.js";
 
 describe("XHD Crypto Extension", () => {
 	const mockProvider = {
@@ -15,7 +15,7 @@ describe("XHD Crypto Extension", () => {
 			crypto: {},
 		} as any;
 
-		const extension = init(provider, {});
+		const extension = cryptoXHDExtension(provider, {});
 		provider.crypto = extension.crypto;
 
 		// Access the XHD API
@@ -28,12 +28,12 @@ describe("XHD Crypto Extension", () => {
 	});
 
 	it("should preserve existing provider crypto", () => {
-		const extension = init(mockProvider, {});
+		const extension = cryptoXHDExtension(mockProvider, {});
 		expect((extension.crypto as any).existing).toBe("value");
 	});
 
 	it("should derive keys using XHDWalletAPI", async () => {
-		const extension = init(mockProvider, {});
+		const extension = cryptoXHDExtension(mockProvider, {});
 		const seed = new Uint8Array(32).fill(1);
 		const key = await extension.crypto.xhd.deriveKey(
 			seed,

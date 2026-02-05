@@ -1,4 +1,4 @@
-import { init } from "./crypto-xhd.js";
+import { cryptoXHDExtension } from "./crypto-xhd.js";
 
 export * from "./crypto-xhd.js";
-export default init;
+export default cryptoXHDExtension;

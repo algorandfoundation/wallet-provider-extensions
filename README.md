@@ -18,6 +18,57 @@ An extension typically consists of:
 The following extension packages are available in this workspace:
 
 - **[Keystore](./keystore)**: Securely manage cryptographic secrets and keys.
+- **[BIP-39 Crypto](./crypto/bip39-crypto-extension)**: Support for BIP-39 mnemonic generation and management.
+- **[XHD Crypto](./crypto/xhd-crypto-extension)**: Support for eXtended Hierarchical Deterministic (XHD) wallet operations.
+
+## Extension Examples
+
+### Keystore Extension
+
+The Keystore extension provides a way to manage secrets.
+
+```typescript
+// Add a secret to the keystore
+await provider.keystore.add({
+  id: "my-key-id",
+  name: "My Main Key",
+  type: "algo25",
+  value: "your secret mnemonic here...",
+});
+
+// Retrieve all secrets
+const allSecrets = provider.secrets;
+```
+
+### BIP-39 Crypto Extension
+
+The BIP-39 extension adds mnemonic generation and management capabilities.
+
+```typescript
+// Generate a new 24-word mnemonic
+const mnemonic = await provider.crypto.bip39.generate({ strength: 256 });
+
+// Import a mnemonic into the provider's keystore
+await provider.crypto.bip39.import({
+  mnemonic: "...",
+  id: "my-imported-key"
+});
+```
+
+### XHD Crypto Extension
+
+The XHD extension provides advanced cryptographic primitives and XHD wallet support.
+
+```typescript
+// Access XHD Wallet API
+const xhdApi = provider.crypto.xhd;
+
+// Use cryptographic primitives
+const hash = provider.crypto.sha512_256("data to hash");
+
+// Use base32
+const encoded = provider.crypto.base32.encode(new Uint8Array([1, 2, 3]));
+```
 
 ## Creating a New Extension
 
@@ -46,27 +97,38 @@ export interface LoggerExtension extends LoggerState {
 
 #### 2. Implement the Extension
 
+> [!IMPORTANT]
+> When using a reflective store, Extensions MUST use `Object.defineProperty` for getters to allow for capturing any state changes.
+
 ```typescript
 import { Store } from "@tanstack/store";
 import type { Provider, ExtensionOptions } from "@algorandfoundation/wallet-provider";
 
 const store = new Store<LoggerState>({ logs: [] });
 
-export const loggerExtension: (provider: Provider, options: ExtensionOptions) => LoggerExtension = () => ({
-    get logs() {
-        return store.state.logs;
-    },
-    logger: {
-        log: (message: string) => {
-            store.setState((state) => ({
-                logs: [...state.logs, `${new Date().toISOString()}: ${message}`],
-            }));
+export const loggerExtension: Extension<LoggerExtension> = (provider) => { 
+    // Capture state changes by defining the property on the provider
+    Object.defineProperty(provider, "logs", {
+        get() {
+            return store.state.logs;
         },
-        clear: () => {
-            store.setState(() => ({ logs: [] }));
+        enumerable: true,
+        configurable: true,
+    });
+
+    return {
+        logger: {
+            log: (message: string) => {
+                store.setState((state) => ({
+                    logs: [...state.logs, `${new Date().toISOString()}: ${message}`],
+                }));
+            },
+            clear: () => {
+                store.setState(() => ({ logs: [] }));
+            },
         },
-    },
-})
+    } as LoggerExtension;
+}
 
 export default loggerExtension;
 ```
@@ -76,17 +138,22 @@ export default loggerExtension;
 Extensions are designed to be used within a Wallet Provider. When initializing a provider, you can include these extensions to expose their functionality.
 
 ```typescript
-import { KeyStoreExtension } from "@algorandfoundation/keystore-extension";
-import { LoggerExtension } from "./logger-extension";
+import { KeystoreExtension } from "@algorandfoundation/keystore-extension";
+import { BIP39CryptoExtension } from "@algorandfoundation/bip39-crypto-extension";
+import { XHDCryptoExtension } from "@algorandfoundation/xhd-crypto-extension";
+import { Provider } from "@algorandfoundation/wallet-provider";
 
-// A Provider can be extended with multiple extensions
-type MyExtendedProvider = Provider & KeyStoreExtension & LoggerExtension;
+// A Provider can be extended with multiple extensions using the withExtensions static method
+const MyProvider = Provider.withExtensions([
+    KeystoreExtension, 
+    BIP39CryptoExtension, 
+    XHDCryptoExtension
+]);
 
-const provider = new Provider(...) as MyExtendedProvider;
+const provider = new MyProvider(...);
 
 // Now you can access extension APIs directly on the provider
-provider.keystore.add(mySecret);
-provider.logger.log("Secret added");
+const mnemonic = await provider.crypto.bip39.generate({ strength: 256 });
 ```
 
 

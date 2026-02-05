@@ -32,35 +32,44 @@ const store = new Store<KeyStoreState>({
 
 ### 2. Implement the Extension
 
-While the package provides types and helper functions, you can compose your extension using the provided `KeyStoreApi`.
+> [!IMPORTANT]
+> When using a reflective store, Extensions MUST use `Object.defineProperty` for getters to allow for capturing any state changes.
 
 ```typescript
 import { Extension } from "@algorandfoundation/wallet-provider";
 import { KeyStoreExtension, SecretKey, addSecret, removeSecret, getSecret } from "@algorandfoundation/keystore-extension";
 
-const keystoreExtension: Extension<KeyStoreExtension> = {
-  get secrets() {
-    return store.state.secrets;
-  },
-  keystore: {
-    add: async (key: SecretKey) => {
-      addSecret(store, key);
-      return key;
+const keystoreExtension: Extension<KeyStoreExtension> = (provider) => {
+  // Capture state changes by defining the property on the provider
+  Object.defineProperty(provider, "secrets", {
+    get() {
+      return store.state.secrets;
     },
-    remove: async (id: string) => {
-      removeSecret(store, id);
-    },
-    import: async (key: SecretKey) => {
-      // Implement specific import logic here
-      addSecret(store, key);
-      return key;
-    },
-    export: async (id: string) => {
-      const key = getSecret(store, id);
-      if (!key) throw new Error("Key not found");
-      return key;
+    enumerable: true,
+    configurable: true,
+  });
+
+  return {
+    keystore: {
+      add: async (key: SecretKey) => {
+        addSecret(store, key);
+        return key;
+      },
+      remove: async (id: string) => {
+        removeSecret(store, id);
+      },
+      import: async (key: SecretKey) => {
+        // Implement specific import logic here
+        addSecret(store, key);
+        return key;
+      },
+      export: async (id: string) => {
+        const key = getSecret(store, id);
+        if (!key) throw new Error("Key not found");
+        return key;
+      }
     }
-  }
+  } as KeyStoreExtension;
 };
 ```
 
@@ -69,12 +78,8 @@ const keystoreExtension: Extension<KeyStoreExtension> = {
 ```typescript
 import { Provider } from "@algorandfoundation/wallet-provider";
 
-const provider = new Provider(...) as Provider & KeyStoreExtension;
-// Assign the extension to the provider instance
-Object.defineProperties(
-  provider,
-  Object.getOwnPropertyDescriptors(keystoreExtension),
-);
+const MyProvider = Provider.withExtensions([keystoreExtension]);
+const provider = new MyProvider(...) as any;
 
 // Access keystore methods
 await provider.keystore.add({

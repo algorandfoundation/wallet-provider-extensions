@@ -5,13 +5,15 @@
     "keystore/**",
     "crypto/**"
   ],
+  "type": "module",
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "docs": "typedoc",
-    "test": "npm run test --workspaces --if-present"
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage"
   },
   "repository": {
     "type": "git",
