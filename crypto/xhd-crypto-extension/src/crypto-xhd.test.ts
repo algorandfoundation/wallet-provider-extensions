@@ -1,6 +1,9 @@
-import {BIP32DerivationType, XHDWalletAPI} from "@algorandfoundation/xhd-wallet-api";
-import {describe, expect, it} from "vitest";
-import {init} from "./crypto-xhd.js";
+import {
+	BIP32DerivationType,
+	XHDWalletAPI,
+} from "@algorandfoundation/xhd-wallet-api";
+import { describe, expect, it } from "vitest";
+import { init } from "./crypto-xhd.js";
 
 describe("XHD Crypto Extension", () => {
 	const mockProvider = {
@@ -32,7 +35,12 @@ describe("XHD Crypto Extension", () => {
 	it("should derive keys using XHDWalletAPI", async () => {
 		const extension = init(mockProvider, {});
 		const seed = new Uint8Array(32).fill(1);
-		const key = await extension.crypto.xhd.deriveKey(seed, [], false, BIP32DerivationType.Peikert);
+		const key = await extension.crypto.xhd.deriveKey(
+			seed,
+			[],
+			false,
+			BIP32DerivationType.Peikert,
+		);
 		expect(key).toBeInstanceOf(Uint8Array);
 		expect(key.length).toBeGreaterThan(0);
 	});
