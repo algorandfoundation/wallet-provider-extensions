@@ -31,6 +31,18 @@ const provider = new Provider({
 
 // Access the XHD API
 const xhdApi = provider.crypto.xhd;
+
+// Generate a key (using a 96-byte extended root key)
+const publicKey = await xhdApi.keyGen(
+    rootKey,
+    0, // KeyContext.Address
+    0, // account
+    0  // keyIndex
+);
+
+// Use cryptographic primitives
+const hash = provider.crypto.sha512_256("data to hash");
+const encoded = provider.crypto.base32.encode(new Uint8Array([1, 2, 3]));
 ```
 
 ## API Reference

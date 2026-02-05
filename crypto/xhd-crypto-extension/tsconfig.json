@@ -26,5 +26,5 @@
 		"allowImportingTsExtensions": true,
 		"rewriteRelativeImportExtensions": true
 	},
-	"include": ["src/**/*"]
+	"include": ["src/**/*", "README.test.ts"]
 }

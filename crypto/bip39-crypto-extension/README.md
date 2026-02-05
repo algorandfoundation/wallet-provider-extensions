@@ -51,7 +51,7 @@ await provider.crypto.bip39.import({
 });
 
 // List and remove
-const mySecrets = provider.keystore.secrets;
+const mySecrets = provider.secrets;
 await provider.crypto.bip39.remove(secret.id);
 ```
 

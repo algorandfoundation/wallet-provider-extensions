@@ -35,9 +35,10 @@ const store = new Store<KeyStoreState>({
 While the package provides types and helper functions, you can compose your extension using the provided `KeyStoreApi`.
 
 ```typescript
+import { Extension } from "@algorandfoundation/wallet-provider";
 import { KeyStoreExtension, SecretKey, addSecret, removeSecret, getSecret } from "@algorandfoundation/keystore-extension";
 
-const keystoreExtension: KeyStoreExtension = {
+const keystoreExtension: Extension<KeyStoreExtension> = {
   get secrets() {
     return store.state.secrets;
   },
@@ -70,7 +71,10 @@ import { Provider } from "@algorandfoundation/wallet-provider";
 
 const provider = new Provider(...) as Provider & KeyStoreExtension;
 // Assign the extension to the provider instance
-Object.assign(provider, keystoreExtension);
+Object.defineProperties(
+  provider,
+  Object.getOwnPropertyDescriptors(keystoreExtension),
+);
 
 // Access keystore methods
 await provider.keystore.add({
