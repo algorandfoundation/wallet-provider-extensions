@@ -16,7 +16,8 @@
 	"license": "Apache-2.0",
 	"dependencies": {
 		"@algorandfoundation/wallet-provider": "0.0.1",
-		"before-after-hook": "^4.0.0"
+		"before-after-hook": "^4.0.0",
+		"uuid": "^8.3.2"
 	},
 	"peerDependencies": {
 		"@algorandfoundation/keystore-extension": "0.0.1"
