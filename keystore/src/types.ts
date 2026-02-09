@@ -227,8 +227,6 @@ export interface KeyStoreBackend {
 export interface KeyStoreConfig {
 	/** Which backend to use for operations */
 	backend?: KeyStoreBackend;
-	/** Hooks to run before/after operations (e.g., logging) */
-	middleware?: Middleware[];
 	/** Turn on basic auditing */
 	enableAudit?: boolean;
 	/** How to handle data encryption */
@@ -258,20 +256,6 @@ export interface AuditEvent {
 	/** Tamper-proof hash */
 	hmac?: string;
 }
-
-/**
- * Middleware function for pre/post operation hooks.
- *
- * Use case: Log all signing operations.
- */
-export type Middleware = (
-	/** Operation name */
-	operation: string,
-	/** Parameters passed to operation */
-	params: any[],
-	/** Function to call next middleware or operation */
-	next: () => Promise<any>,
-) => Promise<any>;
 
 /**
  * Configuration for data encryption.
