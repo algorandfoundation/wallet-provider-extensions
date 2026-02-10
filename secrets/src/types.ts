@@ -1,3 +1,4 @@
+export type SecretId = string;
 export type SecretType = "algo25" | "bip39" | "intermezzo" | "pera" | string; // Future examples could be Tokens for any service such as Algod/Indexer
 
 /**
@@ -20,7 +21,7 @@ export interface Secret {
 	 * A unique identifier represented as a string.
 	 * This value is used to uniquely distinguish a secret.
 	 */
-	id: string;
+	id: SecretId;
 	/**
 	 *  A human-readable name or label associated with the secret key.
 	 */
