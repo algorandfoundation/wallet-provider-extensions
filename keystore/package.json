@@ -1,5 +1,5 @@
 {
-	"name": "@algorandfoundation/keystore-extension",
+	"name": "@algorandfoundation/key-store-extension",
 	"version": "0.0.1",
 	"description": "Basic Keystore Extension for the Wallet Provider.",
 	"type": "module",
@@ -16,7 +16,7 @@
 		}
 	},
 	"scripts": {
-		"build": "tsc",
+		"build": "tsc -p tsconfig.build.json",
 		"lint": "biome check",
 		"lint:fix": "biome check --fix",
 		"docs": "typedoc",
@@ -26,9 +26,11 @@
 	"license": "Apache-2.0",
 	"dependencies": {
 		"@algorandfoundation/dp256": "^1.1.0",
+		"@algorandfoundation/secret-store": "0.0.1",
 		"@algorandfoundation/wallet-provider": "0.0.1",
 		"@algorandfoundation/xhd-wallet-api": "^2.0.0-canary.1",
-		"@tanstack/store": "^0.8.0"
+		"@tanstack/store": "^0.8.0",
+		"before-after-hook": "^4.0.0"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",

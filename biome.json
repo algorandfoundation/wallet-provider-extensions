@@ -6,7 +6,8 @@
 		"useIgnoreFile": false
 	},
 	"files": {
-		"ignoreUnknown": false
+		"ignoreUnknown": false,
+		"includes": [ "**","!!**/dist", "!!**/node_modules", "!!**/coverage"]
 	},
 	"formatter": {
 		"enabled": true,
@@ -18,7 +19,11 @@
 			"recommended": true,
 			"suspicious": {
 				"noExplicitAny": "off"
+			},
+			"style": {
+				"noNonNullAssertion": "off"
 			}
+
 		}
 	},
 	"javascript": {

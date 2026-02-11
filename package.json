@@ -4,10 +4,12 @@
   "description": "Collection of extensions for the Wallet Provider.",
   "workspaces": [
     "keystore/**",
-    "crypto/**"
+    "crypto/**",
+    "provider/**",
+    "secrets/**"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "npm run build -w @algorandfoundation/wallet-provider && npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "docs": "typedoc",
@@ -30,6 +32,7 @@
     "@types/jest": "^30.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^25.2.2",
+    "@types/uuid": "^10.0.0",
     "typedoc": "^0.28.16",
     "typescript": "^5.9.3"
   }
