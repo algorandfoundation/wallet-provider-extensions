@@ -9,13 +9,14 @@
     "connections/walletconnect",
     "connections/liquid-auth",
     "passkeys/store",
+    "passkeys/keystore-extension",
     "accounts/**",
     "keystore/**",
     "!keystore/react-native/lib/**",
     "examples/**"
   ],
   "scripts": {
-    "build": "npm run build -w @algorandfoundation/log-store && npm run build -w @algorandfoundation/connections-store && npm run build -w @algorandfoundation/walletconnect-connection && npm run build -w @algorandfoundation/liquid-auth-connection && npm run build -w @algorandfoundation/passkey-store && npm run build -w @algorandfoundation/keystore && npm run build -w @algorandfoundation/accounts-store && npm run build --workspaces --if-present",
+    "build": "npm run build -w @algorandfoundation/log-store && npm run build -w @algorandfoundation/connections-store && npm run build -w @algorandfoundation/walletconnect-connection && npm run build -w @algorandfoundation/liquid-auth-connection && npm run build -w @algorandfoundation/passkey-store && npm run build -w @algorandfoundation/passkeys-keystore-extension && npm run build -w @algorandfoundation/keystore && npm run build -w @algorandfoundation/accounts-store && npm run build --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present && rm -rf coverage node_modules docs",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",

@@ -23,6 +23,7 @@ The following extension packages are available in this workspace:
 - **[React Native Keystore](./keystore/react-native)**: Secure implementation for React Native using Keychain/MMKV.
 - **[Connection Store](./connections/store)**: Core types and interfaces for connection management.
 - **[Passkey Store](./passkeys/store)**: Core types and interfaces for passkey management.
+- **[Passkey Keystore Bridge](./passkeys/keystore-extension)**: Bridge between Keystore and Passkey Store.
 - **[WalletConnect Connection](./connections/walletconnect)**: Implementation of WalletConnect for connection management.
 - **[Liquid Auth Connection](./connections/liquid-auth)**: Implementation of Liquid Auth for connection management.
 - **[Log Store](./log)**: Generalized logging extension for tracking wallet activity.
