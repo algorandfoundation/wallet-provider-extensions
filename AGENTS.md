@@ -10,6 +10,12 @@ This document outlines the architectural and engineering principles for the Wall
 - **Hooks**: A mechanism for intercepting and modifying the behavior of API methods. Hooks allow for before-and-after introspection and manipulation of data without altering the core method logic.
 - **Options**: `ProviderOptions` and `ExtensionOptions` are passed into the provider and extensions respectively to configure their behavior.
 
+## Package and Namespace Conventions
+
+- **Store Packages**: Each store should have its own package with a name following the pattern `@algorandfoundation/<domain>-store`. The package should contain the store's implementation and any necessary dependencies. It should be located at `<domain>/store` to align with its namespace
+- **Extension Packages**: Each extension should have its own package with a name following the pattern `@algorandfoundation/<domain>-<extension-name>-extension`. The package should contain the extension's implementation and any necessary dependencies.
+- **Namespaces**: Namespaces should be used to organize related types and interfaces within a Provider instance. All namespaces are scoped to a `<domain>`, for example, the Provider instance will have a `account.store` when it includes the AccountStoreExtension
+
 ## File Naming Conventions
 
 To maintain consistency across the codebase, follow these naming conventions:

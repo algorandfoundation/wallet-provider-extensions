@@ -1,0 +1,54 @@
+{
+	"name": "@algorandfoundation/walletconnect-connection-extension",
+	"version": "1.0.0-canary.0",
+	"description": "WalletConnect connection implementation for extensions",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"sideEffects": true,
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"build:watch": "tsc -p tsconfig.build.json --watch",
+		"clean": "rm -rf dist coverage node_modules docs",
+		"lint": "biome check",
+		"lint:fix": "biome check --fix",
+		"docs": "typedoc",
+		"test": "vitest run",
+		"test:cov": "vitest run --coverage",
+		"bench": "vitest bench",
+		"release": "package-releaser --dry-run"
+	},
+	"author": "Algorand Foundation",
+	"license": "Apache-2.0",
+	"publishConfig": {
+		"access": "public",
+		"provenance": false
+	},
+	"dependencies": {
+		"@algorandfoundation/connections-store": "^1.0.0-canary.0",
+		"@algorandfoundation/wallet-provider": "^1.0.0-canary.3",
+		"@walletconnect/sign-client": "^2.23.6",
+		"@walletconnect/types": "^2.23.6",
+		"@walletconnect/utils": "^2.23.6"
+	},
+	"devDependencies": {
+		"@algorandfoundation/package-releaser": "0.0.1",
+		"@tanstack/store": "^0.8.0",
+		"before-after-hook": "^4.0.0"
+	},
+	"peerDependencies": {
+		"@tanstack/store": "^0.8.0",
+		"before-after-hook": "^4.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"directory": "connections/walletconnect",
+		"url": "https://github.com/algorandfoundation/wallet-provider-extensions.git"
+	}
+}
