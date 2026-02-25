@@ -19,6 +19,9 @@ describe("WithPasskeysKeystore", () => {
 			passkey: {
 				store: {
 					addPasskey: mockAddPasskey,
+					hooks: {
+						before: vi.fn(),
+					},
 				},
 			},
 			key: {
@@ -75,6 +78,9 @@ describe("WithPasskeysKeystore", () => {
 			passkey: {
 				store: {
 					addPasskey: mockAddPasskey,
+					hooks: {
+						before: vi.fn(),
+					},
 				},
 			},
 			key: {

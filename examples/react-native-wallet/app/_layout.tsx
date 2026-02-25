@@ -7,6 +7,8 @@ import {fetchSecret, getMasterKey, storage} from "@algorandfoundation/react-nati
 import {initializeKeyStore, Key, KeyData, KeyStoreState, setStatus} from "@algorandfoundation/keystore";
 import { Store } from "@tanstack/store";
 import {accountsStore} from "@/stores/accounts";
+import {passkeysStore} from "@/stores/passkeys";
+import {connectionsStore} from "@/stores/connections";
 
 install();
 
@@ -31,6 +33,24 @@ export default function RootLayout() {
     keystore: {
       store: keyStore,
       hooks: keyStoreHooks
+    },
+    passkeys: {
+      store: passkeysStore,
+    },
+    connections: {
+      store: connectionsStore,
+    },
+    walletconnect: {
+      projectId: '72565985012580a1380967396a40c6a2', // Placeholder
+      metadata: {
+        name: 'React Native Wallet',
+        description: 'Algorand Wallet',
+        url: 'https://algorand.foundation',
+        icons: ['https://algorand.foundation/favicon.png']
+      }
+    },
+    liquidAuth: {
+      endpoint: 'https://liquid-auth.algorand.foundation'
     }
-  })}><Stack /></AlgorandProvider>;
+  })}><Stack screenOptions={{animation: 'none', headerShown: false}} /></AlgorandProvider>;
 }

@@ -7,6 +7,11 @@ import type {KeyStoreAPI, Key} from "@algorandfoundation/keystore";
 import {type LogMessage, WithLogStore, type LogStoreApi} from "@algorandfoundation/log-store";
 import type {keyStoreHooks} from "@/stores/before-after";
 import {WithAccountsKeystore} from "@algorandfoundation/accounts-keystore-extension";
+import {WithConnectionStore, Connection, ConnectionStoreApi} from "@algorandfoundation/connections-store";
+import {WithPasskeyStore, Passkey, PasskeyStoreApi} from "@algorandfoundation/passkey-store";
+import {WithPasskeysKeystore} from "@algorandfoundation/passkeys-keystore-extension";
+import {WithWalletConnect, WalletConnectApi} from "@algorandfoundation/walletconnect-connection-extension";
+import {WithLiquidAuth, LiquidAuthApi} from "@algorandfoundation/liquid-auth-connection-extension";
 
 
 export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXTENSIONS> {
@@ -14,11 +19,18 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
         WithLogStore,
         WithKeyStore,
         WithAccountStore,
-        WithAccountsKeystore
+        WithAccountsKeystore,
+        WithConnectionStore,
+        WithPasskeyStore,
+        WithPasskeysKeystore,
+        WithWalletConnect,
+        WithLiquidAuth
     ] as const
 
     keys!: Key[]
     accounts!: Account[]
+    passkeys!: Passkey[]
+    connections!: Connection[]
     logs!: LogMessage[]
     status!: string
 
@@ -29,6 +41,14 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
     key!: {
         store: KeyStoreAPI & {clear: () => Promise<void>, hooks: typeof keyStoreHooks}
     }
+    passkey!: {
+        store: PasskeyStoreApi
+    }
+    connection!: {
+        store: ConnectionStoreApi
+    }
+    walletconnect!: WalletConnectApi
+    liquidAuth!: LiquidAuthApi
     log!: LogStoreApi
 }
 

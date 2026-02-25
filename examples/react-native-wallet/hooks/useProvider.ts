@@ -9,17 +9,6 @@ export function useProvider(){
     const provider = useContext(AlgorandContext);
     if(provider === null) throw new Error('No Provider Found')
 
-    useEffect(() => {
-        function beforeGenerate(){
-            console.log('Hooking into before generate')
-        }
-        provider.key.store.hooks.before('generate', beforeGenerate)
-
-        return ()=> {
-            provider.key.store.hooks.remove('generate', beforeGenerate)
-        }
-    }, []);
-
     // Hydrate the store in the context (React)
     const keys = useStore(keyStore, (state)=>state.keys);
     const status = useStore(keyStore, (state)=>state.status)

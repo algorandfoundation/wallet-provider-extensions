@@ -153,6 +153,15 @@ export const WithLiquidAuth: Extension<LiquidAuthExtension> = (
 		},
 	};
 
+	connectionStore.hooks.before("clear", async () => {
+		const connections = provider.connections.filter(
+			(c) => !!(c as LiquidAuthConnection).address,
+		);
+		for (const c of connections) {
+			await liquidAuth.disconnect(c.id);
+		}
+	});
+
 	return {
 		liquidAuth,
 	} as LiquidAuthExtension;

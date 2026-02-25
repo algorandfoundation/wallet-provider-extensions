@@ -73,13 +73,12 @@ export async function commit({
 	try {
 		// Never allow the master key to touch memory.
 		storage.set(keyData.id, encryptData(await getMasterKey(), encode(keyData)));
+
 		// remove the private keys from keyData
-		const { privateKey, publicKey, ...keyState } = keyData;
-		// clear then delete the keys from the keyData object to remove it from memory, even from the caller 😈
+		const { privateKey, ...keyState } = keyData;
+		// clear then delete the private key from the keyData object to remove it from memory
 		clearBuffer(privateKey);
-		clearBuffer(publicKey);
 		delete keyData.privateKey;
-		delete keyData.publicKey;
 
 		// Reflect the change in the reactive store
 		store.setState((state) => ({

@@ -32,7 +32,7 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
-		"directory": "accounts/keystore-extension"
+		"directory": "accounts/keystore"
 	},
 	"dependencies": {
 		"@algorandfoundation/wallet-provider": "^1.0.0-canary.3",

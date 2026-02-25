@@ -18,6 +18,9 @@ describe("WithAccountsKeystore", () => {
 			account: {
 				store: {
 					addAccount: mockAddAccount,
+					hooks: {
+						before: vi.fn(),
+					},
 				},
 			},
 			key: {
@@ -49,6 +52,7 @@ describe("WithAccountsKeystore", () => {
 		const addedAccount = mockAddAccount.mock.calls[0][0];
 		expect(addedAccount.address).toBe(mockAddress);
 		expect(addedAccount.metadata.keyId).toBe(mockAddress);
+		// Note: parentKeyId is undefined in this mock because mockKey doesn't have it in metadata
 	});
 
 	it("should provide a sign method that calls keystore.sign", async () => {
@@ -67,6 +71,9 @@ describe("WithAccountsKeystore", () => {
 			account: {
 				store: {
 					addAccount: mockAddAccount,
+					hooks: {
+						before: vi.fn(),
+					},
 				},
 			},
 			key: {
@@ -118,6 +125,9 @@ describe("WithAccountsKeystore", () => {
 			account: {
 				store: {
 					addAccount: mockAddAccount,
+					hooks: {
+						before: vi.fn(),
+					},
 				},
 			},
 			key: {
@@ -181,6 +191,9 @@ describe("WithAccountsKeystore", () => {
 			account: {
 				store: {
 					addAccount: mockAddAccount,
+					hooks: {
+						before: vi.fn(),
+					},
 				},
 			},
 			key: {

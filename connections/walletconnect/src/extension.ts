@@ -88,6 +88,15 @@ export const WithWalletConnect: Extension<WalletConnectExtension> = (
 		},
 	};
 
+	connectionStore.hooks.before("clear", async () => {
+		const connections = provider.connections.filter(
+			(c) => !!(c as WalletConnectConnection).topic,
+		);
+		for (const c of connections) {
+			await walletconnect.disconnect((c as WalletConnectConnection).topic);
+		}
+	});
+
 	return {
 		walletconnect,
 	} as WalletConnectExtension;

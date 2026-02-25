@@ -1,5 +1,5 @@
 {
-	"name": "@algorandfoundation/liquid-auth-connection",
+	"name": "@algorandfoundation/liquid-auth-connection-extension",
 	"version": "1.0.0-canary.0",
 	"description": "Liquid Auth connection for extensions",
 	"type": "module",

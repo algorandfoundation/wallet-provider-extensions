@@ -6,40 +6,33 @@ import {
     SafeAreaView,
     ScrollView,
     StatusBar,
-    ActivityIndicator,
     Alert
 } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import {useProvider} from "@/hooks/useProvider";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import {randomBytes} from "react-native-quick-crypto";
-import {useState, useEffect} from "react";
 import { Link } from "expo-router";
+import { useState, useEffect } from "react";
 import { useSeedColors } from "@/hooks/useSeedColors";
 
-// No LayoutAnimation needed anymore
+const ROOT_COLORS = ['#007AFF', '#34C759', '#5856D6', '#AF52DE', '#FF9500', '#FF3B30', '#FFCC00', '#5AC8FA'];
 
-export default function Index() {
-    const {keys, key, status} = useProvider();
-
-    const [activeKey, setActiveKey] = useState<string | null>(null);
+export default function Passkeys() {
+    const {passkeys, status, passkey, keys, key, accounts} = useProvider();
     const [activeSeed, setActiveSeed] = useState<string | null>(null);
+    const [activeAccount, setActiveAccount] = useState<string | null>(null);
 
     const rootKeyColors = useSeedColors(keys);
 
     const seeds = keys.filter(k => k.type === 'hd-seed');
     const rootKeys = keys.filter(k => k.type === 'hd-root-key');
-    const derivedKeys = keys.filter(k => k.type !== 'hd-seed' && k.type !== 'hd-root-key');
 
-    // Effect to set the first root key as active if the current active seed is removed
     useEffect(() => {
         if (rootKeys.length > 0) {
-            // Check if activeSeed is null or if it no longer exists in rootKeys
             if (!activeSeed || !rootKeys.some(k => k.id === activeSeed)) {
                 setActiveSeed(rootKeys[0].id);
             }
         } else if (seeds.length > 0) {
-            // Fallback to seeds if no root keys
             if (!activeSeed || !seeds.some(k => k.id === activeSeed)) {
                 setActiveSeed(seeds[0].id);
             }
@@ -48,68 +41,52 @@ export default function Index() {
         }
     }, [rootKeys, seeds, activeSeed]);
 
-    const handleAddKey = async () => {
+    useEffect(() => {
+        if (accounts.length > 0) {
+            if (!activeAccount || !accounts.some(a => a.address === activeAccount)) {
+                setActiveAccount(accounts[0].address);
+            }
+        } else if (activeAccount !== null) {
+            setActiveAccount(null);
+        }
+    }, [accounts, activeAccount]);
+
+    const handleGeneratePasskey = async () => {
         if(!activeSeed) {
-            Alert.alert('No Seed Selected', 'Please import a seed');
+            Alert.alert('No Seed Selected', 'Please import or select a seed first');
             return;
         }
-        // Pick the next available index for the derived key
-        const nextIndex = keys.filter(k => k.type === 'hd-derived-ed25519' && k?.metadata?.parentKeyId === activeSeed).length;
-        console.log('Next index:', nextIndex, keys.filter(k => k.type === 'hd-derived-ed25519'));
-        const keyId = await key.store.generate({
-            type: 'hd-derived-ed25519',
-            algorithm: 'EdDSA',
-            extractable: true,
-            keyUsages: ['sign', "verify"],
-            params: {
-                parentKeyId: activeSeed,
-                context: 0,
-                account: 0,
-                index: nextIndex,
-                derivation: 9
-            }
-        })
 
-        setActiveKey(keyId);
-    };
+        if(!activeAccount) {
+            Alert.alert('No Account Selected', 'Please create an account first');
+            return;
+        }
 
-    const handleImportSeed = async () => {
-        const keyId = await key.store.import({
-            type: 'hd-seed',
-            algorithm: 'raw',
-            extractable: true,
-            keyUsages: ['deriveKey', 'deriveBits'],
-            privateKey: new Uint8Array(randomBytes(64))
-        }, 'bytes')
+        try {
+            const keyId = await key.store.generate({
+                type: 'hd-derived-passkey',
+                algorithm: 'P256', // Example algorithm
+                extractable: true,
+                keyUsages: ['sign', 'verify'],
+                params: {
+                    parentKeyId: activeSeed,
+                    origin: 'https://example.com',
+                    userHandle: activeAccount,
+                }
+            });
 
-        const rootKeyId = await key.store.generate({
-            type: 'hd-root-key',
-            algorithm: 'raw',
-            extractable: true,
-            keyUsages: ['deriveKey', 'deriveBits'],
-            params: {
-                parentKeyId: keyId
-            }
-        })
-
-        setActiveSeed(rootKeyId);
+            // The passkey store bridge (WithPasskeysKeystore) should automatically pick this up
+            console.log('Generated key for passkey:', keyId);
+        } catch (error: any) {
+            Alert.alert('Generation Failed', error.message);
+        }
     }
 
-    const handleExportKey = async (id: string) => {
+    const handleRemovePasskey = async (id: string) => {
         try {
-            const keyData = await key.store.export(id);
-            Alert.alert(
-                "Key Material",
-                JSON.stringify(keyData, (_key, value) => {
-                    if (value instanceof Uint8Array) {
-                        return Array.from(value).map(b => b.toString(16).padStart(2, '0')).join('');
-                    }
-                    return value;
-                }, 2),
-                [{ text: "OK" }]
-            );
+            await passkey.store.removePasskey(id);
         } catch (error: any) {
-            Alert.alert("Export Failed", error.message);
+            console.error("Failed to remove passkey", error);
         }
     }
 
@@ -118,25 +95,24 @@ export default function Index() {
             <StatusBar barStyle="dark-content" />
             <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
                 <View>
-                    <Text style={styles.welcomeText}>Keystore Status</Text>
+                    <Text style={styles.welcomeText}>Manage Passkeys</Text>
                     <View style={styles.statusBadge}>
                         <View style={[styles.statusDot, { backgroundColor: status === 'idle' ? '#4CAF50' : status === 'generating' ? '#FF9800' : '#999' }]} />
                         <Text style={styles.statusText}>{status}</Text>
                     </View>
                 </View>
-                {status === 'computing' && <ActivityIndicator size="small" color="#007AFF" style={{ marginLeft: 10 }} />}
             </Animated.View>
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View>
                     <View style={styles.balanceCard}>
                         <Animated.View entering={FadeIn.duration(300)} style={{ alignItems: 'center', width: '100%' }}>
-                            <Text style={styles.balanceLabel}>Secure Keystore</Text>
-                            <Text style={styles.balanceAmount}>{keys.length} Keys</Text>
+                            <Text style={styles.balanceLabel}>Total Passkeys</Text>
+                            <Text style={styles.balanceAmount}>{passkeys.length}</Text>
                             <View style={styles.actionButtons}>
                                 <TouchableOpacity
                                     style={[styles.actionButton, status === 'computing' && {opacity: 0.5}]}
-                                    onPress={handleAddKey}
+                                    onPress={handleGeneratePasskey}
                                     disabled={status !== 'idle'}
                                 >
                                     <View style={[styles.iconCircle, {backgroundColor: '#FFFFFF'}]}>
@@ -144,13 +120,7 @@ export default function Index() {
                                     </View>
                                     <Text style={styles.actionText}>Generate</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity style={styles.actionButton} onPress={handleImportSeed} disabled={status !== 'idle'}>
-                                    <View style={[styles.iconCircle, {backgroundColor: '#FFFFFF'}]}>
-                                        <MaterialCommunityIcons name="import" size={24} color="#4CAF50" />
-                                    </View>
-                                    <Text style={styles.actionText}>Import</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.actionButton} onPress={() => key.store.clear()} disabled={status !== 'idle'}>
+                                <TouchableOpacity style={styles.actionButton} onPress={() => passkey.store.clear()} disabled={status !== 'idle'}>
                                     <View style={[styles.iconCircle, {backgroundColor: '#FFFFFF'}]}>
                                         <MaterialCommunityIcons name="delete-sweep-outline" size={24} color="#FF9800" />
                                     </View>
@@ -162,19 +132,19 @@ export default function Index() {
 
                     <View style={styles.navGroupContainer}>
                         <View style={styles.navGroup}>
-                            <View style={[styles.navButton, styles.activeNavButton]}>
-                                <MaterialCommunityIcons name="key" size={20} color="#FFF" />
-                            </View>
+                            <Link href="/" asChild>
+                                <TouchableOpacity style={styles.navButton}>
+                                    <MaterialCommunityIcons name="key" size={20} color="#007AFF" />
+                                </TouchableOpacity>
+                            </Link>
                             <Link href="/accounts" asChild>
                                 <TouchableOpacity style={styles.navButton}>
                                     <MaterialCommunityIcons name="account-group" size={20} color="#007AFF" />
                                 </TouchableOpacity>
                             </Link>
-                            <Link href="/passkeys" asChild>
-                                <TouchableOpacity style={styles.navButton}>
-                                    <MaterialCommunityIcons name="fingerprint" size={20} color="#007AFF" />
-                                </TouchableOpacity>
-                            </Link>
+                            <View style={[styles.navButton, styles.activeNavButton]}>
+                                <MaterialCommunityIcons name="fingerprint" size={20} color="#FFF" />
+                            </View>
                             <Link href="/connections" asChild>
                                 <TouchableOpacity style={styles.navButton}>
                                     <MaterialCommunityIcons name="link-variant" size={20} color="#007AFF" />
@@ -184,18 +154,18 @@ export default function Index() {
                     </View>
                 </View>
 
-                <Animated.Text entering={FadeIn.delay(200).duration(300)} style={styles.sectionTitle}>Derived Keys</Animated.Text>
-                {derivedKeys.length === 0 ? (
+                <Animated.Text entering={FadeIn.delay(200).duration(300)} style={styles.sectionTitle}>Passkeys</Animated.Text>
+                {passkeys.length === 0 ? (
                     <Animated.View
                         entering={FadeIn}
                         exiting={FadeOut}
                         style={styles.emptyState}
                     >
-                        <Text style={styles.emptyStateText}>No derived keys yet.</Text>
+                        <Text style={styles.emptyStateText}>No passkeys found.</Text>
                     </Animated.View>
                 ) : (
-                    derivedKeys.map((item, i) => {
-                        const parentColor = rootKeyColors[item.metadata?.parentKeyId as string] || '#666';
+                    passkeys.map((item, i) => {
+                        const parentColor = rootKeyColors[item.metadata?.parentKeyId as string] || '#007AFF';
                         return (
                             <Animated.View
                                 key={item.id || i}
@@ -203,52 +173,88 @@ export default function Index() {
                                 exiting={FadeOut.duration(150)}
                                 layout={LinearTransition.springify()}
                             >
+                                <View style={styles.passkeyCard}>
+                                    <View style={styles.passkeyInfo}>
+                                        <View style={[styles.passkeyIconContainer, { backgroundColor: `${parentColor}15` }]}>
+                                            <MaterialCommunityIcons
+                                                name="fingerprint"
+                                                size={24}
+                                                color={parentColor}
+                                            />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.passkeyName, { color: parentColor }]} numberOfLines={1}>
+                                                {item.name || 'Unnamed Passkey'}
+                                            </Text>
+                                            <Text style={styles.passkeyId} numberOfLines={1} ellipsizeMode="middle">
+                                                {item.id}
+                                            </Text>
+                                            {item.metadata?.userHandle && (
+                                                <Text style={styles.passkeyMetadata} numberOfLines={1} ellipsizeMode="middle">Handle: {item.metadata.userHandle}</Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                    <View style={styles.passkeyActions}>
+                                        <TouchableOpacity onPress={() => handleRemovePasskey(item.id)}>
+                                            <MaterialCommunityIcons name="delete-outline" size={24} color="#FF3B30" />
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            </Animated.View>
+                        );
+                    })
+                )}
+
+                <Animated.Text entering={FadeIn.delay(200).duration(300)} style={styles.sectionTitle}>Accounts</Animated.Text>
+                {accounts.length === 0 ? (
+                    <Animated.View
+                        entering={FadeIn}
+                        exiting={FadeOut}
+                        style={styles.emptyState}
+                    >
+                        <Text style={styles.emptyStateText}>No accounts found. Create one in Accounts view.</Text>
+                    </Animated.View>
+                ) : (
+                    accounts.map((item, i) => {
+                        const parentColor = rootKeyColors[item.metadata?.parentKeyId as string] || '#8E8E93';
+                        const isActive = activeAccount === item.address;
+                        return (
+                            <Animated.View
+                                key={item.address || i}
+                                entering={FadeIn.duration(150)}
+                                exiting={FadeOut.duration(150)}
+                                layout={LinearTransition.springify()}
+                            >
                                 <TouchableOpacity
                                     style={[
-                                        styles.keyCard,
-                                        activeKey === item.id && styles.activeKeyCard,
-                                        activeKey === item.id && { borderColor: parentColor }
+                                        styles.accountCard,
+                                        isActive && styles.activeAccountCard,
+                                        isActive && { borderColor: parentColor }
                                     ]}
-                                    onPress={() => setActiveKey(item.id)}
+                                    onPress={() => setActiveAccount(item.address)}
                                 >
-                                    <View style={styles.keyInfo}>
+                                    <View style={styles.accountInfo}>
                                         <View style={[
-                                            styles.keyIconContainer,
+                                            styles.accountIconContainer,
                                             { backgroundColor: `${parentColor}15` }
                                         ]}>
                                             <MaterialCommunityIcons
-                                                name="key"
-                                                size={20}
-                                                color={activeKey === item.id ? parentColor : `${parentColor}80`}
+                                                name="account"
+                                                size={24}
+                                                color={isActive ? parentColor : `${parentColor}80`}
                                             />
                                         </View>
-                                        <View>
+                                        <View style={{ flex: 1 }}>
                                             <Text style={[
-                                                styles.keyType,
-                                                activeKey === item.id && styles.activeKeyType,
-                                                activeKey === item.id && { color: parentColor }
-                                            ]}>
-                                                {item.type}
-                                                {item.type === 'hd-derived-ed25519' && item.metadata && (
-                                                    <Text style={styles.keyIndex}> (a:{item.metadata.account as number} i:{item.metadata.index as number})</Text>
-                                                )}
-                                                {(item as any).privateKey && (
-                                                    <MaterialCommunityIcons name="alert-circle" size={16} color="#FF3B30" style={styles.warningIcon} />
-                                                )}
+                                                styles.accountAddress,
+                                                { color: isActive ? parentColor : '#1A1A1A', fontWeight: isActive ? 'bold' : '500' }
+                                            ]} numberOfLines={1} ellipsizeMode="middle">
+                                                {item.address}
                                             </Text>
-                                            <Text style={styles.keyAddress}>{item.algorithm}</Text>
-                                        </View>
-                                    </View>
-                                    <View style={styles.keyActions}>
-                                        <TouchableOpacity onPress={() => handleExportKey(item.id)} style={styles.actionIcon}>
-                                            <MaterialCommunityIcons name="export-variant" size={24} color="#007AFF" />
-                                            {item.extractable && (
-                                                <View style={styles.exportBadgeSmall} />
+                                            {item.metadata?.name && (
+                                                <Text style={styles.accountMetadata}>{item.metadata.name}</Text>
                                             )}
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => key.store.remove(item.id)}>
-                                            <MaterialCommunityIcons name="delete-outline" size={24} color="#FF3B30" />
-                                        </TouchableOpacity>
+                                        </View>
                                     </View>
                                 </TouchableOpacity>
                             </Animated.View>
@@ -301,23 +307,9 @@ export default function Index() {
                                                 activeSeed === item.id && { color: rootColor }
                                             ]}>
                                                 {item.type}
-                                                {(item as any).privateKey && (
-                                                    <MaterialCommunityIcons name="alert-circle" size={16} color="#FF3B30" style={styles.warningIcon} />
-                                                )}
                                             </Text>
                                             <Text style={styles.keyAddress}>{item.algorithm}</Text>
                                         </View>
-                                    </View>
-                                    <View style={styles.keyActions}>
-                                        <TouchableOpacity onPress={() => handleExportKey(item.id)} style={styles.actionIcon}>
-                                            <MaterialCommunityIcons name="export-variant" size={24} color="#007AFF" />
-                                            {item.extractable && (
-                                                <View style={styles.exportBadgeSmall} />
-                                            )}
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => key.store.remove(item.id)}>
-                                            <MaterialCommunityIcons name="delete-outline" size={24} color="#FF3B30" />
-                                        </TouchableOpacity>
                                     </View>
                                 </TouchableOpacity>
                             </Animated.View>
@@ -370,23 +362,9 @@ export default function Index() {
                                                 activeSeed === item.id && { color: rootColor }
                                             ]}>
                                                 {item.type}
-                                                {(item as any).privateKey && (
-                                                    <MaterialCommunityIcons name="alert-circle" size={16} color="#FF3B30" style={styles.warningIcon} />
-                                                )}
                                             </Text>
                                             <Text style={styles.keyAddress}>{item.algorithm}</Text>
                                         </View>
-                                    </View>
-                                    <View style={styles.keyActions}>
-                                        <TouchableOpacity onPress={() => handleExportKey(item.id)} style={styles.actionIcon}>
-                                            <MaterialCommunityIcons name="export-variant" size={24} color="#007AFF" />
-                                            {item.extractable && (
-                                                <View style={styles.exportBadgeSmall} />
-                                            )}
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => key.store.remove(item.id)}>
-                                            <MaterialCommunityIcons name="delete-outline" size={24} color="#FF3B30" />
-                                        </TouchableOpacity>
                                     </View>
                                 </TouchableOpacity>
                             </Animated.View>
@@ -466,19 +444,6 @@ const styles = StyleSheet.create({
         color: '#007AFF',
         fontWeight: '600',
     },
-    walletName: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#1A1A1A',
-    },
-    profileButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#F2F2F7',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     balanceCard: {
         backgroundColor: '#F2F2F7',
         borderRadius: 24,
@@ -526,6 +491,98 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         marginTop: 8,
     },
+    accountCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: '#F2F2F7',
+    },
+    activeAccountCard: {
+        borderColor: '#007AFF',
+        backgroundColor: '#F0F7FF',
+    },
+    accountInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    accountIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#F2F2F7',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    accountAddress: {
+        fontSize: 15,
+        color: '#1A1A1A',
+        fontWeight: '500',
+    },
+    accountMetadata: {
+        fontSize: 12,
+        color: '#8E8E93',
+        marginTop: 2,
+    },
+    passkeyCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: '#F2F2F7',
+    },
+    passkeyInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    passkeyIconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#F2F2F7',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    passkeyName: {
+        fontSize: 16,
+        color: '#1A1A1A',
+        fontWeight: '600',
+    },
+    passkeyId: {
+        fontSize: 12,
+        color: '#8E8E93',
+        marginTop: 2,
+    },
+    passkeyMetadata: {
+        fontSize: 10,
+        color: '#8E8E93',
+        marginTop: 2,
+    },
+    passkeyActions: {
+        marginLeft: 12,
+    },
     keyCard: {
         backgroundColor: '#FFFFFF',
         borderRadius: 16,
@@ -560,9 +617,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginRight: 12,
     },
-    activeKeyIconContainer: {
-        backgroundColor: '#E3F2FD',
-    },
     keyType: {
         fontSize: 12,
         fontWeight: 'bold',
@@ -572,95 +626,22 @@ const styles = StyleSheet.create({
     activeKeyType: {
         color: '#007AFF',
     },
-    keyIndex: {
-        fontSize: 10,
-        color: '#8E8E93',
-        fontWeight: 'normal',
-    },
-    exportBadgeSmall: {
-        position: 'absolute',
-        top: -2,
-        right: -2,
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: '#4CAF50',
-        borderWidth: 2,
-        borderColor: '#FFF',
-    },
-    warningIcon: {
-        marginLeft: 8,
-    },
     keyAddress: {
         fontSize: 15,
         color: '#333',
         fontWeight: '500',
     },
-    keyActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    actionIcon: {
-        marginRight: 12,
-    },
-    keyId: {
-        fontSize: 14,
-        color: '#8E8E93',
-    },
     emptyState: {
-        padding: 20,
+        padding: 40,
         alignItems: 'center',
         backgroundColor: '#FFFFFF',
-        borderRadius: 12,
+        borderRadius: 20,
         marginBottom: 16,
         borderWidth: 1,
         borderColor: '#F2F2F7',
     },
     emptyStateText: {
         color: '#8E8E93',
-    },
-    inputContainer: {
-        flexDirection: "row",
-        marginBottom: 16,
-    },
-    input: {
-        flex: 1,
-        backgroundColor: '#FFF',
-        borderWidth: 1,
-        borderColor: "#E0E0E0",
-        padding: 12,
-        marginRight: 10,
-        borderRadius: 12,
         fontSize: 16,
-    },
-    addButton: {
-        backgroundColor: '#007AFF',
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-        borderRadius: 12,
-    },
-    addButtonText: {
-        color: '#FFF',
-        fontWeight: 'bold',
-    },
-    secretItem: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: 12,
-        backgroundColor: '#FFF',
-        borderRadius: 12,
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#F0F0F0',
-    },
-    secretName: {
-        fontSize: 16,
-        fontWeight: "600",
-        color: '#333',
-    },
-    secretId: {
-        fontSize: 11,
-        color: "#999",
     },
 });

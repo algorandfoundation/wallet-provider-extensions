@@ -90,6 +90,13 @@ export const WithPasskeysKeystore: Extension<PasskeysKeystoreExtension> = (
 			// The subscriber above should handle the state update,
 			// but we can add specific logic here if needed.
 		});
+
+		provider.passkey.store.hooks.before("clear", async () => {
+			const keys = provider.keys.filter((k) => k.type === "hd-derived-passkey");
+			for (const k of keys) {
+				await provider.key.store.remove(k.id);
+			}
+		});
 	}
 
 	return provider as unknown as PasskeysKeystoreExtension;

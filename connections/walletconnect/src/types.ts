@@ -1,6 +1,5 @@
 import type {
 	Connection,
-	ConnectionStoreExtension,
 } from "@algorandfoundation/connections-store";
 
 /**

@@ -46,11 +46,15 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 	/**
 	 * Creates an account object for a given key ID and address.
 	 */
-	const createKeyAccount = (keyId: string, address: string): Account => ({
+	const createKeyAccount = (
+		keyId: string,
+		address: string,
+		parentKeyId?: string,
+	): Account => ({
 		address,
 		type: "ed25519",
 		assets: [],
-		metadata: { keyId },
+		metadata: { keyId, parentKeyId },
 		balance: BigInt(0),
 
 		// TODO: Transfer helper
@@ -83,6 +87,7 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 						key.id,
 						((key as XHDDerivedKeyData)?.metadata?.address
 							?.algorand as string) ?? "TODO: Add addresses to types",
+						(key as XHDDerivedKeyData)?.metadata?.parentKeyId,
 					),
 				);
 			}
@@ -110,8 +115,11 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 					console.log(`Adding account for key ${k.id}-${k.type}...`);
 					const address = (k as XHDDerivedKeyData)?.metadata?.address
 						?.algorand as string;
+					const parentKeyId = (k as XHDDerivedKeyData)?.metadata?.parentKeyId;
 					if (address) {
-						provider.account.store.addAccount(createKeyAccount(k.id, address));
+						provider.account.store.addAccount(
+							createKeyAccount(k.id, address, parentKeyId),
+						);
 					}
 				}
 			});
@@ -125,9 +133,11 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 				);
 		});
 
-		// We can also listen for new keys added to the keystore
-		provider.key.store.hooks.after("generate", async (keyId: KeyId) => {
-			console.log(`Key ${keyId} was generated successfully.`);
+		provider.account.store.hooks.before("clear", async () => {
+			const keys = provider.keys.filter((k) => k.type === "hd-derived-ed25519");
+			for (const k of keys) {
+				await provider.key.store.remove(k.id);
+			}
 		});
 	}
 
