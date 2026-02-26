@@ -1,0 +1,13 @@
+{
+  "name": "@algorandfoundation/wallet-provider-cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "wallet-foundation": "./index.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "inquirer": "^12.4.2"
+  }
+}

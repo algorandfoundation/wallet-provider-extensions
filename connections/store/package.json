@@ -46,5 +46,13 @@
 		"type": "git",
 		"directory": "connections/store",
 		"url": "https://github.com/algorandfoundation/wallet-provider-extensions.git"
+	},
+	"provider": {
+		"type": "store",
+		"withImport": "WithConnectionStore",
+		"extensionInterface": "ConnectionStoreExtension",
+		"optionsType": "ConnectionStoreOptions",
+		"namespace": "connection",
+		"stateProperty": "connections"
 	}
 }

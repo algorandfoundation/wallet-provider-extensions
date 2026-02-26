@@ -1,0 +1,22 @@
+{
+  "name": "@algorandfoundation/wallet-provider-config",
+  "version": "0.0.1",
+  "description": "Configuration and bootstrapping logic for the Wallet Provider Extensions CLI.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "read-pkg": "^10.1.0",
+    "execa": "^9.5.2",
+    "fs-extra": "^11.3.0",
+    "handlebars": "^4.7.8"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.3",
+    "vitest": "^4.0.18"
+  }
+}

@@ -127,8 +127,6 @@ export const WithLiquidAuth: Extension<LiquidAuthExtension> = (
 					}
 					const signed = await account.sign([challenge]);
 					return signed[0];
-				}, (cred)=>{
-					console.log(cred)
 				});
 			}
 

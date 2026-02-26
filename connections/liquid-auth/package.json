@@ -49,5 +49,12 @@
 		"type": "git",
 		"directory": "connections/liquid-auth",
 		"url": "https://github.com/algorandfoundation/wallet-provider-extensions.git"
+	},
+	"provider": {
+		"type": "extension",
+		"withImport": "WithLiquidAuth",
+		"extensionInterface": "LiquidAuthExtension",
+		"optionsType": "LiquidAuthOptions",
+		"namespace": "liquidAuth"
 	}
 }

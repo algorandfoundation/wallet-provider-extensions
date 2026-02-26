@@ -14,10 +14,17 @@
     "accounts/keystore",
     "keystore/store",
     "keystore/react-native",
-    "examples/react-native-wallet"
+    "examples/react-native-wallet",
+    "config",
+    "bin/wallet-foundation"
   ],
   "scripts": {
-    "build": "npm run build -w @algorandfoundation/log-store && npm run build -w @algorandfoundation/keystore && npm run build -w @algorandfoundation/react-native-keystore && npm run build -w @algorandfoundation/connections-store && npm run build -w @algorandfoundation/walletconnect-connection-extension && npm run build -w @algorandfoundation/liquid-auth-connection-extension && npm run build -w @algorandfoundation/passkey-store && npm run build -w @algorandfoundation/passkeys-keystore-extension && npm run build -w @algorandfoundation/accounts-store && npm run build -w @algorandfoundation/accounts-keystore-extension && npm run build --workspaces --if-present",
+    "build": "npm run build:first && npm run build:accounts && npm run build:passkeys && npm run build:connections",
+    "build:first": "npm run build -w log --if-present && npm run build -w keystore/store --if-present",
+    "build:accounts": "npm run build -w accounts/store --if-present && npm run build -w accounts/keystore --if-present",
+    "build:passkeys": "npm run build -w passkeys/store --if-present && npm run build -w passkeys/keystore --if-present",
+    "build:connections": "npm run build -w connections/store --if-present && npm run build -w connections/walletconnect --if-present && npm run build -w connections/liquid-auth --if-present",
+    "build:cli": "npm run build -w ",
     "clean": "npm run clean --workspaces --if-present && rm -rf coverage node_modules docs",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
@@ -51,7 +58,7 @@
     "read-pkg": "^10.1.0",
     "semantic-release": "^25.0.3",
     "typedoc": "^0.28.16",
-    "typescript": "^5.9.3",
+    "typescript": "~5.8.3",
     "vitest": "^4.0.18"
   },
   "overrides": {
@@ -86,8 +93,5 @@
         "prerelease": "canary"
       }
     ]
-  },
-  "dependencies": {
-    "@babel/parser": "^7.28.6"
   }
 }

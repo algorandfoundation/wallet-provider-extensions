@@ -46,5 +46,12 @@
 	"devDependencies": {
 		"@algorandfoundation/package-releaser": "0.0.1",
 		"vitest": "^1.0.0"
+	},
+	"provider": {
+		"type": "extension",
+		"withImport": "WithPasskeysKeystore",
+		"extensionInterface": "PasskeysKeystoreExtension",
+		"optionsType": "PasskeysKeystoreExtensionOptions",
+		"namespace": "passkeysKeystore"
 	}
 }

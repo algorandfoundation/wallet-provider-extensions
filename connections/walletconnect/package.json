@@ -50,5 +50,12 @@
 		"type": "git",
 		"directory": "connections/walletconnect",
 		"url": "https://github.com/algorandfoundation/wallet-provider-extensions.git"
+	},
+	"provider": {
+		"type": "extension",
+		"withImport": "WithWalletConnect",
+		"extensionInterface": "WalletConnectExtension",
+		"optionsType": "WalletConnectOptions",
+		"namespace": "walletconnect"
 	}
 }

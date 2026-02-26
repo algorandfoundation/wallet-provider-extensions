@@ -52,5 +52,13 @@
 		"@algorandfoundation/log-store": "1.0.0-canary.2",
 		"@algorandfoundation/package-releaser": "0.0.1",
 		"vitest": "^1.0.0"
+	},
+	"provider": {
+		"type": "store",
+		"withImport": "WithAccountStore",
+		"extensionInterface": "AccountStoreExtension",
+		"optionsType": "AccountStoreOptions",
+		"namespace": "account",
+		"stateProperty": "accounts"
 	}
 }
