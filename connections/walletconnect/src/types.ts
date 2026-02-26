@@ -1,6 +1,4 @@
-import type {
-	Connection,
-} from "@algorandfoundation/connections-store";
+import type { Connection } from "@algorandfoundation/connections-store";
 
 /**
  * Represents a WalletConnect connection.

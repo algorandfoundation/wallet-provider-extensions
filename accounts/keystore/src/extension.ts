@@ -5,7 +5,6 @@ import type {
 } from "@algorandfoundation/accounts-store";
 import type {
 	Key,
-	KeyId,
 	KeyStoreExtension,
 	KeyStoreState,
 	XHDDerivedKeyData,

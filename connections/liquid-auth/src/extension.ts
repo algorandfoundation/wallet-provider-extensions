@@ -1,14 +1,8 @@
-import {
-	type ConnectionStoreExtension,
-} from "@algorandfoundation/connections-store";
-import {
-	type AccountStoreExtension,
-} from "@algorandfoundation/accounts-store";
-import {
-	type PasskeyStoreExtension,
-} from "@algorandfoundation/passkey-store";
-import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
+import type { AccountStoreExtension } from "@algorandfoundation/accounts-store";
+import type { ConnectionStoreExtension } from "@algorandfoundation/connections-store";
 import { SignalClient } from "@algorandfoundation/liquid-client";
+import type { PasskeyStoreExtension } from "@algorandfoundation/passkey-store";
+import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
 import type {
 	LiquidAuthApi,
 	LiquidAuthConnection,
@@ -49,9 +43,10 @@ export const WithLiquidAuth: Extension<LiquidAuthExtension> = (
 
 	const connectionStore = provider.connection.store;
 	const accountStore = provider.account.store;
-	// @ts-ignore - Will be used in future implementation to add new passkeys
+	// @ts-expect-error - Will be used in future implementation to add new passkeys
 	const passkeyStore = provider.passkey.store;
-	let client: SignalClient | undefined = options?.liquidAuth?.client as SignalClient;
+	let client: SignalClient | undefined = options?.liquidAuth
+		?.client as SignalClient;
 
 	const getPasskeyByAccount = async (address: string) => {
 		const passkeys = provider.passkeys;
@@ -97,7 +92,11 @@ export const WithLiquidAuth: Extension<LiquidAuthExtension> = (
 				},
 			};
 		},
-		joinAsAnswer: async (requestId: string, address: string, origin: string) => {
+		joinAsAnswer: async (
+			requestId: string,
+			address: string,
+			origin: string,
+		) => {
 			const signalClient = await initClient(origin);
 
 			let parsedRequestId = requestId;
@@ -128,6 +127,8 @@ export const WithLiquidAuth: Extension<LiquidAuthExtension> = (
 					}
 					const signed = await account.sign([challenge]);
 					return signed[0];
+				}, (cred)=>{
+					console.log(cred)
 				});
 			}
 

@@ -1,12 +1,12 @@
 import type {
+	KeyStoreExtension,
+	KeyStoreOptions,
+} from "@algorandfoundation/keystore";
+import type {
 	PasskeyStoreExtension,
 	PasskeyStoreOptions,
 	PasskeyStoreState,
 } from "@algorandfoundation/passkey-store";
-import type {
-	KeyStoreExtension,
-	KeyStoreOptions,
-} from "@algorandfoundation/keystore";
 import type { ExtensionOptions } from "@algorandfoundation/wallet-provider";
 import type { Store } from "@tanstack/store";
 import type { HookCollection } from "before-after-hook";

@@ -1,6 +1,4 @@
-import {
-	type ConnectionStoreExtension,
-} from "@algorandfoundation/connections-store";
+import type { ConnectionStoreExtension } from "@algorandfoundation/connections-store";
 import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
 import SignClient from "@walletconnect/sign-client";
 import type {

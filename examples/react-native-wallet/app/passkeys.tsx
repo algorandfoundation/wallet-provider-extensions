@@ -15,8 +15,6 @@ import { Link } from "expo-router";
 import { useState, useEffect } from "react";
 import { useSeedColors } from "@/hooks/useSeedColors";
 
-const ROOT_COLORS = ['#007AFF', '#34C759', '#5856D6', '#AF52DE', '#FF9500', '#FF3B30', '#FFCC00', '#5AC8FA'];
-
 export default function Passkeys() {
     const {passkeys, status, passkey, keys, key, accounts} = useProvider();
     const [activeSeed, setActiveSeed] = useState<string | null>(null);

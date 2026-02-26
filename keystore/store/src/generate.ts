@@ -297,19 +297,27 @@ export async function generateKey({
 
 			case "P256": {
 				if (typeof keyData.metadata.parentKeyId === "undefined") {
-					throw new InvalidKeyDataError("dP256 require a rootKeyId, please upload it first using importSeed()")
-				}
-				if(!(parentKey && parentKey.type === "hd-root-key" && parentKey.privateKey instanceof Uint8Array))
 					throw new InvalidKeyDataError(
-						"Seed is required to generate passkey",
+						"dP256 require a rootKeyId, please upload it first using importSeed()",
 					);
+				}
+				if (
+					!(
+						parentKey &&
+						parentKey.type === "hd-root-key" &&
+						parentKey.privateKey instanceof Uint8Array
+					)
+				)
+					throw new InvalidKeyDataError("Seed is required to generate passkey");
 
 				keyData.type = "hd-derived-passkey";
 				return {
 					...keyData,
-					...(await generateXHDFromParent({key: keyData as XHDPasskey, parentKey: parentKey as XHDRootKey}))
-				}
-
+					...(await generateXHDFromParent({
+						key: keyData as XHDPasskey,
+						parentKey: parentKey as XHDRootKey,
+					})),
+				};
 			}
 			default: {
 				throw new InvalidKeyDataError(

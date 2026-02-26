@@ -52,7 +52,9 @@ export function removeConnection({
 	store.setState((state) => {
 		return {
 			...state,
-			connections: state.connections.filter((connection) => connection.id !== id),
+			connections: state.connections.filter(
+				(connection) => connection.id !== id,
+			),
 		};
 	});
 }

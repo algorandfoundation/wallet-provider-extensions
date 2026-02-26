@@ -63,7 +63,9 @@ export const WithPasskeysKeystore: Extension<PasskeysKeystoreExtension> = (
 		const keys = [...((provider.keys as Key[]) ?? [])];
 		for (const key of keys) {
 			if (key.type === "hd-derived-passkey") {
-				provider.passkey.store.addPasskey(createPasskeyFromKey(key as XHDPasskey));
+				provider.passkey.store.addPasskey(
+					createPasskeyFromKey(key as XHDPasskey),
+				);
 			}
 		}
 
@@ -80,7 +82,9 @@ export const WithPasskeysKeystore: Extension<PasskeysKeystoreExtension> = (
 			for (const k of addedKeys) {
 				keys.push(k);
 				if (k.type === "hd-derived-passkey") {
-					provider.passkey.store.addPasskey(createPasskeyFromKey(k as XHDPasskey));
+					provider.passkey.store.addPasskey(
+						createPasskeyFromKey(k as XHDPasskey),
+					);
 				}
 			}
 		});

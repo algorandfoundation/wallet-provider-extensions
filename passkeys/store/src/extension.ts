@@ -35,10 +35,8 @@ export const WithPasskeyStore: Extension<PasskeyStoreExtension> = (
 	options,
 ) => {
 	const passkeyStore =
-		options?.passkeys?.store ??
-		new Store<PasskeyStoreState>({ passkeys: [] });
-	const passkeyHooks =
-		options?.passkeys?.hooks ?? new Hook.Collection<any>();
+		options?.passkeys?.store ?? new Store<PasskeyStoreState>({ passkeys: [] });
+	const passkeyHooks = options?.passkeys?.hooks ?? new Hook.Collection<any>();
 
 	return {
 		get passkeys() {

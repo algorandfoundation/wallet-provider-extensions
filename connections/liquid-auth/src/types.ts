@@ -1,6 +1,4 @@
-import type {
-	Connection,
-} from "@algorandfoundation/connections-store";
+import type { Connection } from "@algorandfoundation/connections-store";
 
 /**
  * Represents a Liquid Auth connection.
@@ -22,12 +20,12 @@ export interface LiquidAuthConnection extends Connection {
 export interface LiquidAuthOptions {
 	liquidAuth?: {
 		apiKey?: string;
-        endpoint?: string;
-        /**
-         * Optionally provide a pre-configured client.
-         * This allows consumers to inject an instance of `SignalClient` from `@algorandfoundation/liquid-client`
-         */
-        client?: any;
+		endpoint?: string;
+		/**
+		 * Optionally provide a pre-configured client.
+		 * This allows consumers to inject an instance of `SignalClient` from `@algorandfoundation/liquid-client`
+		 */
+		client?: any;
 	};
 }
 

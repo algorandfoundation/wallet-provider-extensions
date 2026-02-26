@@ -1,44 +1,50 @@
-import { Provider } from "@algorandfoundation/wallet-provider";
-import { WithConnectionStore } from "@algorandfoundation/connections-store";
 import { WithAccountStore } from "@algorandfoundation/accounts-store";
+import { WithConnectionStore } from "@algorandfoundation/connections-store";
 import { WithPasskeyStore } from "@algorandfoundation/passkey-store";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { Provider } from "@algorandfoundation/wallet-provider";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WithLiquidAuth } from "./extension.js";
 
 // Mock SignalClient
 const mockSignalClient = {
-    link: vi.fn(() => Promise.resolve({
-        requestId: "test-request-id",
-        credId: "test-cred-id",
-        wallet: "Test Wallet"
-    })),
-    qrCode: vi.fn(() => Promise.resolve("mock-qr-code")),
-    deepLink: vi.fn((requestId) => `https://liquid-auth.com/link?requestId=${requestId}`),
-    peer: vi.fn(() => Promise.resolve({
-        on: vi.fn(),
-        send: vi.fn(),
-        close: vi.fn()
-    })),
-    assertion: vi.fn(() => Promise.resolve()),
-    attestation: vi.fn(async (onChallenge) => {
-        await onChallenge(new Uint8Array([1, 2, 3]));
-        return Promise.resolve();
-    }),
-    close: vi.fn()
+	link: vi.fn(() =>
+		Promise.resolve({
+			requestId: "test-request-id",
+			credId: "test-cred-id",
+			wallet: "Test Wallet",
+		}),
+	),
+	qrCode: vi.fn(() => Promise.resolve("mock-qr-code")),
+	deepLink: vi.fn(
+		(requestId) => `https://liquid-auth.com/link?requestId=${requestId}`,
+	),
+	peer: vi.fn(() =>
+		Promise.resolve({
+			on: vi.fn(),
+			send: vi.fn(),
+			close: vi.fn(),
+		}),
+	),
+	assertion: vi.fn(() => Promise.resolve()),
+	attestation: vi.fn(async (onChallenge) => {
+		await onChallenge(new Uint8Array([1, 2, 3]));
+		return Promise.resolve();
+	}),
+	close: vi.fn(),
 };
 
 vi.mock("@algorandfoundation/liquid-client", () => {
-	const SignalClient = vi.fn(function() { return mockSignalClient; });
-    (SignalClient as any).generateRequestId = vi.fn(() => "test-request-id");
+	const SignalClient = vi.fn(() => mockSignalClient);
+	(SignalClient as any).generateRequestId = vi.fn(() => "test-request-id");
 	return {
-		SignalClient: SignalClient
+		SignalClient: SignalClient,
 	};
 });
 
 describe("Liquid Auth Extension", () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
 
 	it("should initialize and expose liquidAuth API when WithConnectionStore, WithAccountStore and WithPasskeyStore are present", async () => {
 		const MyProvider = Provider.withExtensions([
@@ -148,131 +154,182 @@ describe("Liquid Auth Extension", () => {
 			},
 		) as any;
 
-        const origin = "https://test-dapp.com";
-        const offer = await provider.liquidAuth.createOffer(origin);
-        expect(offer.requestId).toBe("test-request-id");
-        expect(offer.deepLink).toContain("test-request-id");
-        
-        const connection = await offer.wait();
-        expect(connection.id).toBe("Test Wallet");
-        expect(connection.address).toBe("Test Wallet");
+		const origin = "https://test-dapp.com";
+		const offer = await provider.liquidAuth.createOffer(origin);
+		expect(offer.requestId).toBe("test-request-id");
+		expect(offer.deepLink).toContain("test-request-id");
 
-        // Check if connection is in the store
-        const connections = provider.connections;
-        expect(connections).toHaveLength(1);
-        expect(connections[0].id).toBe("Test Wallet");
-    });
+		const connection = await offer.wait();
+		expect(connection.id).toBe("Test Wallet");
+		expect(connection.address).toBe("Test Wallet");
 
-    it("should join as answer and add connection to store if account exists", async () => {
-        const MyProvider = Provider.withExtensions([WithConnectionStore, WithAccountStore, WithPasskeyStore, WithLiquidAuth]);
-		const provider = new MyProvider({ id: "test", name: "Test" }, {
-            liquidAuth: {
-                endpoint: "https://test-liquid-auth.com"
-            }
-        }) as any;
+		// Check if connection is in the store
+		const connections = provider.connections;
+		expect(connections).toHaveLength(1);
+		expect(connections[0].id).toBe("Test Wallet");
+	});
 
-        const mockAddress = "TEST_ADDRESS";
-        // Mock addAccount to ensure it exists
-        await provider.account.store.addAccount({
-            address: mockAddress,
-            type: "ed25519",
-            balance: BigInt(0),
-            assets: [],
-            sign: vi.fn((txns) => Promise.resolve(txns))
-        });
+	it("should join as answer and add connection to store if account exists", async () => {
+		const MyProvider = Provider.withExtensions([
+			WithConnectionStore,
+			WithAccountStore,
+			WithPasskeyStore,
+			WithLiquidAuth,
+		]);
+		const provider = new MyProvider(
+			{ id: "test", name: "Test" },
+			{
+				liquidAuth: {
+					endpoint: "https://test-liquid-auth.com",
+				},
+			},
+		) as any;
 
-        const origin = "https://test-dapp.com";
-        const connection = await provider.liquidAuth.joinAsAnswer("test-request-id", mockAddress, origin);
-        expect(connection.id).toBe(mockAddress);
-        expect(connection.address).toBe(mockAddress);
+		const mockAddress = "TEST_ADDRESS";
+		// Mock addAccount to ensure it exists
+		await provider.account.store.addAccount({
+			address: mockAddress,
+			type: "ed25519",
+			balance: BigInt(0),
+			assets: [],
+			sign: vi.fn((txns) => Promise.resolve(txns)),
+		});
 
-        // Check if connection is in the store
-        const connections = provider.connections;
-        expect(connections).toHaveLength(1);
-        expect(connections[0].id).toBe(mockAddress);
-    });
+		const origin = "https://test-dapp.com";
+		const connection = await provider.liquidAuth.joinAsAnswer(
+			"test-request-id",
+			mockAddress,
+			origin,
+		);
+		expect(connection.id).toBe(mockAddress);
+		expect(connection.address).toBe(mockAddress);
 
-    it("should join as answer and parse requestId from deep link", async () => {
-        const MyProvider = Provider.withExtensions([WithConnectionStore, WithAccountStore, WithPasskeyStore, WithLiquidAuth]);
-		const provider = new MyProvider({ id: "test", name: "Test" }, {
-            liquidAuth: {
-                endpoint: "https://test-liquid-auth.com"
-            }
-        }) as any;
+		// Check if connection is in the store
+		const connections = provider.connections;
+		expect(connections).toHaveLength(1);
+		expect(connections[0].id).toBe(mockAddress);
+	});
 
-        const mockAddress = "TEST_ADDRESS";
-        await provider.account.store.addAccount({
-            address: mockAddress,
-            type: "ed25519",
-            balance: BigInt(0),
-            assets: [],
-            sign: vi.fn((txns) => Promise.resolve(txns))
-        });
+	it("should join as answer and parse requestId from deep link", async () => {
+		const MyProvider = Provider.withExtensions([
+			WithConnectionStore,
+			WithAccountStore,
+			WithPasskeyStore,
+			WithLiquidAuth,
+		]);
+		const provider = new MyProvider(
+			{ id: "test", name: "Test" },
+			{
+				liquidAuth: {
+					endpoint: "https://test-liquid-auth.com",
+				},
+			},
+		) as any;
 
-        const deepLink = "https://liquid-auth.com/link?requestId=parsed-request-id";
-        const origin = "https://test-dapp.com";
-        const connection = await provider.liquidAuth.joinAsAnswer(deepLink, mockAddress, origin);
-        
-        expect(mockSignalClient.peer).toHaveBeenCalledWith("parsed-request-id", "answer");
-        expect(connection.id).toBe(mockAddress);
-    });
+		const mockAddress = "TEST_ADDRESS";
+		await provider.account.store.addAccount({
+			address: mockAddress,
+			type: "ed25519",
+			balance: BigInt(0),
+			assets: [],
+			sign: vi.fn((txns) => Promise.resolve(txns)),
+		});
 
-    it("should use assertion if passkey exists for account", async () => {
-        const MyProvider = Provider.withExtensions([WithConnectionStore, WithAccountStore, WithPasskeyStore, WithLiquidAuth]);
-		const provider = new MyProvider({ id: "test", name: "Test" }, {
-            liquidAuth: {
-                endpoint: "https://test-liquid-auth.com"
-            }
-        }) as any;
+		const deepLink = "https://liquid-auth.com/link?requestId=parsed-request-id";
+		const origin = "https://test-dapp.com";
+		const connection = await provider.liquidAuth.joinAsAnswer(
+			deepLink,
+			mockAddress,
+			origin,
+		);
 
-        const mockAddress = "TEST_ADDRESS";
-        await provider.account.store.addAccount({
-            address: mockAddress,
-            type: "ed25519",
-            balance: BigInt(0),
-            assets: [],
-            sign: vi.fn((txns) => Promise.resolve(txns))
-        });
+		expect(mockSignalClient.peer).toHaveBeenCalledWith(
+			"parsed-request-id",
+			"answer",
+		);
+		expect(connection.id).toBe(mockAddress);
+	});
 
-        // Add a matching passkey
-        await provider.passkey.store.addPasskey({
-            id: "test-passkey-id",
-            name: "Test Passkey",
-            publicKey: new Uint8Array([1, 2, 3]),
-            algorithm: "ES256",
-            metadata: { userHandle: mockAddress }
-        });
+	it("should use assertion if passkey exists for account", async () => {
+		const MyProvider = Provider.withExtensions([
+			WithConnectionStore,
+			WithAccountStore,
+			WithPasskeyStore,
+			WithLiquidAuth,
+		]);
+		const provider = new MyProvider(
+			{ id: "test", name: "Test" },
+			{
+				liquidAuth: {
+					endpoint: "https://test-liquid-auth.com",
+				},
+			},
+		) as any;
 
-        const origin = "https://test-dapp.com";
-        await provider.liquidAuth.joinAsAnswer("test-request-id", mockAddress, origin);
+		const mockAddress = "TEST_ADDRESS";
+		await provider.account.store.addAccount({
+			address: mockAddress,
+			type: "ed25519",
+			balance: BigInt(0),
+			assets: [],
+			sign: vi.fn((txns) => Promise.resolve(txns)),
+		});
 
-        expect(mockSignalClient.assertion).toHaveBeenCalled();
-        expect(mockSignalClient.attestation).not.toHaveBeenCalled();
-    });
+		// Add a matching passkey
+		await provider.passkey.store.addPasskey({
+			id: "test-passkey-id",
+			name: "Test Passkey",
+			publicKey: new Uint8Array([1, 2, 3]),
+			algorithm: "ES256",
+			metadata: { userHandle: mockAddress },
+		});
 
-    it("should use attestation if no passkey exists for account", async () => {
-        const MyProvider = Provider.withExtensions([WithConnectionStore, WithAccountStore, WithPasskeyStore, WithLiquidAuth]);
-		const provider = new MyProvider({ id: "test", name: "Test" }, {
-            liquidAuth: {
-                endpoint: "https://test-liquid-auth.com"
-            }
-        }) as any;
+		const origin = "https://test-dapp.com";
+		await provider.liquidAuth.joinAsAnswer(
+			"test-request-id",
+			mockAddress,
+			origin,
+		);
 
-        const mockAddress = "TEST_ADDRESS";
-        const mockSign = vi.fn((txns) => Promise.resolve(txns));
-        await provider.account.store.addAccount({
-            address: mockAddress,
-            type: "ed25519",
-            balance: BigInt(0),
-            assets: [],
-            sign: mockSign
-        });
+		expect(mockSignalClient.assertion).toHaveBeenCalled();
+		expect(mockSignalClient.attestation).not.toHaveBeenCalled();
+	});
 
-        const origin = "https://test-dapp.com";
-        await provider.liquidAuth.joinAsAnswer("test-request-id", mockAddress, origin);
+	it("should use attestation if no passkey exists for account", async () => {
+		const MyProvider = Provider.withExtensions([
+			WithConnectionStore,
+			WithAccountStore,
+			WithPasskeyStore,
+			WithLiquidAuth,
+		]);
+		const provider = new MyProvider(
+			{ id: "test", name: "Test" },
+			{
+				liquidAuth: {
+					endpoint: "https://test-liquid-auth.com",
+				},
+			},
+		) as any;
 
-        expect(mockSignalClient.attestation).toHaveBeenCalled();
-        expect(mockSignalClient.assertion).not.toHaveBeenCalled();
-        expect(mockSign).toHaveBeenCalled();
-    });
+		const mockAddress = "TEST_ADDRESS";
+		const mockSign = vi.fn((txns) => Promise.resolve(txns));
+		await provider.account.store.addAccount({
+			address: mockAddress,
+			type: "ed25519",
+			balance: BigInt(0),
+			assets: [],
+			sign: mockSign,
+		});
+
+		const origin = "https://test-dapp.com";
+		await provider.liquidAuth.joinAsAnswer(
+			"test-request-id",
+			mockAddress,
+			origin,
+		);
+
+		expect(mockSignalClient.attestation).toHaveBeenCalled();
+		expect(mockSignalClient.assertion).not.toHaveBeenCalled();
+		expect(mockSign).toHaveBeenCalled();
+	});
 });
