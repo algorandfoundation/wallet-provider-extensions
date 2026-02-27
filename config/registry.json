@@ -1,0 +1,203 @@
+{
+  "stores": [
+    {
+      "name": "log-store",
+      "package": "@algorandfoundation/log-store",
+      "version": "1.0.0-canary.2",
+      "provider": {
+        "type": "store",
+        "withImport": "WithLogStore",
+        "extensionInterface": "LogStoreExtension",
+        "optionsType": "LogStoreExtensionOptions",
+        "namespace": "log",
+        "stateProperty": "logs"
+      },
+      "dependencies": [
+        "@algorandfoundation/wallet-provider"
+      ]
+    },
+    {
+      "name": "connections-store",
+      "package": "@algorandfoundation/connections-store",
+      "version": "1.0.0-canary.0",
+      "provider": {
+        "type": "store",
+        "withImport": "WithConnectionStore",
+        "extensionInterface": "ConnectionStoreExtension",
+        "optionsType": "ConnectionStoreOptions",
+        "namespace": "connection",
+        "stateProperty": "connections"
+      },
+      "dependencies": [
+        "@algorandfoundation/wallet-provider"
+      ]
+    },
+    {
+      "name": "passkey-store",
+      "package": "@algorandfoundation/passkey-store",
+      "version": "1.0.0-canary.0",
+      "provider": {
+        "type": "store",
+        "withImport": "WithPasskeyStore",
+        "extensionInterface": "PasskeyStoreExtension",
+        "optionsType": "PasskeyStoreOptions",
+        "namespace": "passkey",
+        "stateProperty": "passkeys"
+      },
+      "dependencies": [
+        "@algorandfoundation/wallet-provider"
+      ]
+    },
+    {
+      "name": "accounts-store",
+      "package": "@algorandfoundation/accounts-store",
+      "version": "0.0.1",
+      "provider": {
+        "type": "store",
+        "withImport": "WithAccountStore",
+        "extensionInterface": "AccountStoreExtension",
+        "optionsType": "AccountStoreOptions",
+        "namespace": "account",
+        "stateProperty": "accounts"
+      },
+      "dependencies": [
+        "@algorandfoundation/wallet-provider",
+        "@noble/hashes",
+        "@scure/base"
+      ]
+    },
+    {
+      "name": "keystore",
+      "package": "@algorandfoundation/keystore",
+      "version": "1.0.0-canary.7",
+      "provider": {
+        "type": "store",
+        "withImport": "WithKeyStore",
+        "extensionInterface": "KeyStoreExtension",
+        "optionsType": "KeyStoreOptions",
+        "namespace": "key",
+        "stateProperty": "keys"
+      },
+      "dependencies": [
+        "@algorandfoundation/wallet-provider",
+        "@noble/hashes",
+        "@scure/base"
+      ]
+    }
+  ],
+  "extensions": [
+    {
+      "name": "walletconnect-connection-extension",
+      "package": "@algorandfoundation/walletconnect-connection-extension",
+      "version": "1.0.0-canary.0",
+      "provider": {
+        "type": "extension",
+        "withImport": "WithWalletConnect",
+        "extensionInterface": "WalletConnectExtension",
+        "optionsType": "WalletConnectOptions",
+        "namespace": "walletconnect",
+        "extendsStore": [
+          "@algorandfoundation/connections-store"
+        ]
+      },
+      "dependencies": [
+        "@algorandfoundation/connections-store",
+        "@algorandfoundation/wallet-provider",
+        "@walletconnect/sign-client",
+        "@walletconnect/types",
+        "@walletconnect/utils"
+      ]
+    },
+    {
+      "name": "liquid-auth-connection-extension",
+      "package": "@algorandfoundation/liquid-auth-connection-extension",
+      "version": "1.0.0-canary.0",
+      "provider": {
+        "type": "extension",
+        "withImport": "WithLiquidAuth",
+        "extensionInterface": "LiquidAuthExtension",
+        "optionsType": "LiquidAuthOptions",
+        "namespace": "liquidAuth",
+        "extendsStore": [
+          "@algorandfoundation/connections-store",
+          "@algorandfoundation/accounts-store",
+          "@algorandfoundation/passkey-store"
+        ]
+      },
+      "dependencies": [
+        "@algorandfoundation/wallet-provider",
+        "@algorandfoundation/connections-store",
+        "@algorandfoundation/passkey-store",
+        "@algorandfoundation/liquid-client"
+      ]
+    },
+    {
+      "name": "passkeys-keystore-extension",
+      "package": "@algorandfoundation/passkeys-keystore-extension",
+      "version": "0.0.1",
+      "provider": {
+        "type": "extension",
+        "withImport": "WithPasskeysKeystore",
+        "extensionInterface": "PasskeysKeystoreExtension",
+        "optionsType": "PasskeysKeystoreExtensionOptions",
+        "namespace": "passkey.keystore",
+        "extendsStore": [
+          "@algorandfoundation/passkey-store",
+          "@algorandfoundation/keystore"
+        ]
+      },
+      "dependencies": [
+        "@algorandfoundation/wallet-provider",
+        "@algorandfoundation/passkey-store",
+        "@algorandfoundation/keystore"
+      ]
+    },
+    {
+      "name": "accounts-keystore-extension",
+      "package": "@algorandfoundation/accounts-keystore-extension",
+      "version": "0.0.1",
+      "provider": {
+        "type": "extension",
+        "withImport": "WithAccountsKeystore",
+        "extensionInterface": "AccountsKeystoreExtension",
+        "optionsType": "AccountsKeystoreExtensionOptions",
+        "namespace": "account.keystore",
+        "extendsStore": [
+          "@algorandfoundation/accounts-store",
+          "@algorandfoundation/keystore"
+        ]
+      },
+      "dependencies": [
+        "@algorandfoundation/wallet-provider",
+        "@algorandfoundation/accounts-store",
+        "@algorandfoundation/keystore"
+      ]
+    },
+    {
+      "name": "react-native-keystore",
+      "package": "@algorandfoundation/react-native-keystore",
+      "version": "1.0.0-canary.1",
+      "provider": {
+        "type": "extension",
+        "withImport": "WithKeyStore",
+        "extensionInterface": "KeyStoreExtension",
+        "optionsType": "KeyStoreOptions",
+        "namespace": "key",
+        "stateProperty": "keys",
+        "extendsStore": [
+          "@algorandfoundation/keystore"
+        ]
+      },
+      "dependencies": [
+        "@algorandfoundation/dp256",
+        "@algorandfoundation/keystore",
+        "@algorandfoundation/xhd-wallet-api",
+        "@scure/base",
+        "@scure/bip39",
+        "react-native-keychain",
+        "react-native-mmkv",
+        "react-native-quick-crypto"
+      ]
+    }
+  ]
+}

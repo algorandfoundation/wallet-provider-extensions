@@ -1,8 +1,29 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { fetchRegistry, bootstrapProvider } from '@algorandfoundation/wallet-provider-config';
-import * as path from 'node:path';
+import { fetchRegistry, bootstrapProvider, discoverLocalProject, saveRegistry } from '@algorandfoundation/wallet-provider-config';
 import inquirer from 'inquirer';
+import chalk from 'chalk';
+import figlet from 'figlet';
+
+
+function printBanner() {
+    const lines =figlet.textSync('Provi', {font: "Coder Mini", horizontalLayout: 'controlled smushing', verticalLayout: 'controlled smushing' }).split('\n')
+    const derLines = figlet.textSync('DER', { font: "Coder Mini", horizontalLayout: 'controlled smushing', verticalLayout: 'controlled smushing' }).split('\n')
+    const BANNER = lines.map((line, idx) => `${chalk.cyan(line)}${chalk.green(derLines[idx])}`).join('\n');
+
+    console.log(
+        BANNER
+    );
+
+    console.log(
+        chalk.blue(
+            "by Algorand Foundation"
+        )
+    );
+    console.log();
+}
+
+
 
 const program = new Command();
 
@@ -38,8 +59,8 @@ program
       // If an extension doesn't specify what it extends, show it anyway?
       // Or should we only show extensions that match selected stores?
       // The requirement says "extensions should only be shown that relate to the stores that they relate to".
-      if (!ext.extendsStore || ext.extendsStore.length === 0) return true;
-      return ext.extendsStore.some(storePkg => answers.selectedStores.includes(storePkg));
+      if (!ext.provider.extendsStore || ext.provider.extendsStore.length === 0) return true;
+      return ext.provider.extendsStore.some(storePkg => answers.selectedStores.includes(storePkg));
     });
 
     const extensionAnswers = await inquirer.prompt([
@@ -69,5 +90,27 @@ program
     console.log(`Provider generated at: ${result.providerPath}`);
     console.log(`Tooling detected: ${result.tooling}`);
   });
+
+const registryCommand = program.command('registry')
+  .description('Displays the registry. Contains commands to manage the provider registry')
+  .action(async () => {
+    const registry = await fetchRegistry();
+    console.log(JSON.stringify(registry, null, 2));
+  });
+
+registryCommand.command('generate')
+  .description('Generate a registry file based on the current workspace')
+  .action(async () => {
+    const rootPath = process.cwd();
+    const registry = await discoverLocalProject(rootPath);
+    const registryPath = await saveRegistry(rootPath, registry);
+    console.log(`Registry generated at: ${registryPath}`);
+  });
+
+const isRegistry = process.argv.includes('registry');
+
+if (!isRegistry) {
+  printBanner();
+}
 
 program.parse();

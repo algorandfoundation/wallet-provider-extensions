@@ -10,15 +10,14 @@ export interface ProviderInfo {
   optionsType: string;
   namespace: string;
   stateProperty?: string;
+  extendsStore?: string[];
 }
 
 export interface ExtensionInfo {
   name: string;
   package: string;
   version: string;
-  type: 'store' | 'extension';
   dependencies?: string[];
-  extendsStore?: string[];
   provider: ProviderInfo;
 }
 
@@ -27,158 +26,18 @@ export interface Registry {
   extensions: ExtensionInfo[];
 }
 
-export const HARDCODED_REGISTRY: Registry = {
-  stores: [
-    {
-      name: 'passkey-store',
-      package: '@algorandfoundation/passkey-store',
-      version: '1.0.0-canary.0',
-      type: 'store',
-      provider: {
-        type: 'store',
-        withImport: 'WithPasskeyStore',
-        extensionInterface: 'PasskeyStoreExtension',
-        optionsType: 'PasskeyStoreOptions',
-        namespace: 'passkey',
-        stateProperty: 'passkeys'
-      }
-    },
-    {
-      name: 'log-store',
-      package: '@algorandfoundation/log-store',
-      version: '1.0.0-canary.2',
-      type: 'store',
-      provider: {
-        type: 'store',
-        withImport: 'WithLogStore',
-        extensionInterface: 'LogStoreExtension',
-        optionsType: 'LogStoreExtensionOptions',
-        namespace: 'log',
-        stateProperty: 'logs'
-      }
-    },
-    {
-      name: 'accounts-store',
-      package: '@algorandfoundation/accounts-store',
-      version: '0.0.1',
-      type: 'store',
-      provider: {
-        type: 'store',
-        withImport: 'WithAccountStore',
-        extensionInterface: 'AccountStoreExtension',
-        optionsType: 'AccountStoreOptions',
-        namespace: 'account',
-        stateProperty: 'accounts'
-      }
-    },
-    {
-      name: 'keystore',
-      package: '@algorandfoundation/keystore',
-      version: '1.0.0-canary.7',
-      type: 'store',
-      provider: {
-        type: 'store',
-        withImport: 'WithKeyStore',
-        extensionInterface: 'KeyStoreExtension',
-        optionsType: 'KeyStoreOptions',
-        namespace: 'key',
-        stateProperty: 'keys'
-      }
-    },
-    {
-      name: 'connections-store',
-      package: '@algorandfoundation/connections-store',
-      version: '1.0.0-canary.0',
-      type: 'store',
-      provider: {
-        type: 'store',
-        withImport: 'WithConnectionStore',
-        extensionInterface: 'ConnectionStoreExtension',
-        optionsType: 'ConnectionStoreOptions',
-        namespace: 'connection',
-        stateProperty: 'connections'
-      }
-    }
-  ],
-  extensions: [
-    {
-      name: 'passkeys-keystore-extension',
-      package: '@algorandfoundation/passkeys-keystore-extension',
-      version: '0.0.1',
-      type: 'extension',
-      extendsStore: ['@algorandfoundation/passkey-store', '@algorandfoundation/keystore'],
-      provider: {
-        type: 'extension',
-        withImport: 'WithPasskeysKeystore',
-        extensionInterface: 'PasskeysKeystoreExtension',
-        optionsType: 'PasskeysKeystoreExtensionOptions',
-        namespace: 'passkey.keystore'
-      }
-    },
-    {
-      name: 'accounts-keystore-extension',
-      package: '@algorandfoundation/accounts-keystore-extension',
-      version: '0.0.1',
-      type: 'extension',
-      extendsStore: ['@algorandfoundation/accounts-store', '@algorandfoundation/keystore'],
-      provider: {
-        type: 'extension',
-        withImport: 'WithAccountsKeystore',
-        extensionInterface: 'AccountsKeystoreExtension',
-        optionsType: 'AccountsKeystoreExtensionOptions',
-        namespace: 'account.keystore'
-      }
-    },
-    {
-      name: 'react-native-keystore',
-      package: '@algorandfoundation/react-native-keystore',
-      version: '1.0.0-canary.1',
-      type: 'extension',
-      extendsStore: ['@algorandfoundation/keystore'],
-      provider: {
-        type: 'extension',
-        withImport: 'WithKeyStore',
-        extensionInterface: 'KeyStoreExtension',
-        optionsType: 'KeyStoreOptions',
-        namespace: 'key',
-        stateProperty: 'keys'
-      }
-    },
-    {
-      name: 'walletconnect-connection-extension',
-      package: '@algorandfoundation/walletconnect-connection-extension',
-      version: '1.0.0-canary.0',
-      type: 'extension',
-      extendsStore: ['@algorandfoundation/connections-store'],
-      provider: {
-        type: 'extension',
-        withImport: 'WithWalletConnect',
-        extensionInterface: 'WalletConnectExtension',
-        optionsType: 'WalletConnectOptions',
-        namespace: 'walletconnect'
-      }
-    },
-    {
-      name: 'liquid-auth-connection-extension',
-      package: '@algorandfoundation/liquid-auth-connection-extension',
-      version: '1.0.0-canary.0',
-      type: 'extension',
-      extendsStore: ['@algorandfoundation/connections-store', '@algorandfoundation/accounts-store', '@algorandfoundation/passkey-store'],
-      provider: {
-        type: 'extension',
-        withImport: 'WithLiquidAuth',
-        extensionInterface: 'LiquidAuthExtension',
-        optionsType: 'LiquidAuthOptions',
-        namespace: 'liquidAuth'
-      }
-    }
-  ]
-};
 
 export async function fetchRegistry(configRepoUrl?: string, rootPath: string = process.cwd()): Promise<Registry> {
   if (!configRepoUrl) {
-    // Priority: hardcoded registry for now
-    return HARDCODED_REGISTRY;
+    // Priority: local registry.json if exists
+    const localRegistryPath = await getRegistryPath(rootPath);
+    try {
+      const content = await fs.readFile(localRegistryPath, 'utf-8');
+      return JSON.parse(content) as Registry;
+    } catch (e) {
+      // Fallback to discovery
+      return await discoverLocalProject(rootPath);
+    }
   }
 
   try {
@@ -191,7 +50,7 @@ export async function fetchRegistry(configRepoUrl?: string, rootPath: string = p
   }
 }
 
-async function discoverLocalProject(rootPath: string): Promise<Registry> {
+export async function discoverLocalProject(rootPath: string): Promise<Registry> {
   const rootPkg = await readPackage({ cwd: rootPath });
   let workspaces = rootPkg.workspaces;
 
@@ -224,13 +83,11 @@ async function discoverLocalProject(rootPath: string): Promise<Registry> {
                 name: pkg.name!.split('/').pop()!, 
                 package: pkg.name!,
                 version: pkg.version,
-                type: pkg.provider.type,
                 provider: pkg.provider,
-                extendsStore: pkg.provider.extendsStore,
                 dependencies: pkg.dependencies ? Object.keys(pkg.dependencies) : []
             };
 
-            if (info.type === 'store') {
+            if (info.provider.type === 'store') {
                 stores.push(info);
             } else {
                 extensions.push(info);
@@ -243,7 +100,26 @@ async function discoverLocalProject(rootPath: string): Promise<Registry> {
   return { stores, extensions };
 }
 
-export async function detectTooling(cwd: string) {
+async function getRegistryPath(rootPath: string): Promise<string> {
+  const configPkgPath = path.join(rootPath, 'config');
+  try {
+    const stats = await fs.stat(configPkgPath);
+    if (stats.isDirectory()) {
+      return path.join(configPkgPath, 'registry.json');
+    }
+  } catch (e) {
+    // ignore
+  }
+  return path.join(rootPath, 'registry.json');
+}
+
+export async function saveRegistry(rootPath: string, registry: Registry): Promise<string> {
+  const registryPath = await getRegistryPath(rootPath);
+  await fs.writeFile(registryPath, JSON.stringify(registry, null, 2));
+  return registryPath;
+}
+
+export async function detectTooling(cwd: string): Promise<"npm" | "yarn" | "pnpm"> {
   if (await fs.access(path.join(cwd, 'yarn.lock')).then(() => true).catch(() => false)) {
     return 'yarn';
   }
@@ -259,7 +135,10 @@ export async function bootstrapProvider(options: {
   selectedExtensions: string[];
   framework: 'react' | 'none';
   registry: Registry;
-}) {
+}): Promise<{
+    providerPath: string;
+    tooling: "npm" | "yarn" | "pnpm";
+}> {
   const { rootPath, providerName, selectedExtensions, framework, registry } = options;
   const providerDir = path.join(rootPath, 'src', 'provider', providerName);
   await fs.mkdir(providerDir, { recursive: true });
@@ -273,7 +152,7 @@ export async function bootstrapProvider(options: {
       if (ext) {
           packagesToInstall.add(ext.package);
           if (ext.dependencies) {
-              ext.dependencies.forEach(d => packagesToInstall.add(d));
+              ext.dependencies.forEach(d => {packagesToInstall.add(d)});
           }
       }
   }
@@ -370,7 +249,7 @@ async function findMonorepoRoot(startPath: string): Promise<string | null> {
     return null;
 }
 
-function generateProviderContent(name: string, extensions: ExtensionInfo[], framework: string) {
+function generateProviderContent(name: string, extensions: ExtensionInfo[], _framework: string) {
     const imports = extensions.map(ext => {
         return `import { ${ext.provider.withImport} } from '${ext.package}';
 import type { ${ext.provider.extensionInterface}, ${ext.provider.optionsType} } from '${ext.package}';`;
