@@ -55,6 +55,11 @@
 		"withImport": "WithLiquidAuth",
 		"extensionInterface": "LiquidAuthExtension",
 		"optionsType": "LiquidAuthOptions",
-		"namespace": "liquidAuth"
+		"namespace": "liquidAuth",
+		"extendsStore": [
+			"@algorandfoundation/connections-store",
+			"@algorandfoundation/accounts-store",
+			"@algorandfoundation/passkey-store"
+		]
 	}
 }

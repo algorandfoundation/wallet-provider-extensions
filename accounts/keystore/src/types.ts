@@ -37,6 +37,10 @@ export interface AccountsKeystoreExtensionOptions
  * This extension bridges the Accounts Store and the Keystore,
  * providing accounts that are backed by the keystore for signing.
  */
-export interface AccountsKeystoreExtension
-	extends AccountStoreExtension,
-		KeyStoreExtension {}
+export interface AccountsKeystoreExtension extends AccountStoreExtension, KeyStoreExtension {
+  account: AccountStoreExtension["account"] & {
+    keystore: {
+      autoPopulate: boolean;
+    }
+  }
+}

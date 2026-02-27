@@ -15,8 +15,10 @@ export interface ProviderInfo {
 export interface ExtensionInfo {
   name: string;
   package: string;
+  version: string;
   type: 'store' | 'extension';
   dependencies?: string[];
+  extendsStore?: string[];
   provider: ProviderInfo;
 }
 
@@ -25,10 +27,158 @@ export interface Registry {
   extensions: ExtensionInfo[];
 }
 
+export const HARDCODED_REGISTRY: Registry = {
+  stores: [
+    {
+      name: 'passkey-store',
+      package: '@algorandfoundation/passkey-store',
+      version: '1.0.0-canary.0',
+      type: 'store',
+      provider: {
+        type: 'store',
+        withImport: 'WithPasskeyStore',
+        extensionInterface: 'PasskeyStoreExtension',
+        optionsType: 'PasskeyStoreOptions',
+        namespace: 'passkey',
+        stateProperty: 'passkeys'
+      }
+    },
+    {
+      name: 'log-store',
+      package: '@algorandfoundation/log-store',
+      version: '1.0.0-canary.2',
+      type: 'store',
+      provider: {
+        type: 'store',
+        withImport: 'WithLogStore',
+        extensionInterface: 'LogStoreExtension',
+        optionsType: 'LogStoreExtensionOptions',
+        namespace: 'log',
+        stateProperty: 'logs'
+      }
+    },
+    {
+      name: 'accounts-store',
+      package: '@algorandfoundation/accounts-store',
+      version: '0.0.1',
+      type: 'store',
+      provider: {
+        type: 'store',
+        withImport: 'WithAccountStore',
+        extensionInterface: 'AccountStoreExtension',
+        optionsType: 'AccountStoreOptions',
+        namespace: 'account',
+        stateProperty: 'accounts'
+      }
+    },
+    {
+      name: 'keystore',
+      package: '@algorandfoundation/keystore',
+      version: '1.0.0-canary.7',
+      type: 'store',
+      provider: {
+        type: 'store',
+        withImport: 'WithKeyStore',
+        extensionInterface: 'KeyStoreExtension',
+        optionsType: 'KeyStoreOptions',
+        namespace: 'key',
+        stateProperty: 'keys'
+      }
+    },
+    {
+      name: 'connections-store',
+      package: '@algorandfoundation/connections-store',
+      version: '1.0.0-canary.0',
+      type: 'store',
+      provider: {
+        type: 'store',
+        withImport: 'WithConnectionStore',
+        extensionInterface: 'ConnectionStoreExtension',
+        optionsType: 'ConnectionStoreOptions',
+        namespace: 'connection',
+        stateProperty: 'connections'
+      }
+    }
+  ],
+  extensions: [
+    {
+      name: 'passkeys-keystore-extension',
+      package: '@algorandfoundation/passkeys-keystore-extension',
+      version: '0.0.1',
+      type: 'extension',
+      extendsStore: ['@algorandfoundation/passkey-store', '@algorandfoundation/keystore'],
+      provider: {
+        type: 'extension',
+        withImport: 'WithPasskeysKeystore',
+        extensionInterface: 'PasskeysKeystoreExtension',
+        optionsType: 'PasskeysKeystoreExtensionOptions',
+        namespace: 'passkey.keystore'
+      }
+    },
+    {
+      name: 'accounts-keystore-extension',
+      package: '@algorandfoundation/accounts-keystore-extension',
+      version: '0.0.1',
+      type: 'extension',
+      extendsStore: ['@algorandfoundation/accounts-store', '@algorandfoundation/keystore'],
+      provider: {
+        type: 'extension',
+        withImport: 'WithAccountsKeystore',
+        extensionInterface: 'AccountsKeystoreExtension',
+        optionsType: 'AccountsKeystoreExtensionOptions',
+        namespace: 'account.keystore'
+      }
+    },
+    {
+      name: 'react-native-keystore',
+      package: '@algorandfoundation/react-native-keystore',
+      version: '1.0.0-canary.1',
+      type: 'extension',
+      extendsStore: ['@algorandfoundation/keystore'],
+      provider: {
+        type: 'extension',
+        withImport: 'WithKeyStore',
+        extensionInterface: 'KeyStoreExtension',
+        optionsType: 'KeyStoreOptions',
+        namespace: 'key',
+        stateProperty: 'keys'
+      }
+    },
+    {
+      name: 'walletconnect-connection-extension',
+      package: '@algorandfoundation/walletconnect-connection-extension',
+      version: '1.0.0-canary.0',
+      type: 'extension',
+      extendsStore: ['@algorandfoundation/connections-store'],
+      provider: {
+        type: 'extension',
+        withImport: 'WithWalletConnect',
+        extensionInterface: 'WalletConnectExtension',
+        optionsType: 'WalletConnectOptions',
+        namespace: 'walletconnect'
+      }
+    },
+    {
+      name: 'liquid-auth-connection-extension',
+      package: '@algorandfoundation/liquid-auth-connection-extension',
+      version: '1.0.0-canary.0',
+      type: 'extension',
+      extendsStore: ['@algorandfoundation/connections-store', '@algorandfoundation/accounts-store', '@algorandfoundation/passkey-store'],
+      provider: {
+        type: 'extension',
+        withImport: 'WithLiquidAuth',
+        extensionInterface: 'LiquidAuthExtension',
+        optionsType: 'LiquidAuthOptions',
+        namespace: 'liquidAuth'
+      }
+    }
+  ]
+};
+
 export async function fetchRegistry(configRepoUrl?: string, rootPath: string = process.cwd()): Promise<Registry> {
   if (!configRepoUrl) {
-      // Fallback to local discovery if no remote config is provided
-      return await discoverLocalProject(rootPath);
+    // Priority: hardcoded registry for now
+    return HARDCODED_REGISTRY;
   }
 
   try {
@@ -43,10 +193,22 @@ export async function fetchRegistry(configRepoUrl?: string, rootPath: string = p
 
 async function discoverLocalProject(rootPath: string): Promise<Registry> {
   const rootPkg = await readPackage({ cwd: rootPath });
-  const workspaces = rootPkg.workspaces;
+  let workspaces = rootPkg.workspaces;
 
   if (!workspaces || !Array.isArray(workspaces)) {
-    throw new Error('No workspaces found in root package.json');
+    // Try to find root package.json if we are in a subdirectory
+    try {
+      const parentRootPath = path.resolve(rootPath, '..');
+      const parentRootPkg = await readPackage({ cwd: parentRootPath });
+      if (parentRootPkg.workspaces && Array.isArray(parentRootPkg.workspaces)) {
+         workspaces = parentRootPkg.workspaces;
+         rootPath = parentRootPath;
+      }
+    } catch (e) {}
+  }
+
+  if (!workspaces || !Array.isArray(workspaces)) {
+    throw new Error('No workspaces found in package.json at ' + rootPath);
   }
 
   const stores: ExtensionInfo[] = [];
@@ -61,8 +223,10 @@ async function discoverLocalProject(rootPath: string): Promise<Registry> {
             const info: ExtensionInfo = { 
                 name: pkg.name!.split('/').pop()!, 
                 package: pkg.name!,
+                version: pkg.version,
                 type: pkg.provider.type,
                 provider: pkg.provider,
+                extendsStore: pkg.provider.extendsStore,
                 dependencies: pkg.dependencies ? Object.keys(pkg.dependencies) : []
             };
 
@@ -131,12 +295,52 @@ export async function bootstrapProvider(options: {
 
   if (missingDeps.length > 0) {
       console.log(`Installing missing dependencies: ${missingDeps.join(', ')}`);
+      
+      // Check if we are in a workspace and use workspace:* for local packages
+      const rootPkgPath = path.join(rootPath, 'package.json');
+      const rootPkg = JSON.parse(await fs.readFile(rootPkgPath, 'utf-8'));
+      
+      // If we are in a monorepo, we might want to use workspace:* protocols
+      // But for simplicity and to follow the user's request "use local linking", 
+      // let's check if the packages exist in the registry and if they are local.
+      
+      const monorepoRoot = await findMonorepoRoot(rootPath);
+      let localPackageVersions: Record<string, string> = {};
+      if (monorepoRoot) {
+          const localRegistry = await discoverLocalProject(monorepoRoot);
+          [...localRegistry.stores, ...localRegistry.extensions].forEach(e => {
+              localPackageVersions[e.package] = e.version;
+          });
+      }
+
+      const depsToInstall = missingDeps.map(dep => {
+          if (localPackageVersions[dep]) {
+              return `${dep}@${localPackageVersions[dep]}`;
+          }
+          return dep;
+      });
+
       if (tooling === 'yarn') {
-          await execa('yarn', ['add', ...missingDeps], { cwd: rootPath });
+          await execa('yarn', ['add', ...depsToInstall], { cwd: rootPath });
       } else if (tooling === 'pnpm') {
-          await execa('pnpm', ['add', ...missingDeps], { cwd: rootPath });
+          await execa('pnpm', ['add', ...depsToInstall], { cwd: rootPath });
       } else {
-          await execa('npm', ['install', ...missingDeps, '--legacy-peer-deps'], { cwd: rootPath });
+          // For npm, we first add them to package.json with their version if they are local, 
+          // then run npm install for the rest or for all.
+          
+          for (const dep of missingDeps) {
+              if (localPackageVersions[dep]) {
+                  rootPkg.dependencies[dep] = localPackageVersions[dep];
+              }
+          }
+          await fs.writeFile(rootPkgPath, JSON.stringify(rootPkg, null, 2));
+
+          const nonLocalDeps = missingDeps.filter(d => !localPackageVersions[d]);
+          if (nonLocalDeps.length > 0) {
+              await execa('npm', ['install', ...nonLocalDeps, '--legacy-peer-deps'], { cwd: rootPath });
+          } else {
+              await execa('npm', ['install', '--legacy-peer-deps'], { cwd: rootPath });
+          }
       }
   }
 
@@ -150,6 +354,20 @@ export async function bootstrapProvider(options: {
   await fs.writeFile(providerFile, content);
 
   return { providerPath: providerFile, tooling };
+}
+
+async function findMonorepoRoot(startPath: string): Promise<string | null> {
+    let currentPath = startPath;
+    while (currentPath !== path.parse(currentPath).root) {
+        try {
+            const pkg = await readPackage({ cwd: currentPath });
+            if (pkg.workspaces) {
+                return currentPath;
+            }
+        } catch (e) {}
+        currentPath = path.dirname(currentPath);
+    }
+    return null;
 }
 
 function generateProviderContent(name: string, extensions: ExtensionInfo[], framework: string) {
@@ -183,13 +401,42 @@ export type SelectedExtensionsOptions =
  * ${name} is a customized wallet provider with the following extensions:
  * ${extensions.map(e => `- ${e.package}`).join('\n * ')}
  */
-export class ${name} extends Provider implements SelectedExtensions {
+export class ${name} extends Provider<any> implements SelectedExtensions {
     static EXTENSIONS = [${extensionList}] as const;
 
-    ${extensions.map(ext => {
-        const stateProp = ext.provider.stateProperty ? `\n    declare ${ext.provider.stateProperty}: ${ext.provider.extensionInterface}['${ext.provider.stateProperty}'];` : '';
-        return `declare ${ext.provider.namespace}: ${ext.provider.extensionInterface}['${ext.provider.namespace}'];${stateProp}`;
-    }).join('\n    ')}
+    ${(() => {
+        const namespaces = new Map<string, ExtensionInfo[]>();
+        const stateProperties = new Map<string, ExtensionInfo[]>();
+        
+        extensions.forEach(ext => {
+            const baseNamespace = ext.provider.namespace.split('.')[0];
+            if (!namespaces.has(baseNamespace)) {
+                namespaces.set(baseNamespace, []);
+            }
+            namespaces.get(baseNamespace)!.push(ext);
+            
+            if (ext.provider.stateProperty) {
+                if (!stateProperties.has(ext.provider.stateProperty)) {
+                    stateProperties.set(ext.provider.stateProperty, []);
+                }
+                stateProperties.get(ext.provider.stateProperty)!.push(ext);
+            }
+        });
+
+        const declarations: string[] = [];
+        
+        namespaces.forEach((exts, name) => {
+            const types = exts.map(e => `${e.provider.extensionInterface}['${name}']`).join(' & ');
+            declarations.push(`declare ${name}: ${types};`);
+        });
+        
+        stateProperties.forEach((exts, name) => {
+            const types = exts.map(e => `${e.provider.extensionInterface}['${name}']`).join(' & ');
+            declarations.push(`declare ${name}: ${types};`);
+        });
+
+        return declarations.join('\n    ');
+    })()}
 }
 `;
 }

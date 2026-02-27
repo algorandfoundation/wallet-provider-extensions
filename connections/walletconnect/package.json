@@ -56,6 +56,9 @@
 		"withImport": "WithWalletConnect",
 		"extensionInterface": "WalletConnectExtension",
 		"optionsType": "WalletConnectOptions",
-		"namespace": "walletconnect"
+		"namespace": "walletconnect",
+		"extendsStore": [
+			"@algorandfoundation/connections-store"
+		]
 	}
 }

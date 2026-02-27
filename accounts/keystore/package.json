@@ -52,6 +52,10 @@
 		"withImport": "WithAccountsKeystore",
 		"extensionInterface": "AccountsKeystoreExtension",
 		"optionsType": "AccountsKeystoreExtensionOptions",
-		"namespace": "accountsKeystore"
+		"namespace": "account.keystore",
+		"extendsStore": [
+			"@algorandfoundation/accounts-store",
+			"@algorandfoundation/keystore"
+		]
 	}
 }

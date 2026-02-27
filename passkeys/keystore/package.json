@@ -52,6 +52,10 @@
 		"withImport": "WithPasskeysKeystore",
 		"extensionInterface": "PasskeysKeystoreExtension",
 		"optionsType": "PasskeysKeystoreExtensionOptions",
-		"namespace": "passkeysKeystore"
+		"namespace": "passkey.keystore",
+		"extendsStore": [
+			"@algorandfoundation/passkey-store",
+			"@algorandfoundation/keystore"
+		]
 	}
 }

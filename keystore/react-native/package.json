@@ -49,6 +49,9 @@
 		"extensionInterface": "KeyStoreExtension",
 		"optionsType": "KeyStoreOptions",
 		"namespace": "key",
-		"stateProperty": "keys"
+		"stateProperty": "keys",
+		"extendsStore": [
+			"@algorandfoundation/keystore"
+		]
 	}
 }
