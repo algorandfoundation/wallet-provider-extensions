@@ -3,12 +3,12 @@ import type { Store } from "@tanstack/store";
 import type { HookCollection } from "before-after-hook";
 
 import type { KeyStoreAPI } from "./backend.ts";
-import type { Key, KeyId } from "./core.ts";
+import type {Key, KeyData, KeyId} from "./core.ts";
 
 /**
  * Configuration for the keystore extension.
  */
-export interface KeyStoreOptions extends ExtensionOptions {
+export interface KeyStoreOptions<T extends Key = Key> extends ExtensionOptions {
 	/** API configuration */
 	api?: {
 		/** The optional {@link KeyStoreAPI} backend implementation to use */
@@ -16,7 +16,7 @@ export interface KeyStoreOptions extends ExtensionOptions {
 	};
 	/** Keystore-specific settings */
 	keystore: {
-		store: Store<KeyStoreState>;
+		store: Store<KeyStoreState<T>>;
 		hooks: HookCollection<any>;
 		// Note: Other options could be available in specific contexts like ReactNative
 		//vault: ReactNativeVault
@@ -33,9 +33,9 @@ export interface KeyStoreOptions extends ExtensionOptions {
  * Consumers can subscribe to state changes using TanStack Store selectors.
  * See {@link https://tanstack.com/store/latest docs} for details.
  */
-export interface KeyStoreState {
+export interface KeyStoreState<T extends Key = Key> {
 	/** Array of available {@link KeyId}s currently stored by the backend */
-	keys: Key[];
+	keys: T[];
 	/**
 	 * Current status of the keystore operation lifecycle.
 	 *
@@ -53,10 +53,10 @@ export interface KeyStoreState {
 /**
  * The interface exposed by the Keystore Extension when added to a Provider.
  */
-export interface KeyStoreExtension extends KeyStoreState {
+export interface KeyStoreExtension<T extends Key = KeyData> extends KeyStoreState {
 	/** The keystore backend with added support for hooks */
 	key: {
-		store: KeyStoreAPI & {
+		store: KeyStoreAPI<T> & {
 			/**
 			 * Hook collection for intercepting keystore operations.
 			 *

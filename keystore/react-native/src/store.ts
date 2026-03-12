@@ -5,7 +5,6 @@ import {
 	type DeriveOptions,
 	generateKey as generateKeyStoreKey,
 	InvalidKeyDataError,
-	InvalidKeyFormatError,
 	type KeyData,
 	type KeyId,
 	KeyNotFoundError,
@@ -20,7 +19,7 @@ import {
 	type XHDRootKey,
 } from "@algorandfoundation/keystore";
 
-import { clearBuffer, generateId } from "@algorandfoundation/wallet-provider";
+import { generateId } from "@algorandfoundation/wallet-provider";
 import {
 	BIP32DerivationType,
 	KeyContext,
@@ -37,9 +36,10 @@ import type {
 	EncryptDecryptParams,
 	SubtleAlgorithm,
 } from "react-native-quick-crypto";
-import { DecodingError } from "./errors.ts";
-import { dp256, xhd } from "./libs.ts";
+import { xhd } from "./libs.ts";
 import { commit, fetchSecret, storage } from "./storage/state.ts";
+
+export * from "./import.ts";
 
 /**
  * Type guard for SeedData
@@ -215,7 +215,6 @@ export async function generateKey(options: {
 					extractable: true, // Some libraries might check this
 				}
 			: null;
-
 		keyData = await generateKeyStoreKey({
 			keyData: {
 				id: generateId(),
@@ -241,50 +240,6 @@ export async function generateKey(options: {
 		clearKeyData(parentKey);
 		setStatus({ store, status: "idle" });
 	}
-}
-
-export async function importSeed({
-	store,
-	seed,
-	name,
-	id,
-}: {
-	store: Store<KeyStoreState>;
-	seed: Uint8Array | string;
-	name?: string;
-	id?: KeyId;
-}): Promise<KeyId> {
-	setStatus({ store, status: "importing" });
-	const keyId = id || generateId();
-
-	let privateKey: Uint8Array;
-	const metadata: any = {};
-
-	try {
-		if (typeof seed === "string") {
-			throw new InvalidKeyDataError("Mnemonic import is not implemented yet");
-		}
-		privateKey = seed;
-
-		await commit({
-			store,
-			keyData: {
-				id: keyId,
-				type: "hd-seed",
-				name: name || "Imported Seed",
-				algorithm: "raw",
-				format: "bytes",
-				extractable: true,
-				keyUsages: ["deriveKey", "deriveBits"],
-				privateKey,
-				metadata,
-			} as SeedData,
-		});
-	} finally {
-		setStatus({ store, status: "idle" });
-	}
-
-	return keyId;
 }
 
 export function parsePath(path: string): number[] {
@@ -424,264 +379,6 @@ export async function deriveFromSeed({
 	} finally {
 		clearKeyData(rootKey);
 		clearKeyData(derivedKey);
-		setStatus({ store, status: "idle" });
-	}
-}
-
-export async function importEd25519Key({
-	store,
-	keyData,
-	seed,
-}: {
-	store: Store<KeyStoreState>;
-	keyData: KeyData;
-	seed?: SeedData;
-}): Promise<KeyId> {
-	setStatus({ store, status: "importing" });
-
-	try {
-		const isHD =
-			typeof keyData.publicKey === "undefined" &&
-			typeof keyData.privateKey === "undefined";
-
-		let publicKey = keyData.publicKey;
-
-		// For Ed25519: derive public key from private key if not provided
-		// The private key format is 64 bytes: [32 bytes seed || 32 bytes public key]
-		if (!isHD && !publicKey && keyData.privateKey) {
-			if (keyData.privateKey.length === 32) {
-				// If only seed is provided, we can't easily derive public key without ed25519 library
-				// But we are in a test environment where we might want this to work
-				// For now, let's assume it should be 64 bytes for ecc type
-			}
-			if (keyData.privateKey.length === 64) {
-				publicKey = keyData.privateKey.slice(32);
-			}
-		}
-
-		if (!isHD && !publicKey) {
-			throw new InvalidKeyDataError("Could not derive public key");
-		}
-
-		if (isHD && typeof seed?.privateKey === "undefined") {
-			throw new InvalidKeyDataError("XHD derived keys require a seed");
-		} else {
-		}
-
-		await commit({
-			store,
-			keyData: {
-				...keyData,
-				type: isHD ? "hd-derived-ed25519" : "ecc",
-				publicKey,
-				metadata: isHD
-					? {
-							...keyData.metadata,
-							rootKeyId: keyData.metadata?.rootKeyId ?? undefined,
-						}
-					: keyData.metadata,
-			},
-		});
-		return keyData.id;
-	} finally {
-		clearKeyData(keyData);
-		clearKeyData(seed);
-		setStatus({ store, status: "idle" });
-	}
-}
-export async function importXHDDomainP256Key({
-	store,
-	keyData,
-}: {
-	store: Store<KeyStoreState>;
-	keyData: Omit<XHDDomainP256KeyData, "id">;
-}): Promise<KeyId> {
-	if (keyData.algorithm !== "P256") {
-		throw new InvalidKeyDataError(
-			"Only P-256 derived keys are currently supported",
-		);
-	}
-	if (typeof keyData?.metadata?.parentKeyId === "undefined") {
-		throw new InvalidKeyDataError(
-			"XHD derived keys require a rootKeyId, please upload it first using importSeed()",
-		);
-	}
-
-	setStatus({ store, status: "importing" });
-
-	const key: KeyData = {
-		id: generateId(),
-		...keyData,
-		type: "hd-derived-p256",
-		algorithm: "P256",
-		extractable: false,
-		metadata: {
-			...keyData.metadata,
-		},
-	} as any;
-
-	let openKey: XHDRootKey | null = null;
-	try {
-		// Get the secret from the root key ID
-		const secret = await fetchSecret<KeyData>({
-			keyId: keyData.metadata.parentKeyId,
-		});
-		if (!secret) throw new KeyNotFoundError(keyData.metadata.parentKeyId);
-
-		// Check for the correct type
-		if (typeof secret.privateKey === "undefined") {
-			throw new DecodingError("Could not decrypt root key");
-		}
-		if (!isXHDRootKey(secret)) {
-			// Clear the buffers
-			clearBuffer(secret.privateKey);
-			delete (secret as any).privateKey;
-
-			throw new InvalidKeyDataError("Root key is not a seed key");
-		}
-
-		openKey = secret;
-
-		if (typeof openKey.privateKey === "undefined") {
-			throw new DecodingError("Could not decrypt root key");
-		}
-
-		const keyPair = await dp256.genDomainSpecificKeyPair(
-			openKey.privateKey,
-			keyData.metadata.origin,
-			keyData.metadata.userHandle,
-			keyData.metadata.counter,
-		);
-		key.publicKey = dp256.getPurePKBytes(keyPair);
-		await commit({
-			store,
-			keyData: {
-				...key,
-				privateKey: keyPair,
-			} as KeyData,
-		});
-
-		// Cleanup the buffers
-		clearBuffer(openKey.privateKey);
-		delete openKey.privateKey;
-		clearBuffer(keyPair);
-
-		// Notify the world we have a new key
-		store.setState((state) => ({
-			...state,
-			keys: [key as any, ...state.keys],
-		}));
-
-		return key.id;
-	} finally {
-		setStatus({ store, status: "idle" });
-	}
-}
-export async function importKey({
-	store,
-	keyData,
-}: {
-	store: Store<KeyStoreState>;
-	keyData: Omit<KeyData, "id"> | Uint8Array | string;
-	//format?: KeyFormat, // TODO: Align with Subtle's KeyFormat in the future?
-	//algorithm?: Algorithm, // TODO: align with SubtleAlgorithm in the future?
-	//extractable?: boolean, // TODO: align with SubtleExtractable in the future?
-	//keyUsages: KeyUsage[] // TODO: leverage for keyData
-}): Promise<KeyId> {
-	try {
-		if (keyData instanceof Uint8Array || typeof keyData === "string") {
-			// TODO: Check format and algorith for the key bytes to handle it appropriately
-			// We only support our bespoke KeyData objects for now
-			throw new InvalidKeyDataError(
-				"Importing raw or encoded keys is not currently supported. Use KeyData instead.",
-			);
-		}
-		// Ensure this is a KeyData object
-		if (!(keyData as KeyData).type) {
-			throw new InvalidKeyFormatError(
-				"Only KeyData objects are allowed currently",
-			);
-		}
-
-		switch (keyData.type) {
-			case "hd-seed": {
-				if (
-					typeof keyData.privateKey === "undefined" ||
-					!(keyData.privateKey instanceof Uint8Array)
-				) {
-					throw new InvalidKeyDataError(
-						"Seed is required and must be a Uint8Array",
-					);
-				}
-				setStatus({ store, status: "importing" });
-				const keyId = (keyData as any).id || generateId();
-				await commit({
-					store,
-					keyData: {
-						id: keyId,
-						type: "hd-seed",
-						algorithm: "raw",
-						format: "raw", // Must be "raw" for core keystore to recognize it as a seed
-						extractable: true,
-						keyUsages: ["deriveKey", "deriveBits"],
-						privateKey: new Uint8Array(keyData.privateKey),
-						metadata: {
-							...(keyData.metadata || {}),
-							name: (keyData as any).name || "Imported Seed",
-						},
-					},
-				});
-				return keyId;
-			}
-			case "hd-root-key": {
-				if (keyData.algorithm !== "raw" && keyData.format !== "raw") {
-					throw new InvalidKeyDataError("Only supports importing raw seeds");
-				}
-				if (
-					typeof keyData.privateKey === "undefined" ||
-					!(keyData.privateKey instanceof Uint8Array)
-				) {
-					console.log(keyData.privateKey);
-					throw new InvalidKeyDataError(
-						"Seed is required and must be a Uint8Array",
-					);
-				}
-				setStatus({ store, status: "importing" });
-				const keyId = (keyData as any).id || generateId();
-				await commit({
-					store,
-					keyData: {
-						id: keyId,
-						type: "hd-root-key",
-						algorithm: "raw",
-						format: "raw",
-						extractable: true,
-						keyUsages: ["deriveKey", "deriveBits"],
-						privateKey: new Uint8Array(keyData.privateKey),
-						metadata: {
-							...(keyData.metadata || {}),
-							name: (keyData as any).name || "Imported Root Key",
-						},
-					},
-				});
-				return keyId;
-			}
-			case "hd-derived-ed25519": {
-				if (keyData.algorithm !== "EdDSA" && keyData.format !== "") {
-				}
-				return importEd25519Key({ store, keyData: keyData as SeedData });
-			}
-			case "hd-derived-p256": {
-				return importXHDDomainP256Key({
-					store,
-					keyData: keyData as XHDDomainP256KeyData,
-				});
-			}
-			default: {
-				throw new InvalidKeyDataError(`Unknown key type: ${keyData.type}`);
-			}
-		}
-	} finally {
 		setStatus({ store, status: "idle" });
 	}
 }

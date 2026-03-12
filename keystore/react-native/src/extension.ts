@@ -13,6 +13,7 @@ import {
 	sign,
 	signWithKeyData,
 	verify,
+	type KeyFormat,
 	type XHDDerivedKeyData,
 	type XHDDomainP256KeyData,
 } from "@algorandfoundation/keystore";
@@ -73,6 +74,9 @@ export const WithKeyStore: Extension<KeyStoreExtension> = (
 		 */
 		key: {
 			store: options?.api?.keystore || {
+				list() {
+					return keyStore.state.keys;
+				},
 				/** Generates a new key pair and stores it */
 				generate: (options): Promise<KeyId> => {
 					log.debug("(extension.ts) Generating Key", options, context);
@@ -97,11 +101,34 @@ export const WithKeyStore: Extension<KeyStoreExtension> = (
 					});
 				},
 				/** Imports an existing key into the keystore */
-				import: (data, _format): Promise<KeyId> => {
+				import: (
+					data,
+					algorithmOrFormat?: string,
+					format?: KeyFormat,
+				): Promise<KeyId> => {
+					const algorithm =
+						typeof algorithmOrFormat === "string" &&
+						algorithmOrFormat !== "raw" &&
+						algorithmOrFormat !== "base64" &&
+						algorithmOrFormat !== "keydata" &&
+						algorithmOrFormat !== "bytes" &&
+						algorithmOrFormat !== "seed"
+							? (algorithmOrFormat as any)
+							: undefined;
+					const finalFormat =
+						format ||
+						(algorithmOrFormat === "raw" ||
+						algorithmOrFormat === "base64" ||
+						algorithmOrFormat === "keydata" ||
+						algorithmOrFormat === "bytes" ||
+						algorithmOrFormat === "seed"
+							? (algorithmOrFormat as KeyFormat)
+							: undefined);
+
 					log.debug(
 						"(extension.ts) Import Key",
 						typeof data === "string" || data instanceof Uint8Array
-							? { type: "raw" }
+							? { type: "raw", algorithm, format: finalFormat }
 							: {
 									...data.metadata,
 									type: (data as any).type,
@@ -119,7 +146,12 @@ export const WithKeyStore: Extension<KeyStoreExtension> = (
 							"Invalid key data format, must be string, Uint8Array, or have Uint8Array privateKey property",
 						);
 					}
-					return store.importKey({ store: keyStore, keyData: data });
+					return store.importKey({
+						store: keyStore,
+						keyData: data,
+						format: finalFormat,
+						algorithm,
+					});
 				},
 				/** Exports public key data for a given key ID */
 				export: (id, options): Promise<KeyData> =>

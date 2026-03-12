@@ -9,11 +9,11 @@
 export type KeyId = string;
 
 /**
- * Type of key: RSA (asymmetric), ECC (elliptic curve), HD seed/derived
+ * Type of key: RSA (asymmetric), Ed25519 (Edwards), P-256 (elliptic curve), HD seed/derived
  */
 export type KeyType =
-	| "rsa"
-	| "ecc"
+	| "ed25519"
+	| "p256"
 	| "lattice"
 	| "hd-seed"
 	| "hd-root-key"
@@ -24,7 +24,7 @@ export type KeyType =
 /**
  * How keys are encoded: raw bytes, PEM (text), DER (binary), JWK (JSON), OpenPGP
  */
-export type KeyFormat = "raw" | "pem" | "der" | "jwk" | "openpgp" | string;
+export type KeyFormat = "raw" | "pem" | "der" | "jwk" | "openpgp" | "keydata" | "seed" | string;
 
 // TODO: Align with formats from Subtle?
 // export type ImportFormat =
@@ -136,6 +136,10 @@ export interface SeedData extends KeyData {
 	algorithm: "raw";
 }
 
+export function isSeedData(key: any): key is SeedData {
+	return key?.type === "hd-seed";
+}
+
 /**
  * Represents an HD root key derived from a seed.
  */
@@ -148,6 +152,10 @@ export interface XHDRootKey extends KeyData {
 		/** Optional identifier of the root key/seed */
 		rootKeyId?: string;
 	};
+}
+
+export function isXHDRootKey(key: any): key is XHDRootKey {
+	return key?.type === "hd-root-key";
 }
 
 /**
@@ -176,6 +184,9 @@ export interface XHDDerivedKeyData extends KeyData {
 		parentKeyId: string;
 	};
 }
+export function isXHDDerivedKeyData(key: any): key is XHDDerivedKeyData {
+	return key?.type === "hd-derived-ed25519";
+}
 
 /**
  * Represents metadata for an HD-derived P256 key.
@@ -197,6 +208,10 @@ export interface XHDDomainP256KeyData extends KeyData {
 	};
 }
 
+export function isXHDDomainP256KeyData(key: any): key is XHDDomainP256KeyData {
+	return key?.type === "hd-derived-p256";
+}
+
 /**
  * Options for generating a new key.
  */
@@ -211,7 +226,7 @@ export interface GenerateOptions {
 	keyUsages: KeyUsage[];
 	/** Key size in bits (e.g., 2048 for RSA) */
 	keySize?: number;
-	/** Curve for ECC (e.g., 'P-256') */
+	/** Curve for asymmetric keys (e.g., 'P-256') */
 	curve?: string;
 	/** Additional params */
 	params?: Record<string, any>;

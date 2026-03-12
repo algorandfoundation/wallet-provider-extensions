@@ -1,6 +1,6 @@
 import * as Keychain from "react-native-keychain";
 import { describe, expect, it, vi } from "vitest";
-import { decryptData, encryptData, getMasterKey } from "./crypto.js";
+import { decryptData, encryptData, getMasterKey } from "./crypto.ts";
 
 describe("crypto storage", () => {
 	it("should retrieve or generate a master key", async () => {

@@ -19,7 +19,7 @@ describe("store.ts", () => {
 
 	it("addKey adds a key to the store", () => {
 		const store = createStore();
-		const key = { id: "k1", type: "ecc", algorithm: "EdDSA" } as any;
+		const key = { id: "k1", type: "ed25519", algorithm: "EdDSA" } as any;
 		addKey(store, key);
 		expect(store.state.keys).toContain(key);
 	});

@@ -34,11 +34,13 @@
 		"vitest": "^4.0.18"
 	},
 	"dependencies": {
+		"@algorandfoundation/algokit-utils": "^10.0.0-alpha.41",
 		"@algorandfoundation/dp256": "^1.1.0",
 		"@algorandfoundation/keystore": "1.0.0-canary.12",
 		"@algorandfoundation/xhd-wallet-api": "^2.0.0-canary.1",
 		"@scure/base": "^2.0.0",
 		"@scure/bip39": "^2.0.1",
+		"buffer": "^6.0.3",
 		"react-native-keychain": "^10.0.0",
 		"react-native-mmkv": "^4.1.2",
 		"react-native-quick-crypto": "^1.0.12"

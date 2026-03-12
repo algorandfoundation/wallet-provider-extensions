@@ -24,6 +24,7 @@ export default function Index() {
 
     const [activeKey, setActiveKey] = useState<string | null>(null);
     const [activeSeed, setActiveSeed] = useState<string | null>(null);
+    const [activeRootKey, setActiveRootKey] = useState<string | null>(null);
 
     const seeds = keys.filter(k => k.type === 'hd-seed');
     const rootKeys = keys.filter(k => k.type === 'hd-root-key');
@@ -93,25 +94,30 @@ export default function Index() {
     };
 
     const handleImportSeed = async () => {
-        const keyId = await key.store.import({
-            type: 'hd-seed',
-            algorithm: 'raw',
-            extractable: true,
-            keyUsages: ['deriveKey', 'deriveBits'],
-            privateKey: new Uint8Array(randomBytes(64))
-        }, 'bytes')
 
-        const rootKeyId = await key.store.generate({
-            type: 'hd-root-key',
-            algorithm: 'raw',
-            extractable: true,
-            keyUsages: ['deriveKey', 'deriveBits'],
-            params: {
-                parentKeyId: keyId
-            }
-        })
 
-        setActiveSeed(rootKeyId);
+        // When the format is raw, the key should be the raw privateKey. When the format is seed, it should be the seed to be imported and create the ed25519 key with
+        const keyId = await key.store.import(new Uint8Array(randomBytes(64)), 'ed25519', 'seed')
+        // When the format is raw, the key should be the raw privateKey. When the format is seed, it should be the seed to be imported and create the root key from it
+        const rootKeyTest = await key.store.import(new Uint8Array(randomBytes(64)), 'xhd-root-key', 'seed')
+        // When the format is raw, the key should be the raw Root Key. When the format is seed, it should be the seed to be imported and also create the root key and xhd-derived key
+        const otherEd255Key = await key.store.import(new Uint8Array(randomBytes(64)), 'xhd-derived-ed25519', 'seed')
+
+
+        // HD Accounts
+        // const seeds = key.store.list().filter(k => k.type === 'hd-seed')
+        // const rootKeyId = await key.store.generate({
+        //     type: 'hd-root-key',
+        //     algorithm: 'raw',
+        //     extractable: true,
+        //     keyUsages: ['deriveKey', 'deriveBits'],
+        //     params: {
+        //         parentKeyId: seeds[0].id
+        //     }
+        // })
+        // setActiveKey(keyId);
+        // setActiveRootKey(rootKeyId);
+        // setActiveSeed(seeds[0].id);
     }
 
     const handleExportKey = async (id: string) => {

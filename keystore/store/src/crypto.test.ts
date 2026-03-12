@@ -46,7 +46,7 @@ describe("crypto.ts", () => {
 	it("encryptWithKeyData + decryptWithKeyData roundtrip", async () => {
 		const key: KeyData = {
 			id: "k1",
-			type: "ecc",
+				type: "ed25519",
 			algorithm: "raw",
 			extractable: false,
 			publicKey: makeUint8([10, 11, 12]),

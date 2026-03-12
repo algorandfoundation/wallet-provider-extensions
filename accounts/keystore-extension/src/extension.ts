@@ -3,12 +3,13 @@ import type {
 	AccountStoreExtension,
 	AccountStoreState,
 } from "@algorandfoundation/accounts-store";
-import type {
-	Key,
-	KeyId,
-	KeyStoreExtension,
-	KeyStoreState,
-	XHDDerivedKeyData,
+import {
+	encodeAddress,
+	type Key,
+	type KeyId,
+	type KeyStoreExtension,
+	type KeyStoreState,
+	type XHDDerivedKeyData,
 } from "@algorandfoundation/keystore";
 import type { Extension } from "@algorandfoundation/wallet-provider";
 import type { Store } from "@tanstack/store";
@@ -106,13 +107,13 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 
 			// Process only the newly added keys
 			addedKeys.forEach((k) => {
-				if (k.type === "hd-derived-ed25519") {
-					console.log(`Adding account for key ${k.id}-${k.type}...`);
-					const address = (k as XHDDerivedKeyData)?.metadata?.address
-						?.algorand as string;
-					if (address) {
-						provider.account.store.addAccount(createKeyAccount(k.id, address));
+				console.log(k)
+				if (k.type === "hd-derived-ed25519" || k.type === "ed25519") {
+					if(typeof k.publicKey === "undefined") {
+						return
 					}
+					console.log(`Adding account for key ${k.id}-${k.type}...`);
+					provider.account.store.addAccount(createKeyAccount(k.id, encodeAddress(k.publicKey)));
 				}
 			});
 			if (keys.some((k) => k.type === "hd-derived-ed25519"))

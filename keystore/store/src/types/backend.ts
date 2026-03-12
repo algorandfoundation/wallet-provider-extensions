@@ -2,11 +2,12 @@ import type {
 	AuditEvent,
 	DeriveOptions,
 	ExportOptions,
-	GenerateOptions,
+	GenerateOptions, Key,
 	KeyData,
 	KeyFormat,
 	KeyId,
 	KeyOptions,
+	KeyType,
 } from "./core.ts";
 import type { KeyStoreState } from "./extension.ts";
 
@@ -22,7 +23,8 @@ import type { KeyStoreState } from "./extension.ts";
  *
  * @see {@link KeyStoreState} for the reactive state representation of the keystore.
  */
-export interface KeyStoreAPI {
+export interface KeyStoreAPI<T extends Key = KeyData> {
+	list(): T[]
 	/**
 	 * Creates a new key pair. This generates both a private key (secret) and public key (shareable).
 	 *
@@ -32,17 +34,19 @@ export interface KeyStoreAPI {
 	generate(options: GenerateOptions): Promise<KeyId>;
 
 	/**
-	 * Imports an existing key into the keystore.
-	 *
-	 * @param data - The raw key data to import.
-	 * @param format - The {@link KeyFormat} of the provided data.
-	 * @returns The unique {@link KeyId} assigned to the imported key.
-	 * @throws {InvalidKeyFormatError} If the format is invalid.
-	 * @throws {InvalidKeyDataError} If the key data is malformed.
-	 */
+     * Imports an existing key into the keystore.
+     *
+     * @param data - The raw key data to import.
+     * @param type
+     * @param format - The {@link KeyFormat} of the provided data.
+     * @returns The unique {@link KeyId} assigned to the imported key.
+     * @throws {InvalidKeyFormatError} If the format is invalid.
+     * @throws {InvalidKeyDataError} If the key data is malformed.
+     */
 	import(
-		data: Omit<KeyData, "id"> | Uint8Array | string,
-		format: KeyFormat,
+		data: Omit<T, "id"> | Uint8Array | string,
+		type?: KeyType,
+		format?: KeyFormat,
 	): Promise<KeyId>;
 
 	/**
@@ -52,7 +56,7 @@ export interface KeyStoreAPI {
 	 * @param options - Export options such as {@link KeyFormat}.
 	 * @returns The {@link KeyData} containing exported key material.
 	 */
-	export(id: KeyId, options?: ExportOptions): Promise<KeyData>;
+	export(id: KeyId, options?: ExportOptions): Promise<T>;
 
 	/**
 	 * Deletes a key from the keystore.
@@ -201,6 +205,3 @@ export interface KeyStoreAPI {
 	 */
 	batchSign?(ids: KeyId[], data: Uint8Array[]): Promise<Uint8Array[]>;
 }
-
-// Note: XHDKeyStoreBackendOptions is defined in backend/xhd.ts
-// to avoid duplicate exports
