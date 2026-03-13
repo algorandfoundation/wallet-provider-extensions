@@ -11,7 +11,7 @@ export function useProvider(){
 
     useEffect(() => {
         function beforeGenerate(){
-            console.log('Hooking into before generate')
+            provider?.log.info('Hooking into before generate', undefined, 'useProvider')
         }
         provider.key.store.hooks.before('generate', beforeGenerate)
 

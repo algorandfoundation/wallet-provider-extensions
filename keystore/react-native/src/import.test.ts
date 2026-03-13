@@ -31,7 +31,7 @@ vi.mock("@algorandfoundation/wallet-provider", () => ({
 
 import {
 	InvalidKeyDataError,
-	InvalidKeyFormatError,
+	InvalidKeyFormatError, type KeyData,
 	type KeyStoreState,
 } from "@algorandfoundation/keystore";
 import { Store } from "@tanstack/store";
@@ -312,7 +312,7 @@ describe("react-native-keystore import.ts logic", () => {
 		it("should throw for unknown key type in KeyData object", async () => {
 			const keyData = {
 				type: "unknown" as any,
-			};
+			} as KeyData;
 			await expect(importKey({ store, keyData })).rejects.toThrow(
 				InvalidKeyDataError,
 			);

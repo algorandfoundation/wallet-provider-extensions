@@ -13,13 +13,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link } from "expo-router";
 
 export default function Accounts() {
-    const {accounts, status, account} = useProvider();
+    const {accounts, status, account, log} = useProvider();
 
     const handleRemoveAccount = async (address: string) => {
         try {
             await account.store.removeAccount(address);
         } catch (error: any) {
-            console.error("Failed to remove account", error);
+            log.error("Failed to remove account", { error: error?.message || error }, "App");
         }
     }
 

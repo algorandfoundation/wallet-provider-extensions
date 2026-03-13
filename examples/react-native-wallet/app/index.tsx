@@ -20,7 +20,7 @@ import { Link } from "expo-router";
 const ROOT_COLORS = ['#007AFF', '#34C759', '#5856D6', '#AF52DE', '#FF9500', '#FF3B30', '#FFCC00', '#5AC8FA'];
 
 export default function Index() {
-    const {keys, key, status} = useProvider();
+    const {keys, key, status, log} = useProvider();
 
     const [activeKey, setActiveKey] = useState<string | null>(null);
     const [activeSeed, setActiveSeed] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export default function Index() {
         }
         // Pick the next available index for the derived key
         const nextIndex = keys.filter(k => k.type === 'hd-derived-ed25519' && k?.metadata?.parentKeyId === activeSeed).length;
-        console.log('Next index:', nextIndex, keys.filter(k => k.type === 'hd-derived-ed25519'));
+        log.info('Next index: ' + nextIndex, { keys: keys.filter(k => k.type === 'hd-derived-ed25519') }, 'App');
         const keyId = await key.store.generate({
             type: 'hd-derived-ed25519',
             algorithm: 'EdDSA',

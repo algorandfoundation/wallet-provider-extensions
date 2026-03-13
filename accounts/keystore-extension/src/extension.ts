@@ -44,6 +44,8 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 	const accountStore: Store<AccountStoreState> = options.accounts.store;
 	const { autoPopulate = true } = options.accounts.keystore ?? {};
 
+	const logger = (provider as any).log;
+
 	/**
 	 * Creates an account object for a given key ID and address.
 	 */
@@ -56,8 +58,10 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 
 		// TODO: Transfer helper
 		transfer(amount: bigint, account: Account) {
-			console.log(
+			logger?.info?.(
 				`Transferring ${amount} from ${address} to ${account.address}`,
+				{ amount, from: address, to: account.address },
+				"AccountsKeystore",
 			);
 		},
 		// TODO: TransactionSigners
@@ -74,10 +78,18 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 
 	// Initial population if enabled
 	if (autoPopulate) {
-		console.log("Auto-populating accounts from keystore...");
+		logger?.info?.(
+			"Auto-populating accounts from keystore...",
+			undefined,
+			"AccountsKeystore",
+		);
 		const keys = [...((provider.keys as Key[]) ?? [])];
 		for (const key of keys) {
-			console.log(`Adding account for key ${key.id}-${key.type}...`);
+			logger?.info?.(
+				`Adding account for key ${key.id}-${key.type}...`,
+				undefined,
+				"AccountsKeystore",
+			);
 			if (key.type === "hd-derived-ed25519") {
 				provider.account.store.addAccount(
 					createKeyAccount(
@@ -107,28 +119,46 @@ export const WithAccountsKeystore: Extension<AccountsKeystoreExtension> = (
 
 			// Process only the newly added keys
 			addedKeys.forEach((k) => {
-				console.log(k)
 				if (k.type === "hd-derived-ed25519" || k.type === "ed25519") {
-					if(typeof k.publicKey === "undefined") {
-						return
+					const address =
+						k.publicKey !== undefined
+							? encodeAddress(k.publicKey)
+							: ((k as XHDDerivedKeyData)?.metadata?.address
+									?.algorand as string);
+
+					if (typeof address === "undefined") {
+						return;
 					}
-					console.log(`Adding account for key ${k.id}-${k.type}...`);
-					provider.account.store.addAccount(createKeyAccount(k.id, encodeAddress(k.publicKey)));
+
+					logger?.info?.(
+						`Adding account for key ${k.id}-${k.type}...`,
+						undefined,
+						"AccountsKeystore",
+					);
+					provider.account.store.addAccount(createKeyAccount(k.id, address));
 				}
 			});
 			if (keys.some((k) => k.type === "hd-derived-ed25519"))
-				console.log(
+				logger?.info?.(
 					`Found ${keys.length} keys, ${keys.filter((k) => k.type === "hd-derived-ed25519").length} HD keys`,
+					undefined,
+					"AccountsKeystore",
 				);
 			if (accounts.some((a) => a.type === "ed25519"))
-				console.log(
+				logger?.info?.(
 					`Found ${accounts.length} accounts, ${accounts.filter((a) => a.type === "ed25519").length} non-accounts`,
+					undefined,
+					"AccountsKeystore",
 				);
 		});
 
 		// We can also listen for new keys added to the keystore
 		provider.key.store.hooks.after("generate", async (keyId: KeyId) => {
-			console.log(`Key ${keyId} was generated successfully.`);
+			logger?.info?.(
+				`Key ${keyId} was generated successfully.`,
+				undefined,
+				"AccountsKeystore",
+			);
 		});
 	}
 
