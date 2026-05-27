@@ -5,6 +5,8 @@ import type { Key, KeyStoreState, XHDDerivedKeyData } from "@algorandfoundation/
 import { base64 } from "@scure/base";
 import { Store } from "@tanstack/store";
 import Hook from "before-after-hook";
+import type { LogStoreApi, LogStoreExtension } from "@algorandfoundation/log-store";
+import type { Extension } from "@algorandfoundation/wallet-provider";
 import type {
   AlgorandAccount,
   AlgorandAccountsExtension,
@@ -16,7 +18,10 @@ export function isAlgorandAccount(account: Account): account is AlgorandAccount 
   return account.type === "algorand-account";
 }
 
-export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExtensionOptions) => {
+export const WithAlgorandAccounts: Extension<unknown> = (
+  provider: LogStoreExtension & any,
+  options: AlgorandAccountsExtensionOptions,
+) => {
   // Ensure dependencies are present
   if (!provider.account) {
     throw new Error(
@@ -28,6 +33,8 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
       "AlgorandAccounts extension requires WithKeyStore extension to be present on the provider.",
     );
   }
+
+  const log: LogStoreApi | undefined = provider.log;
 
   // Create algorand client. Pass both algod and (optional) indexer
   // configs so downstream consumers can reach either via
@@ -66,6 +73,8 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
       return;
     }
 
+    log?.info(`[AlgorandAccounts] processUpdates called with ${newKeys.length} keys.`);
+
     isProcessing = true;
     nextKeys = null;
 
@@ -80,6 +89,7 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
     );
 
     if (addedKeys.length === 0 && removedKeys.length === 0) {
+      log?.info("[AlgorandAccounts] No changes to process");
       isProcessing = false;
 
       return;
@@ -96,7 +106,7 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
           const address = base64.encode(k.publicKey);
           const account = accountsStore.state.accounts.find((a) => a.address === address);
           if (account && account.metadata?.keyId === k.id && account.type === "algorand-account") {
-            console.log(`Removing algorand account for key ${k.id}-${k.type}...`);
+            log?.info(`Removing algorand account for key ${k.id}-${k.type}...`);
             provider.account.store.removeAccount(address);
           }
         }
@@ -109,7 +119,7 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
         if (k.type === "hd-derived-ed25519" && k.publicKey && k.metadata?.context === 0) {
           const address = base64.encode(k.publicKey);
 
-          console.log(`Checking algorand account balances for key ${k.id}-${k.type}... ${address}`);
+          log?.info(`Checking algorand account balances for key ${k.id}-${k.type}... ${address}`);
 
           const algorandAddress = encodeAddress(k.publicKey);
           let r: { balance: bigint; assets?: AccountAsset[] };
@@ -118,7 +128,10 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
           try {
             r = await getAlgorandBalances(algorandClient, algorandAddress);
           } catch (error) {
-            console.error("Failed to fetch algorand balances for address:", algorandAddress, error);
+            log?.error("Failed to fetch algorand balances for address:", {
+              algorandAddress,
+              error,
+            });
             return;
           }
 
@@ -130,7 +143,7 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
               (a) => a.address === address && k.metadata?.context === 0,
             )
           ) {
-            console.log(`Adding account for key ${k.id}-${k.type}...`);
+            log?.info(`Adding account for key ${k.id}-${k.type}...`);
 
             const parentKeyId = (k as XHDDerivedKeyData)?.metadata?.parentKeyId;
 
@@ -159,7 +172,7 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
               sign: makeHookedSignFn(k.id),
             });
 
-            console.info("Added algorand account with balance and assets:", address);
+            log?.info("Added algorand account with balance and assets:", { address });
           }
         }
       }),
@@ -170,10 +183,9 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
       .filter(isAlgorandAccount)
       .map((a) => encodeAddress(base64.decode(a.address)));
 
-    console.log(
-      "Algorand accounts updated, restarting subscriber with watchlist:",
+    log?.info("Algorand accounts updated, restarting subscriber with watchlist:", {
       algorandAddresses,
-    );
+    });
 
     if (containedSubscriber) {
       containedSubscriber.subscriber.stop("updating watchlist");
@@ -185,9 +197,7 @@ export const WithAlgorandAccounts = (provider: any, options: AlgorandAccountsExt
         algorandClient,
         algorandAddresses,
         (address: string, assetId: bigint, amount: bigint) => {
-          console.debug(
-            `Balance change detected for address: ${address}, assetId: ${assetId}, amount: ${amount}`,
-          );
+          log?.debug("Balance change detected for address:", { address, assetId, amount });
 
           accountsStore.setState((state) => ({
             ...state,

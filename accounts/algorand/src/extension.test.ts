@@ -71,6 +71,20 @@ function makeProvider() {
   };
 }
 
+function makeProviderWithLog() {
+  return {
+    ...makeProvider(),
+    log: {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      trace: vi.fn(),
+      clear: vi.fn(),
+    },
+  };
+}
+
 function makeOptions(accountsStore: Store<AccountStoreState<any>>, keyStore: Store<KeyStoreState>) {
   return {
     accounts: { store: accountsStore },
@@ -128,6 +142,20 @@ describe("WithAlgorandAccounts", () => {
     expect(added.metadata?.keyId).toBe(mockKey.id);
     expect(added.balance).toBe(1000n);
     expect(added.assets).toEqual([]);
+  });
+
+  it("uses provider.log when present", async () => {
+    const mockKey = await getMockKey("key-1");
+    const accountsStore = new Store<AccountStoreState<any>>({ accounts: [] });
+    const keyStore = new Store<KeyStoreState>({ keys: [], status: "idle" } as any);
+    const provider = makeProviderWithLog();
+
+    WithAlgorandAccounts(provider as any, makeOptions(accountsStore, keyStore) as any);
+
+    keyStore.setState((s) => ({ ...s, keys: [mockKey], status: "idle" }));
+    await flushAsync();
+
+    expect(provider.log.info).toHaveBeenCalled();
   });
 
   it("does not add a duplicate account when the address already exists in the account store", async () => {
