@@ -1,0 +1,61 @@
+{
+  "name": "@algorandfoundation/accounts-algorand-extension",
+  "version": "1.0.0-canary.0",
+  "description": "Accounts Algorand extension for wallet extensions.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "accounts/algorand"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "build:watch": "tsc -w -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "bench": "vitest bench",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/accounts-store": "workspace:*",
+    "@algorandfoundation/algokit-subscriber": "^3.2.0",
+    "@algorandfoundation/algokit-utils": "^9.2.0",
+    "@algorandfoundation/keystore": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@scure/base": "catalog:",
+    "algosdk": "^3.0.0"
+  },
+  "devDependencies": {
+    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/package-releaser": "workspace:*",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/log-store": "workspace:*",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/log-store": {
+      "optional": true
+    }
+  }
+}
