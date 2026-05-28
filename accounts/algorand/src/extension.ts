@@ -223,6 +223,9 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
             }),
           }));
         },
+        (error) => {
+          log?.error("Subscriber error:", { error });
+        },
       );
       containedSubscriber.subscriber.start();
     }

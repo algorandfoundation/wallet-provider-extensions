@@ -56,14 +56,16 @@ interface ContainedSubscriber {
 /**
  * Create an AlgorandSubscriber that listens for balance changes on a specified list of Algorand account addresses.
  * @param algorand - AlgorandClient instance
- * @param accounts - array of Algorand account addresses to watch
+ * @param addresses - array of Algorand account addresses to watch
  * @param onBalanceChange - callback function that will be triggered whenever a balance change is detected for any of the watched addresses.
+ * @param onError - optional callback that receives subscriber errors.
  * @returns An instance of AlgorandSubscriber that will listen for balance changes on the specified accounts
  */
 export const createSubscriberWithWatchlist = (
   algorand: AlgorandClient,
   addresses: string[],
   onBalanceChange: (address: string, assetId: bigint, amount: bigint) => void,
+  onError?: (error: unknown) => void,
 ): ContainedSubscriber => {
   const { algod } = algorand.client;
   let watermark = 0n; // Each instance maintains its own watermark
@@ -95,8 +97,8 @@ export const createSubscriberWithWatchlist = (
     algod,
   );
 
-  subscriber.onError((error) => {
-    console.error("Algorand subscriber error:", error);
+  subscriber.onError((subscriberError) => {
+    onError?.(subscriberError);
   });
 
   subscriber.on("balance-changes", async (event) => {
