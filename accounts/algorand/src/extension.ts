@@ -18,7 +18,7 @@ export function isAlgorandAccount(account: Account): account is AlgorandAccount 
   return account.type === "algorand-account";
 }
 
-export const WithAlgorandAccounts: Extension<unknown> = (
+export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
   provider: LogStoreExtension & any,
   options: AlgorandAccountsExtensionOptions,
 ) => {
