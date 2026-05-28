@@ -241,8 +241,8 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
 
   keyStore.subscribe((state) => {
     if (state.status !== "ready" && state.status !== "idle") return;
-    setImmediate(async () => {
-      await processUpdates(state.keys as unknown as Key[]);
+    queueMicrotask(() => {
+      void processUpdates(state.keys as unknown as Key[]);
     });
   });
 
