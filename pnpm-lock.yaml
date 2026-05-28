@@ -120,7 +120,7 @@ importers:
         specifier: 'catalog:'
         version: 4.1.2(@types/node@25.5.0)(jsdom@20.0.3(canvas@2.11.2))(vite@6.4.1(@types/node@25.5.0)(lightningcss@1.32.0)(terser@5.46.1)(yaml@2.8.3))
 
-  accounts/algorand:
+  accounts/algorand-extension:
     dependencies:
       '@algorandfoundation/accounts-store':
         specifier: workspace:*
