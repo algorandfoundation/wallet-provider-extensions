@@ -2,6 +2,9 @@ import type { AccountAsset } from "@algorandfoundation/accounts-store";
 import { AlgorandSubscriber } from "@algorandfoundation/algokit-subscriber";
 import { AlgorandClient } from "@algorandfoundation/algokit-utils";
 
+const SUBSCRIBER_MAX_RETRIES = 3;
+const SUBSCRIBER_RETRY_DELAY_MS = 2_000;
+
 /**
  * Get Algorand account balance and assets for a given address.
  * @param algorand - The AlgorandClient instance to use
@@ -58,7 +61,7 @@ interface ContainedSubscriber {
  * @param algorand - AlgorandClient instance
  * @param addresses - array of Algorand account addresses to watch
  * @param onBalanceChange - callback function that will be triggered whenever a balance change is detected for any of the watched addresses.
- * @param onError - optional callback that receives subscriber errors.
+ * @param onError - optional callback that receives subscriber errors after internal retries are exhausted.
  * @returns An instance of AlgorandSubscriber that will listen for balance changes on the specified accounts
  */
 export const createSubscriberWithWatchlist = (
@@ -69,6 +72,9 @@ export const createSubscriberWithWatchlist = (
 ): ContainedSubscriber => {
   const { algod } = algorand.client;
   let watermark = 0n; // Each instance maintains its own watermark
+  let retryCount = 0;
+
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const subscriber = new AlgorandSubscriber(
     {
@@ -97,11 +103,21 @@ export const createSubscriberWithWatchlist = (
     algod,
   );
 
-  subscriber.onError((subscriberError) => {
+  subscriber.onError(async (subscriberError) => {
+    retryCount += 1;
+
+    if (retryCount <= SUBSCRIBER_MAX_RETRIES) {
+      await delay(SUBSCRIBER_RETRY_DELAY_MS);
+      subscriber.start();
+      return;
+    }
+
     onError?.(subscriberError);
   });
 
   subscriber.on("balance-changes", async (event) => {
+    retryCount = 0;
+
     // we can assume only the watchlist addresses are included
     for (const change of event.balanceChanges ?? []) {
       const { address, assetId, amount } = change;
