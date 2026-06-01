@@ -239,6 +239,9 @@ importers:
 
   examples/react-native-wallet:
     dependencies:
+      '@algorandfoundation/accounts-algorand-extension':
+        specifier: workspace:*
+        version: link:../../accounts/algorand-extension
       '@algorandfoundation/accounts-keystore-extension':
         specifier: workspace:*
         version: link:../../accounts/keystore-extension
