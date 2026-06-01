@@ -10,10 +10,14 @@ import {
   KeystoreAccount,
   WithAccountsKeystore,
 } from "@algorandfoundation/accounts-keystore-extension";
+import {
+  AlgorandAccount,
+  WithAlgorandAccounts,
+} from "@algorandfoundation/accounts-algorand-extension";
 import { WithIdentities, type IdentitiesExtension } from "@algorandfoundation/identities-extension";
 import { WithWatchedAccount, WatchedAccount } from "@/extensions/example";
 
-export type AppAccount = WatchedAccount | KeystoreAccount | Account;
+export type AppAccount = WatchedAccount | AlgorandAccount | KeystoreAccount | Account;
 
 /**
  * The React Native Provider for the wallet application.
@@ -30,6 +34,7 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
     WithKeyStore,
     WithAccountStore<AppAccount>,
     WithAccountsKeystore,
+    WithAlgorandAccounts,
     WithIdentities,
     WithWatchedAccount,
   ] as const;

@@ -12,6 +12,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@algorandfoundation/accounts-algorand-extension": "workspace:*",
     "@algorandfoundation/accounts-keystore-extension": "workspace:*",
     "@algorandfoundation/accounts-store": "workspace:*",
     "@algorandfoundation/identities-extension": "workspace:*",

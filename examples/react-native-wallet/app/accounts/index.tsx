@@ -19,6 +19,7 @@ import {
 } from "@/hooks/useProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { isKeystoreAccount } from "@algorandfoundation/accounts-keystore-extension";
+import { isAlgorandAccount } from "@algorandfoundation/accounts-algorand-extension";
 import { isWatchedAccount } from "@/extensions/example";
 import { Alert } from "react-native";
 import { HeaderCard } from "@/components";
@@ -112,6 +113,9 @@ export default function Accounts() {
             if (isKeystoreAccount(item)) {
               iconName = "shield-key";
               typeLabel = "Keystore Account";
+            } else if (isAlgorandAccount(item)) {
+              iconName = "alpha-a-circle-outline";
+              typeLabel = "Algorand Account";
             } else if (isWatchedAccount(item)) {
               iconName = "eye-outline";
               typeLabel = "Watched Account";
