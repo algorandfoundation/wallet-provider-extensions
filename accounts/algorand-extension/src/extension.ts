@@ -67,6 +67,12 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
   let nextKeys: Key[] | null = null;
   let containedSubscriber: ReturnType<typeof createSubscriberWithWatchlist> | null = null;
 
+  const stopContainedSubscriber = (reason: string) => {
+    if (!containedSubscriber) return;
+    containedSubscriber.subscriber.stop(reason);
+    containedSubscriber = null;
+  };
+
   const processUpdates = async (newKeys: Key[]) => {
     if (isProcessing) {
       nextKeys = newKeys;
@@ -188,10 +194,7 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
       algorandAddresses,
     });
 
-    if (containedSubscriber) {
-      containedSubscriber.subscriber.stop("updating watchlist");
-      containedSubscriber = null;
-    }
+    stopContainedSubscriber("updating watchlist");
 
     if (algorandAddresses.length > 0) {
       containedSubscriber = createSubscriberWithWatchlist(
@@ -229,6 +232,9 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
         },
       );
       containedSubscriber.subscriber.start();
+    } else {
+      // Keep subscriber fully stopped whenever no algorand-account exists.
+      stopContainedSubscriber("no algorand accounts");
     }
 
     isProcessing = false;
@@ -245,6 +251,13 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
     queueMicrotask(() => {
       void processUpdates(state.keys as unknown as Key[]);
     });
+  });
+
+  accountsStore.subscribe((state) => {
+    const hasAlgorandAccounts = state.accounts.some(isAlgorandAccount);
+    if (!hasAlgorandAccounts) {
+      stopContainedSubscriber("no algorand accounts");
+    }
   });
 
   return provider as unknown as AlgorandAccountsExtension;

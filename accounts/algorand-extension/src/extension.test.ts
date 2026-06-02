@@ -451,4 +451,34 @@ describe("AlgorandSubscriber behavior", () => {
     expect(subscribers).toHaveLength(2);
     expect(subscribers[1].start).toHaveBeenCalledTimes(1);
   });
+
+  it("stops the subscriber when the account store has zero algorand accounts", async () => {
+    const mockKey = await getMockKey("key-1");
+    const accountsStore = new Store<AccountStoreState<any>>({ accounts: [] });
+    const keyStore = new Store<KeyStoreState>({ keys: [], status: "idle" } as any);
+    const provider = makeProviderWithStore(accountsStore);
+
+    const mockStart = vi.fn();
+    const mockStop = vi.fn();
+    mockCreateSubscriberWithWatchlist.mockImplementation(
+      (_client: any, _addresses: string[], _cb: any) => ({
+        subscriber: { start: mockStart, stop: mockStop },
+        watchlist: _addresses,
+      }),
+    );
+
+    WithAlgorandAccounts(provider as any, makeOptions(accountsStore, keyStore) as any);
+
+    keyStore.setState((s) => ({ ...s, keys: [mockKey], status: "idle" }));
+    await flushAsync();
+    expect(mockStart).toHaveBeenCalledTimes(1);
+
+    accountsStore.setState((s) => ({
+      ...s,
+      accounts: s.accounts.filter((a) => a.type !== "algorand-account"),
+    }));
+    await flushAsync();
+
+    expect(mockStop).toHaveBeenCalledWith("no algorand accounts");
+  });
 });
