@@ -140,7 +140,8 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
           // Skip if the account already exists
           if (
             !accountsStore.state.accounts.some(
-              (a) => a.address === address && k.metadata?.context === 0,
+              (a) =>
+                a.address === address && k.metadata?.context === 0 && a.type === "algorand-account",
             )
           ) {
             log?.info(`Adding account for key ${k.id}-${k.type}...`);
