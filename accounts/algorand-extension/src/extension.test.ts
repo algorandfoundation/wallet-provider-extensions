@@ -125,6 +125,7 @@ describe("WithAlgorandAccounts", () => {
 
   it("adds an algorand account when a new key is added to the keystore", async () => {
     const mockKey = await getMockKey("key-1");
+    const address = encodeAddress(mockKey.publicKey!);
     const accountsStore = new Store<AccountStoreState<any>>({ accounts: [] });
     const keyStore = new Store<KeyStoreState>({ keys: [], status: "idle" } as any);
     const provider = makeProvider();
@@ -138,7 +139,7 @@ describe("WithAlgorandAccounts", () => {
 
     const added = (provider.account.store.addAccount as any).mock.calls[0][0];
     expect(added.type).toBe("algorand-account");
-    expect(added.address).toBe(base64.encode(mockKey.publicKey!));
+    expect(added.address).toBe(address);
     expect(added.metadata?.keyId).toBe(mockKey.id);
     expect(added.balance).toBe(1000n);
     expect(added.assets).toEqual([]);
@@ -160,7 +161,7 @@ describe("WithAlgorandAccounts", () => {
 
   it("does not add a duplicate account when the address already exists in the account store", async () => {
     const mockKey = await getMockKey("key-1");
-    const address = base64.encode(mockKey.publicKey!);
+    const address = encodeAddress(mockKey.publicKey!);
 
     const accountsStore = new Store<AccountStoreState<any>>({
       accounts: [{ type: "algorand-account", address, metadata: { keyId: mockKey.id } }],
@@ -178,7 +179,7 @@ describe("WithAlgorandAccounts", () => {
 
   it("removes an algorand account when the corresponding key is removed from the keystore", async () => {
     const mockKey = await getMockKey("key-1");
-    const address = base64.encode(mockKey.publicKey!);
+    const address = encodeAddress(mockKey.publicKey!);
 
     const accountsStore = new Store<AccountStoreState<any>>({
       accounts: [{ type: "algorand-account", address, metadata: { keyId: mockKey.id } }],
@@ -330,7 +331,7 @@ describe("AlgorandSubscriber behavior", () => {
 
   it("updates the native ALGO balance when a balance change is detected", async () => {
     const mockKey = await getMockKey("key-1");
-    const address = base64.encode(mockKey.publicKey!);
+    const address = encodeAddress(mockKey.publicKey!);
     const algorandAddress = encodeAddress(mockKey.publicKey!);
 
     const accountsStore = new Store<AccountStoreState<any>>({ accounts: [] });
@@ -358,7 +359,7 @@ describe("AlgorandSubscriber behavior", () => {
 
   it("updates an ASA balance when a balance change is detected for that asset", async () => {
     const mockKey = await getMockKey("key-1");
-    const address = base64.encode(mockKey.publicKey!);
+    const address = encodeAddress(mockKey.publicKey!);
     const algorandAddress = encodeAddress(mockKey.publicKey!);
 
     mockGetAlgorandBalances.mockResolvedValueOnce({
@@ -392,7 +393,7 @@ describe("AlgorandSubscriber behavior", () => {
 
   it("ignores balance changes for unrecognised addresses", async () => {
     const mockKey = await getMockKey("key-1");
-    const address = base64.encode(mockKey.publicKey!);
+    const address = encodeAddress(mockKey.publicKey!);
 
     const accountsStore = new Store<AccountStoreState<any>>({ accounts: [] });
     const keyStore = new Store<KeyStoreState>({ keys: [], status: "idle" } as any);
