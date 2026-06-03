@@ -172,7 +172,7 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
 
             provider.account.store.addAccount({
               type: "algorand-account" as const,
-              address: address,
+              address: algorandAddress,
               balance,
               assets: assets ?? [],
               metadata: { keyId: k.id, parentKeyId: parentKeyId },
