@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  Alert,
 } from "react-native";
 import React from "react";
 import { Link } from "expo-router";
@@ -21,8 +22,8 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { isKeystoreAccount } from "@algorandfoundation/accounts-keystore-extension";
 import { isAlgorandAccount } from "@algorandfoundation/accounts-algorand-extension";
 import { isWatchedAccount } from "@/extensions/example";
-import { Alert } from "react-native";
 import { HeaderCard } from "@/components";
+import { encodeAddress } from "@algorandfoundation/keystore";
 
 export default function Accounts() {
   const { account, key } = useProvider();
@@ -72,6 +73,60 @@ export default function Accounts() {
     }
   };
 
+  const handleGenerateAlgorandAccount = async () => {
+    try {
+      const rootKeys = keys.filter((k) => k.type === "hd-root-key");
+      if (rootKeys.length === 0) {
+        Alert.alert("No Root Key", "Please generate a seed first on the Keystore page.");
+        return;
+      }
+
+      const activeSeed = rootKeys[0].id;
+      const context0Keys = keys.filter(
+        (k) => k.metadata?.context === 0 && k.metadata?.parentKeyId === activeSeed,
+      );
+      const nextIndex = context0Keys.length;
+
+      const keyId = await key.store.generate({
+        type: "hd-derived-ed25519",
+        algorithm: "EdDSA",
+        extractable: true,
+        keyUsages: ["sign", "verify"],
+        params: {
+          parentKeyId: activeSeed,
+          context: 0,
+          account: 0,
+          index: nextIndex,
+          derivation: 9,
+        },
+      });
+
+      const generated = await key.store.export(keyId);
+      if (!generated.publicKey) {
+        throw new Error("Generated key has no public key.");
+      }
+
+      const algorandAddress = encodeAddress(generated.publicKey);
+      await account.store.addAccount({
+        type: "algorand-account",
+        address: algorandAddress,
+        balance: 0n,
+        assets: [],
+        metadata: { keyId, parentKeyId: activeSeed },
+        sign: async (txns: Uint8Array[]) => {
+          const signedTxns: Uint8Array[] = [];
+          for (const txn of txns) {
+            const signed = await key.store.sign(keyId, txn);
+            signedTxns.push(signed);
+          }
+          return signedTxns;
+        },
+      });
+    } catch (error: any) {
+      Alert.alert("Failed to generate Algorand account", error.message);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -86,6 +141,12 @@ export default function Accounts() {
               label: "Generate",
               icon: "account-plus-outline",
               onPress: handleGenerateAccount,
+              disabled: status !== "idle",
+            },
+            {
+              label: "Algorand",
+              icon: "alpha-a-circle-outline",
+              onPress: handleGenerateAlgorandAccount,
               disabled: status !== "idle",
             },
             {

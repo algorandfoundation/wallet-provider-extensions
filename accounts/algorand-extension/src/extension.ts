@@ -2,7 +2,6 @@ import { createSubscriberWithWatchlist, getAlgorandBalances } from "./algorand.t
 import type { Account, AccountAsset, AccountStoreState } from "@algorandfoundation/accounts-store";
 import { AlgorandClient } from "@algorandfoundation/algokit-utils";
 import type { Key, KeyStoreState, XHDDerivedKeyData } from "@algorandfoundation/keystore";
-import { base64 } from "@scure/base";
 import { Store } from "@tanstack/store";
 import Hook from "before-after-hook";
 import type { LogStoreApi, LogStoreExtension } from "@algorandfoundation/log-store";
@@ -109,11 +108,11 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
     await Promise.all(
       removedKeys.map(async (k) => {
         if (k.type === "hd-derived-ed25519" && k.publicKey) {
-          const address = base64.encode(k.publicKey);
-          const account = accountsStore.state.accounts.find((a) => a.address === address);
+          const algorandAddress = encodeAddress(k.publicKey);
+          const account = accountsStore.state.accounts.find((a) => a.address === algorandAddress);
           if (account && account.metadata?.keyId === k.id && account.type === "algorand-account") {
             log?.info(`Removing algorand account for key ${k.id}-${k.type}...`);
-            provider.account.store.removeAccount(address);
+            provider.account.store.removeAccount(algorandAddress);
           }
         }
       }),
@@ -123,11 +122,12 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
     await Promise.all(
       addedKeys.map(async (k) => {
         if (k.type === "hd-derived-ed25519" && k.publicKey && k.metadata?.context === 0) {
-          const address = base64.encode(k.publicKey);
-
-          log?.info(`Checking algorand account balances for key ${k.id}-${k.type}... ${address}`);
-
           const algorandAddress = encodeAddress(k.publicKey);
+
+          log?.info(
+            `Checking algorand account balances for key ${k.id}-${k.type}... ${algorandAddress}`,
+          );
+
           let r: { balance: bigint; assets?: AccountAsset[] };
 
           // lookup accounts balances, assets
@@ -147,7 +147,9 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
           if (
             !accountsStore.state.accounts.some(
               (a) =>
-                a.address === address && k.metadata?.context === 0 && a.type === "algorand-account",
+                a.address === algorandAddress &&
+                k.metadata?.context === 0 &&
+                a.type === "algorand-account",
             )
           ) {
             log?.info(`Adding account for key ${k.id}-${k.type}...`);
@@ -172,14 +174,18 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
 
             provider.account.store.addAccount({
               type: "algorand-account" as const,
-              address: address,
+              address: algorandAddress,
               balance,
               assets: assets ?? [],
               metadata: { keyId: k.id, parentKeyId: parentKeyId },
               sign: makeHookedSignFn(k.id),
             });
 
-            log?.info("Added algorand account with balance and assets:", { address });
+            log?.info("Added algorand account with balance and assets:", {
+              algorandAddress,
+              balance,
+              assets,
+            });
           }
         }
       }),
@@ -188,7 +194,7 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
     // Collect algorand account addresses from the store and update the subscriber
     const algorandAddresses = accountsStore.state.accounts
       .filter(isAlgorandAccount)
-      .map((a) => encodeAddress(base64.decode(a.address)));
+      .map((a) => a.address);
 
     log?.info("Algorand accounts updated, restarting subscriber with watchlist:", {
       algorandAddresses,
@@ -207,8 +213,8 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
             ...state,
             accounts: state.accounts.map((a) => {
               if (!isAlgorandAccount(a)) return a;
-              // Algorand address in the callback is in standard format; account address is base64
-              const algorandAddress = encodeAddress(base64.decode(a.address));
+
+              const algorandAddress = a.address;
               if (algorandAddress !== address) return a;
 
               if (assetId === 0n) {
