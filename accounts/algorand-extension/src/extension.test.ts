@@ -9,7 +9,6 @@ import {
   type Key,
   type KeyStoreState,
 } from "@algorandfoundation/keystore";
-import { base64 } from "@scure/base";
 import { Store } from "@tanstack/store";
 
 vi.mock("./algorand.ts", () => ({
@@ -333,7 +332,6 @@ describe("AlgorandSubscriber behavior", () => {
 
   it("updates the native ALGO balance when a balance change is detected", async () => {
     const mockKey = await getMockKey("key-1");
-    const address = encodeAddress(mockKey.publicKey!);
     const algorandAddress = encodeAddress(mockKey.publicKey!);
 
     const accountsStore = new Store<AccountStoreState<any>>({ accounts: [] });
@@ -355,13 +353,12 @@ describe("AlgorandSubscriber behavior", () => {
     // Simulate a native ALGO balance change of +500n
     onBalanceChange!(algorandAddress, 0n, 500n);
 
-    const account = accountsStore.state.accounts.find((a) => a.address === address) as any;
+    const account = accountsStore.state.accounts.find((a) => a.address === algorandAddress) as any;
     expect(account.balance).toBe(1500n);
   });
 
   it("updates an ASA balance when a balance change is detected for that asset", async () => {
     const mockKey = await getMockKey("key-1");
-    const address = encodeAddress(mockKey.publicKey!);
     const algorandAddress = encodeAddress(mockKey.publicKey!);
 
     mockGetAlgorandBalances.mockResolvedValueOnce({
@@ -388,14 +385,14 @@ describe("AlgorandSubscriber behavior", () => {
     // Simulate an ASA 12345 balance change of +100n
     onBalanceChange!(algorandAddress, 12345n, 100n);
 
-    const account = accountsStore.state.accounts.find((a) => a.address === address) as any;
+    const account = accountsStore.state.accounts.find((a) => a.address === algorandAddress) as any;
     const asset = account.assets.find((a: any) => a.id === "12345");
     expect(asset.balance).toBe(300n);
   });
 
   it("ignores balance changes for unrecognised addresses", async () => {
     const mockKey = await getMockKey("key-1");
-    const address = encodeAddress(mockKey.publicKey!);
+    const algorandAddress = encodeAddress(mockKey.publicKey!);
 
     const accountsStore = new Store<AccountStoreState<any>>({ accounts: [] });
     const keyStore = new Store<KeyStoreState>({ keys: [], status: "idle" } as any);
@@ -416,7 +413,7 @@ describe("AlgorandSubscriber behavior", () => {
     // Fire callback for a completely different address
     onBalanceChange!("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", 0n, 999n);
 
-    const account = accountsStore.state.accounts.find((a) => a.address === address) as any;
+    const account = accountsStore.state.accounts.find((a) => a.address === algorandAddress) as any;
     expect(account.balance).toBe(1000n); // unchanged
   });
 
