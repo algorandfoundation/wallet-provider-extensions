@@ -15,7 +15,8 @@ import { Store } from "@tanstack/store";
 vi.mock("./algorand.ts", () => ({
   getAlgorandBalances: vi.fn().mockResolvedValue({ balance: 1000n, assets: [] }),
   createSubscriberWithWatchlist: vi.fn().mockReturnValue({
-    subscriber: { start: vi.fn(), stop: vi.fn() },
+    start: vi.fn(),
+    stop: vi.fn(),
     watchlist: [],
   }),
 }));
@@ -302,7 +303,8 @@ describe("AlgorandSubscriber behavior", () => {
     const mockStart = vi.fn();
     mockCreateSubscriberWithWatchlist.mockImplementation(
       (_client: any, _addresses: string[], _cb: any) => ({
-        subscriber: { start: mockStart, stop: vi.fn() },
+        start: mockStart,
+        stop: vi.fn(),
         watchlist: _addresses,
       }),
     );
@@ -341,7 +343,7 @@ describe("AlgorandSubscriber behavior", () => {
     mockCreateSubscriberWithWatchlist.mockImplementation(
       (_client: any, _addresses: string[], cb: any) => {
         onBalanceChange = cb;
-        return { subscriber: { start: vi.fn(), stop: vi.fn() }, watchlist: _addresses };
+        return { start: vi.fn(), stop: vi.fn(), watchlist: _addresses };
       },
     );
 
@@ -374,7 +376,7 @@ describe("AlgorandSubscriber behavior", () => {
     mockCreateSubscriberWithWatchlist.mockImplementation(
       (_client: any, _addresses: string[], cb: any) => {
         onBalanceChange = cb;
-        return { subscriber: { start: vi.fn(), stop: vi.fn() }, watchlist: _addresses };
+        return { start: vi.fn(), stop: vi.fn(), watchlist: _addresses };
       },
     );
 
@@ -402,7 +404,7 @@ describe("AlgorandSubscriber behavior", () => {
     mockCreateSubscriberWithWatchlist.mockImplementation(
       (_client: any, _addresses: string[], cb: any) => {
         onBalanceChange = cb;
-        return { subscriber: { start: vi.fn(), stop: vi.fn() }, watchlist: _addresses };
+        return { start: vi.fn(), stop: vi.fn(), watchlist: _addresses };
       },
     );
 
@@ -428,9 +430,9 @@ describe("AlgorandSubscriber behavior", () => {
     const subscribers: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] = [];
     mockCreateSubscriberWithWatchlist.mockImplementation(
       (_client: any, _addresses: string[], _cb: any) => {
-        const sub = { start: vi.fn(), stop: vi.fn() };
+        const sub = { start: vi.fn(), stop: vi.fn(), watchlist: _addresses };
         subscribers.push(sub);
-        return { subscriber: sub, watchlist: _addresses };
+        return sub;
       },
     );
 
@@ -462,7 +464,8 @@ describe("AlgorandSubscriber behavior", () => {
     const mockStop = vi.fn();
     mockCreateSubscriberWithWatchlist.mockImplementation(
       (_client: any, _addresses: string[], _cb: any) => ({
-        subscriber: { start: mockStart, stop: mockStop },
+        start: mockStart,
+        stop: mockStop,
         watchlist: _addresses,
       }),
     );
