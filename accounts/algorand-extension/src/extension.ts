@@ -68,7 +68,7 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
 
   const stopContainedSubscriber = (reason: string) => {
     if (!containedSubscriber) return;
-    containedSubscriber.subscriber.stop(reason);
+    containedSubscriber.stop(reason);
     containedSubscriber = null;
   };
 
@@ -237,7 +237,7 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
           log?.error("Subscriber error:", { error });
         },
       );
-      containedSubscriber.subscriber.start();
+      containedSubscriber.start();
     } else {
       // Keep subscriber fully stopped whenever no algorand-account exists.
       stopContainedSubscriber("no algorand accounts");
