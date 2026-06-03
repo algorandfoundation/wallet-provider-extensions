@@ -1,16 +1,8 @@
-import {
-  Text,
-  View,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  ActivityIndicator,
-} from "react-native";
+import { Text, View, StyleSheet, SafeAreaView, ScrollView, StatusBar } from "react-native";
 import { useKeys, useAccounts, useIdentities, useProvider } from "@/hooks/useProvider";
-import { useMigrations } from "@/hooks/useMigrations";
 import { HeaderCard, ExtensionCard } from "@/components";
 import type { ExtensionCardProps } from "@/components";
+import { isAlgorandAccount } from "@algorandfoundation/algorand-accounts-extension";
 
 type IconName = ExtensionCardProps["icon"];
 
@@ -28,28 +20,10 @@ interface Domain {
 }
 
 export default function Index() {
-  const { pending: migrationsPending, error: migrationsError } = useMigrations();
   const provider = useProvider();
   const keys = useKeys();
   const accounts = useAccounts();
   const identities = useIdentities();
-
-  if (migrationsPending) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  if (migrationsError) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <Text style={{ fontWeight: "bold", marginBottom: 8 }}>Migration failed</Text>
-        <Text>{migrationsError.message}</Text>
-      </View>
-    );
-  }
 
   const domains: Domain[] = [
     {
@@ -95,11 +69,16 @@ export default function Index() {
           packages: [
             "@algorandfoundation/accounts-store",
             "@algorandfoundation/accounts-keystore-extension",
+            "@algorandfoundation/algorand-accounts-extension",
           ],
           substats: [
             {
               label: "Managed",
               count: accounts.filter((a) => a.type === "keystore-account").length,
+            },
+            {
+              label: "Algorand",
+              count: accounts.filter((a) => isAlgorandAccount(a)).length,
             },
             { label: "Watched", count: accounts.filter((a) => a.type === "watched").length },
           ],
