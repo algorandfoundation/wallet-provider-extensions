@@ -1,20 +1,23 @@
 import { createContext, type ReactNode } from "react";
 import { Provider } from "@algorandfoundation/wallet-provider";
 
-import { WithMigrations, type MigrationsApi } from "@algorandfoundation/provider-migrations";
 import { WithKeyStore } from "@algorandfoundation/react-native-keystore";
 import { Account, AccountStoreApi, WithAccountStore } from "@algorandfoundation/accounts-store";
-import type { KeyStoreAPI, KeyStoreCapability, Key } from "@algorandfoundation/keystore";
+import type { KeyStoreAPI, Key } from "@algorandfoundation/keystore";
 import { type LogMessage, WithLogStore, type LogStoreApi } from "@algorandfoundation/log-store";
 import { keyStoreHooks } from "@/stores/before-after";
 import {
   KeystoreAccount,
   WithAccountsKeystore,
 } from "@algorandfoundation/accounts-keystore-extension";
+import {
+  AlgorandAccount,
+  WithAlgorandAccounts,
+} from "@algorandfoundation/algorand-accounts-extension";
 import { WithIdentities, type IdentitiesExtension } from "@algorandfoundation/identities-extension";
 import { WithWatchedAccount, WatchedAccount } from "@/extensions/example";
 
-export type AppAccount = WatchedAccount | KeystoreAccount | Account;
+export type AppAccount = WatchedAccount | AlgorandAccount | KeystoreAccount | Account;
 
 /**
  * The React Native Provider for the wallet application.
@@ -27,17 +30,15 @@ export type AppAccount = WatchedAccount | KeystoreAccount | Account;
  */
 export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXTENSIONS> {
   static EXTENSIONS = [
-    WithMigrations,
     WithLogStore,
     WithKeyStore,
     WithAccountStore<AppAccount>,
     WithAccountsKeystore,
+    WithAlgorandAccounts,
     WithIdentities,
     WithWatchedAccount,
   ] as const;
 
-  /** Data migration registry and run control */
-  migrations!: MigrationsApi;
   /** Reactive array of keys in the keystore */
   keys!: Key[];
   /** Reactive array of accounts in the account store */
@@ -48,8 +49,6 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
   identities!: IdentitiesExtension["identities"];
   /** Current status of the keystore (e.g., 'idle', 'generating') */
   status!: string;
-  /** Reactive list of active keystore capabilities (host + shim), tagged by source */
-  algorithms!: KeyStoreCapability[];
 
   /** API for account operations */
   account!: {

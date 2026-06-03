@@ -11,6 +11,7 @@ import {
   useRootColors,
 } from "@/hooks/useProvider";
 import { isKeystoreAccount } from "@algorandfoundation/accounts-keystore-extension";
+import { isAlgorandAccount } from "@algorandfoundation/algorand-accounts-extension";
 import { isWatchedAccount } from "@/extensions/example";
 import { HeaderCard, DetailSection, InfoRow, AssociationRow } from "@/components";
 
@@ -46,6 +47,9 @@ export default function AccountDetail() {
   if (isKeystoreAccount(record)) {
     icon = "shield-key";
     typeLabel = "Keystore Account";
+  } else if (isAlgorandAccount(record)) {
+    icon = "alpha-a-circle-outline";
+    typeLabel = "Algorand Account";
   } else if (isWatchedAccount(record)) {
     icon = "eye-outline";
     typeLabel = "Watched Account";
