@@ -13,7 +13,7 @@ import {
 import {
   AlgorandAccount,
   WithAlgorandAccounts,
-} from "@algorandfoundation/accounts-algorand-extension";
+} from "@algorandfoundation/algorand-accounts-extension";
 import { WithIdentities, type IdentitiesExtension } from "@algorandfoundation/identities-extension";
 import { WithWatchedAccount, WatchedAccount } from "@/extensions/example";
 

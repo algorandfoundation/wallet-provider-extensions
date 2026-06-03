@@ -25,7 +25,7 @@ In `app/accounts/index.tsx`, we use a `switch(true)` statement with type guards 
 
 ```tsx
 import { isKeystoreAccount } from "@algorandfoundation/accounts-keystore-extension";
-import { isAlgorandAccount } from "@algorandfoundation/accounts-algorand-extension";
+import { isAlgorandAccount } from "@algorandfoundation/algorand-accounts-extension";
 import { isWatchedAccount } from "@/extensions/example";
 
 // ... inside the accounts map function

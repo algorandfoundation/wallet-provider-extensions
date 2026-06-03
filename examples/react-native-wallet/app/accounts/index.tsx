@@ -20,7 +20,7 @@ import {
 } from "@/hooks/useProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { isKeystoreAccount } from "@algorandfoundation/accounts-keystore-extension";
-import { isAlgorandAccount } from "@algorandfoundation/accounts-algorand-extension";
+import { isAlgorandAccount } from "@algorandfoundation/algorand-accounts-extension";
 import { isWatchedAccount } from "@/extensions/example";
 import { HeaderCard } from "@/components";
 import { encodeAddress } from "@algorandfoundation/keystore";

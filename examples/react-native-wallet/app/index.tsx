@@ -2,7 +2,7 @@ import { Text, View, StyleSheet, SafeAreaView, ScrollView, StatusBar } from "rea
 import { useKeys, useAccounts, useIdentities, useProvider } from "@/hooks/useProvider";
 import { HeaderCard, ExtensionCard } from "@/components";
 import type { ExtensionCardProps } from "@/components";
-import { isAlgorandAccount } from "@algorandfoundation/accounts-algorand-extension";
+import { isAlgorandAccount } from "@algorandfoundation/algorand-accounts-extension";
 
 type IconName = ExtensionCardProps["icon"];
 
@@ -69,7 +69,7 @@ export default function Index() {
           packages: [
             "@algorandfoundation/accounts-store",
             "@algorandfoundation/accounts-keystore-extension",
-            "@algorandfoundation/accounts-algorand-extension",
+            "@algorandfoundation/algorand-accounts-extension",
           ],
           substats: [
             {

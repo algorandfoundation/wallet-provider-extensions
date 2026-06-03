@@ -1,5 +1,5 @@
 {
-  "name": "@algorandfoundation/accounts-algorand-extension",
+  "name": "@algorandfoundation/algorand-accounts-extension",
   "version": "1.0.0-canary.0",
   "description": "Accounts Algorand extension for wallet extensions.",
   "license": "Apache-2.0",
