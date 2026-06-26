@@ -33,6 +33,7 @@ jobs:
         run: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_RELEASER_SKIP_GIT_PLUGIN: ${{ github.ref == 'refs/heads/main' && 'true' || 'false' }}
       - name: Rebase main onto release
         if: github.ref == 'refs/heads/release' && steps.release.outputs.released == 'true'
         run: |

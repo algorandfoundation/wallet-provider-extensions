@@ -93,6 +93,14 @@ Example:
 npm run release -- --dry-run
 ```
 
+## Environment Variables
+
+- `PACKAGE_RELEASER_SKIP_GIT_PLUGIN`: Set to `true` to remove `@semantic-release/git`
+  from the inherited release configuration. This is useful for canary releases from
+  protected branches where GitHub repository rules block release commits pushed by
+  `GITHUB_TOKEN`. Packages, tags, and GitHub releases are still published, but
+  changelog/version commits are not pushed back to the branch.
+
 ## Technical Implementation Details
 
 The tool implements a `semantic-release` inline plugin that:
