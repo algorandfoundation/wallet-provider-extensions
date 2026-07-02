@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DecodingError, EncodingError, UnlockingError } from "./errors.ts";
+import { DecodingError, EncodingError, MasterKeyNotFoundError, UnlockingError } from "./errors.ts";
 
 describe("errors.ts", () => {
   it("DecodingError sets name and message", () => {
@@ -24,5 +24,11 @@ describe("errors.ts", () => {
     const error = new UnlockingError("test message");
     expect(error.message).toBe("test message");
     expect(error.name).toBe("UnlockingError");
+  });
+
+  it("MasterKeyNotFoundError sets name and message", () => {
+    const error = new MasterKeyNotFoundError();
+    expect(error.message).toBe("Master key not found");
+    expect(error.name).toBe("MasterKeyNotFoundError");
   });
 });
