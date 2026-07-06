@@ -1,16 +1,29 @@
 import * as Keychain from "react-native-keychain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { decryptData, encryptData, getMasterKey } from "./crypto.js";
+import { MasterKeyNotFoundError, UnlockingError } from "../errors.js";
+import { createMasterKey, decryptData, encryptData, readMasterKey } from "./crypto.js";
 
 describe("crypto storage", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    await Keychain.resetGenericPassword();
   });
 
-  it("should retrieve or generate a master key", async () => {
-    const key = await getMasterKey();
+  it("should create a master key", async () => {
+    const key = await createMasterKey();
     expect(key).toBeInstanceOf(Buffer);
     expect(key.length).toBe(32);
+    expect(Keychain.setGenericPassword).toHaveBeenCalledOnce();
+  });
+
+  it("should not create a master key while reading", async () => {
+    await expect(readMasterKey()).rejects.toBeInstanceOf(MasterKeyNotFoundError);
+    expect(Keychain.setGenericPassword).not.toHaveBeenCalled();
+  });
+
+  it("should fail when the master key cannot be stored", async () => {
+    vi.mocked(Keychain.setGenericPassword).mockResolvedValueOnce(false);
+    await expect(createMasterKey()).rejects.toBeInstanceOf(UnlockingError);
   });
 
   it("should encrypt and decrypt data", () => {
@@ -30,7 +43,7 @@ describe("crypto storage", () => {
       storage: "best",
     });
 
-    const key = await getMasterKey();
+    const key = await readMasterKey();
     expect(key.toString("hex")).toBe(storedKey);
   });
 
@@ -43,10 +56,10 @@ describe("crypto storage", () => {
       storage: "best",
     });
 
-    const firstKey = await getMasterKey({ biometrics: true });
+    const firstKey = await readMasterKey({ biometrics: true });
     firstKey.fill(0);
 
-    const secondKey = await getMasterKey({ biometrics: true });
+    const secondKey = await readMasterKey({ biometrics: true });
 
     expect(Keychain.getGenericPassword).toHaveBeenCalledOnce();
     expect(secondKey.toString("hex")).toBe(storedKey);

@@ -13,6 +13,10 @@ vi.mock("react-native-keychain", () => {
     getGenericPassword: vi.fn(async () => mockPassword),
     setGenericPassword: vi.fn(async (username, password) => {
       mockPassword = { username, password };
+      return true;
+    }),
+    resetGenericPassword: vi.fn(async () => {
+      mockPassword = null;
     }),
     ACCESS_CONTROL: {
       BIOMETRY_ANY: "BIOMETRY_ANY",
@@ -32,6 +36,7 @@ vi.mock("react-native-mmkv", () => {
   const createMock = () => ({
     set: vi.fn((key, value) => mockStorage.set(key, value)),
     getString: vi.fn((key) => mockStorage.get(key)),
+    getAllKeys: vi.fn(() => Array.from(mockStorage.keys())),
     delete: vi.fn((key) => mockStorage.delete(key)),
     remove: vi.fn((key) => mockStorage.delete(key)),
     clearAll: vi.fn(() => mockStorage.clear()),

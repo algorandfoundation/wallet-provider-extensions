@@ -1,9 +1,16 @@
 import type { KeyData, KeyStoreState } from "@algorandfoundation/keystore";
 import { Store } from "@tanstack/store";
-import { describe, expect, it } from "vitest";
+import * as Keychain from "react-native-keychain";
+import { beforeEach, describe, expect, it } from "vitest";
+import { MasterKeyNotFoundError } from "../errors.js";
 import { commit, fetchSecret, storage } from "./state.js";
 
 describe("state storage", () => {
+  beforeEach(async () => {
+    storage.clearAll();
+    await Keychain.resetGenericPassword();
+  });
+
   it("should commit and fetch a secret", async () => {
     const store = new Store<KeyStoreState>({
       keys: [],
@@ -45,6 +52,14 @@ describe("state storage", () => {
         42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
         42, 42, 42, 42, 42, 42, 42, 42, 42,
       ]),
+    );
+  });
+
+  it("does not create a replacement master key when encrypted storage already exists", async () => {
+    storage.set("existing-key", "encrypted-with-another-master-key");
+
+    await expect(fetchSecret<KeyData>({ keyId: "existing-key" })).rejects.toBeInstanceOf(
+      MasterKeyNotFoundError,
     );
   });
 });

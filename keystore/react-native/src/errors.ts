@@ -39,3 +39,16 @@ export class UnlockingError extends Error {
     }
   }
 }
+
+export class MasterKeyNotFoundError extends Error {
+  constructor(message = "Master key not found", cause?: Error) {
+    super(message);
+    this.name = "MasterKeyNotFoundError";
+    if (cause) {
+      this.cause = cause;
+    }
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, MasterKeyNotFoundError);
+    }
+  }
+}

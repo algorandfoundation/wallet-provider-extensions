@@ -1,5 +1,6 @@
 import * as Keychain from "react-native-keychain";
 import { createCipheriv, createDecipheriv, randomBytes } from "react-native-quick-crypto";
+import { MasterKeyNotFoundError, UnlockingError } from "../errors.ts";
 import type { AuthenticationOptions } from "../types.ts";
 
 const ALGORITHM = "aes-256-gcm";
@@ -30,15 +31,47 @@ function cacheMasterKey(key: Buffer) {
 }
 
 /**
- * Retrieves the master key from the Keychain, or generates a new one if it doesn't exist.
+ * Reads the existing master key from the Keychain.
+ *
+ * This never creates a replacement key. A falsey Keychain result can mean
+ * either "missing" or "failed to read"; callers must decide whether creation
+ * is safe for their current storage state.
+ *
  * @returns The master key as a Buffer
  */
-export async function getMasterKey(options?: AuthenticationOptions): Promise<Buffer> {
+export async function readMasterKey(options?: AuthenticationOptions): Promise<Buffer> {
   if (options?.biometrics) {
     const cached = getCachedMasterKey();
     if (cached) return cached;
   }
 
+  const prompt = options?.prompt ?? "Authenticate to secure your wallet";
+  const authenticationPrompt =
+    typeof prompt === "string"
+      ? { title: prompt }
+      : (prompt ?? { title: "Authenticate to secure your wallet" });
+  const credentials = await Keychain.getGenericPassword({
+    service: "app-secret",
+    authenticationPrompt,
+  });
+  if (credentials) {
+    const key = Buffer.from(credentials.password, "hex");
+    if (options?.biometrics) cacheMasterKey(key);
+    return key;
+  }
+
+  throw new MasterKeyNotFoundError();
+}
+
+/**
+ * Creates and stores a new master key.
+ *
+ * Only call this from explicit initialization paths where there are no
+ * encrypted keystore records that depend on a previous master key.
+ *
+ * @returns The newly created master key as a Buffer
+ */
+export async function createMasterKey(options?: AuthenticationOptions): Promise<Buffer> {
   const prompt = options?.prompt ?? "Authenticate to secure your wallet";
   const authenticationPrompt =
     typeof prompt === "string"
@@ -52,22 +85,14 @@ export async function getMasterKey(options?: AuthenticationOptions): Promise<Buf
       }
     : {};
 
-  const credentials = await Keychain.getGenericPassword({
-    service: "app-secret",
-    authenticationPrompt,
-  });
-  if (credentials) {
-    const key = Buffer.from(credentials.password, "hex");
-    if (options?.biometrics) cacheMasterKey(key);
-    return key;
-  }
-
-  // Create new random key
   const newKey = Buffer.from(randomBytes(32)); // TODO: harden entropy
-  await Keychain.setGenericPassword("master", newKey.toString("hex"), {
+  const result = await Keychain.setGenericPassword("master", newKey.toString("hex"), {
     service: "app-secret",
     ...biometricOptions,
   });
+  if (!result) {
+    throw new UnlockingError("Failed to store master key");
+  }
 
   if (options?.biometrics) cacheMasterKey(newKey);
   return Buffer.from(newKey);

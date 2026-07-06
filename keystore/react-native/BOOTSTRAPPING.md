@@ -116,8 +116,9 @@ During app startup, you must load the stored keys from persistent storage into t
 // app/_layout.tsx
 import { keyStore } from "@/stores/keystore";
 import {
+  createMasterKey,
   fetchSecret,
-  getMasterKey,
+  readMasterKey,
   storage
 } from "@algorandfoundation/react-native-keystore";
 import {
@@ -132,18 +133,19 @@ import { AlgorandProvider, ReactNativeProvider } from "@/providers/ReactNativePr
 async function bootstrap() {
   setStatus({ store: keyStore as any, status: "loading" });
 
-  // 1. Get the master encryption key from Keychain
-  const masterKey = await getMasterKey();
-
-  // 2. Get all key IDs from MMKV storage
+  // 1. Get all key IDs from MMKV storage
   const keyIds = storage.getAllKeys();
+
+  // 2. Read the master encryption key from Keychain. Only create one when
+  // there are no encrypted records that depend on an existing master key.
+  const masterKey = keyIds.length === 0 ? await createMasterKey() : await readMasterKey();
 
   // 3. Fetch and decrypt each key from MMKV using the master key
   const secrets = await Promise.all(
     keyIds.map(async (keyId) =>
       fetchSecret<KeyData>({
         keyId,
-        masterKey
+        options: { masterKey }
       })
     )
   );
@@ -206,6 +208,6 @@ const provider = new ReactNativeProvider(
 ## Security Best Practices
 
 1.  **Never store private keys in the TanStack store**: Always filter them out during initialization.
-2.  **Use `getMasterKey()`**: Ensure your encryption/decryption uses the master key stored in the secure Keychain.
+2.  **Separate reading from creation**: Use `readMasterKey()` for existing encrypted records, and only call `createMasterKey()` during explicit first-run initialization.
 3.  **Automatic Cleanup**: The `sign`, `derive`, and `generate` methods automatically fetch private keys and clear them from memory after use.
 4.  **MMKV vs Keychain**: Use MMKV for high-performance encrypted storage of key material, and Keychain for the root master key.

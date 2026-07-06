@@ -10,13 +10,24 @@ import { clearBuffer } from "@algorandfoundation/wallet-provider";
 import { base64url } from "@scure/base";
 import type { Store } from "@tanstack/store";
 import { createMMKV, type MMKV } from "react-native-mmkv";
-import { decryptData, encryptData, getMasterKey } from "./crypto.ts";
+import { MasterKeyNotFoundError } from "../errors.ts";
 import type { AuthenticationOptions } from "../types.ts";
+import { createMasterKey, decryptData, encryptData, readMasterKey } from "./crypto.ts";
 
 export const storage: MMKV = createMMKV({
   id: "keystore",
   mode: "multi-process",
 });
+
+async function readOrCreateMasterKeyForEmptyStorage(options?: AuthenticationOptions) {
+  try {
+    return await readMasterKey(options);
+  } catch (error) {
+    if (!(error instanceof MasterKeyNotFoundError)) throw error;
+    if (storage.getAllKeys().length > 0) throw error;
+    return createMasterKey(options);
+  }
+}
 
 /**
  * Fetches a secret from persistent storage and decrypts it using the master key.
@@ -38,7 +49,7 @@ export async function fetchSecret<T>({
     const encryptedData = storage.getString(keyId);
     if (!encryptedData) return null;
     if (!key) {
-      key = await getMasterKey(options);
+      key = await readMasterKey(options);
       isInternalKey = true;
     }
     return decode(decryptData(key, encryptedData)) as T;
@@ -82,7 +93,10 @@ export async function commit({
 
   try {
     // Never allow the master key to touch memory.
-    storage.set(keyData.id, encryptData(await getMasterKey(options), encode(keyData)));
+    storage.set(
+      keyData.id,
+      encryptData(await readOrCreateMasterKeyForEmptyStorage(options), encode(keyData)),
+    );
     // remove the private keys from keyData
     const { privateKey, seed, ...keyState } = keyData as any;
     // clear then delete the keys from the keyData object to remove it from memory, even from the caller 😈
