@@ -56,6 +56,19 @@ export default function RootLayout() {
                 autoPopulate: true,
               },
             },
+            algorand: {
+              network: "testnet-v1.0",
+              algodConfig: {
+                server: "https://testnet-api.algonode.cloud",
+                port: 443,
+                token: "",
+              },
+              indexerConfig: {
+                server: "https://testnet-idx.algonode.cloud",
+                port: 443,
+                token: "",
+              },
+            },
             identities: {
               store: identitiesStore,
               keystore: {
