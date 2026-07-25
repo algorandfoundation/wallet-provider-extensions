@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Keystore Example</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="app-header">
+        <div class="logo">🔐</div>
+        <div>
+          <h1>Web Keystore</h1>
+          <p>Browser keystore extension for the Wallet Provider</p>
+        </div>
+        <span id="status" class="status" data-status="loading">Loading…</span>
+      </header>
+
+      <section class="card">
+        <h2>Capabilities</h2>
+        <p class="hint">
+          Active cryptographic algorithms, tagged by their source — the host
+          <code>SubtleCrypto</code> or a composable shim add-on.
+        </p>
+        <div id="capabilities" class="chips"></div>
+      </section>
+
+      <section class="card">
+        <h2>Actions</h2>
+        <p class="hint">
+          Create a hierarchical (BIP32-Ed25519) wallet, derive accounts, or mint a post-quantum
+          Falcon-1024 key alongside them.
+        </p>
+        <div class="actions">
+          <button id="create-seed" class="primary">Create wallet seed</button>
+          <button id="generate-account">Derive account</button>
+          <button id="generate-falcon">Generate Falcon key</button>
+          <button id="clear" class="danger">Clear all</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Keys</h2>
+        <p class="hint">Metadata surfaced reactively from the keystore.</p>
+        <ul id="keys-list" class="keys"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Console</h2>
+        <p class="hint">Recovery phrases, signatures and exports are printed here.</p>
+        <pre id="console" class="output">Ready.</pre>
+      </section>
+
+      <footer>
+        Powered by
+        <a href="https://github.com/algorandfoundation" target="_blank" rel="noreferrer"
+          >@algorandfoundation</a
+        >
+        keystore packages.
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@algorandfoundation/dp256": "catalog:",
-    "@algorandfoundation/keystore": "workspace:*",
+    "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
     "@algorandfoundation/xhd-wallet-api": "catalog:",
     "@scure/base": "catalog:",
@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@algorandfoundation/package-releaser": "workspace:^",
+    "falcon-1024": "catalog:",
     "react-native": "catalog:",
     "typedoc": "catalog:",
     "typescript": "catalog:",
@@ -55,11 +56,15 @@
   },
   "peerDependencies": {
     "@algorandfoundation/log-store": "workspace:*",
+    "@joe-p/react-native-falcon": "^0.1.0",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
   },
   "peerDependenciesMeta": {
     "@algorandfoundation/log-store": {
+      "optional": true
+    },
+    "@joe-p/react-native-falcon": {
       "optional": true
     }
   }

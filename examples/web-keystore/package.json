@@ -1,0 +1,21 @@
+{
+  "name": "web-keystore-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@algorandfoundation/keystore-web": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@scure/bip39": "catalog:",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vite": "^6.0.0",
+    "vite-plugin-node-polyfills": "0.22.0"
+  }
+}

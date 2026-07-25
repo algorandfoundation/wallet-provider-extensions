@@ -1,0 +1,77 @@
+{
+  "name": "@algorandfoundation/keystore-node",
+  "version": "1.0.0-canary.16",
+  "description": "WebCrypto/noble keystore implementation for Node.js and other server runtimes.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "keystore/node"
+  },
+  "bin": {
+    "keystore": "dist/cli.js"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc/index.d.ts",
+      "import": "./dist/rpc/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules",
+    "docs": "typedoc",
+    "test": "vitest run --passWithNoTests",
+    "test:cov": "vitest run --coverage --passWithNoTests",
+    "bench": "vitest bench",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run",
+    "keystore": "pnpm exec tsx src/cli.ts --help"
+  },
+  "dependencies": {
+    "@algorandfoundation/dp256": "catalog:",
+    "@algorandfoundation/keystore-core": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@algorandfoundation/xhd-wallet-api": "catalog:",
+    "@scure/base": "catalog:",
+    "@scure/bip39": "catalog:",
+    "falcon-1024": "catalog:"
+  },
+  "devDependencies": {
+    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/package-releaser": "workspace:^",
+    "@tanstack/store": "catalog:",
+    "typedoc": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/log-store": "workspace:*",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/log-store": {
+      "optional": true
+    }
+  },
+  "optionalDependencies": {
+    "@napi-rs/keyring": "catalog:"
+  }
+}

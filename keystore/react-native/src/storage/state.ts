@@ -1,23 +1,38 @@
 import {
-  clearKeyData,
   InvalidKeyDataError,
   type KeyData,
   type KeyId,
   type KeyStoreState,
-  setStatus,
-} from "@algorandfoundation/keystore";
+} from "@algorandfoundation/keystore-core";
 import { clearBuffer } from "@algorandfoundation/wallet-provider";
-import { base64url } from "@scure/base";
+import { base64, base64url } from "@scure/base";
 import type { Store } from "@tanstack/store";
 import { createMMKV, type MMKV } from "react-native-mmkv";
 import { MasterKeyNotFoundError } from "../errors.ts";
 import type { AuthenticationOptions } from "../types.ts";
-import { createMasterKey, decryptData, encryptData, readMasterKey } from "./crypto.ts";
+import { createMasterKey, openData, readMasterKey, sealData } from "./crypto.ts";
 
 export const storage: MMKV = createMMKV({
   id: "keystore",
   mode: "multi-process",
 });
+
+/**
+ * Sets the reactive store status.
+ */
+function setStatus({ store, status }: { store: Store<KeyStoreState>; status: string }): void {
+  store.setState((state) => ({ ...state, status }));
+}
+
+/**
+ * Zeroes and removes the private key material from a {@link KeyData} object.
+ */
+function clearKeyData(key?: Partial<KeyData> | null): void {
+  if (key && key.privateKey instanceof Uint8Array) {
+    clearBuffer(key.privateKey);
+    delete key.privateKey;
+  }
+}
 
 async function readOrCreateMasterKeyForEmptyStorage(options?: AuthenticationOptions) {
   try {
@@ -52,7 +67,7 @@ export async function fetchSecret<T>({
       key = await readMasterKey(options);
       isInternalKey = true;
     }
-    return decode(decryptData(key, encryptedData)) as T;
+    return decode(await openData(globalThis.crypto.subtle, key, encryptedData)) as T;
   } finally {
     if (isInternalKey && key) {
       clearBuffer(key);
@@ -95,7 +110,11 @@ export async function commit({
     // Never allow the master key to touch memory.
     storage.set(
       keyData.id,
-      encryptData(await readOrCreateMasterKeyForEmptyStorage(options), encode(keyData)),
+      await sealData(
+        globalThis.crypto.subtle,
+        await readOrCreateMasterKeyForEmptyStorage(options),
+        encode(keyData),
+      ),
     );
     // remove the private keys from keyData
     const { privateKey, seed, ...keyState } = keyData as any;
@@ -116,23 +135,44 @@ export async function commit({
   }
 }
 
+/**
+ * Serializes {@link KeyData} to a string, wrapping every `Uint8Array` field as
+ * `{ $u8: base64 }`. This is the same codec the Keychain driver uses for
+ * metadata, so all React Native persistence shares one serialization scheme.
+ */
 export function encode(key: KeyData): string {
-  const encoder = new TextEncoder();
-  return base64url.encode(
-    encoder.encode(
-      JSON.stringify(key, (_key, value) => {
-        if (
-          value instanceof Uint8Array ||
-          (value?.constructor && value.constructor.name === "Uint8Array")
-        ) {
-          return Array.from(value);
-        }
-        return value;
-      }),
-    ),
-  );
+  return JSON.stringify(key, (_key, value) => {
+    if (
+      value instanceof Uint8Array ||
+      (value?.constructor && value.constructor.name === "Uint8Array")
+    ) {
+      return { $u8: base64.encode(value as Uint8Array) };
+    }
+    return value;
+  });
 }
+
+/**
+ * Reverses {@link encode}, restoring `Uint8Array` fields.
+ *
+ * For a non-destructive migration it transparently reads **both** formats: the
+ * new `{ $u8: base64 }` JSON payload and the legacy `base64url`-of-JSON payload
+ * (whose byte fields were plain number arrays). Records written by the old
+ * scheme therefore still decrypt and are re-sealed in the new format on their
+ * next write.
+ */
 export function decode(data: string): KeyData {
+  // New format: JSON whose byte fields are `{ $u8: base64 }` wrappers.
+  if (data.startsWith("{")) {
+    return JSON.parse(data, (_key, value) => {
+      if (value && typeof value === "object" && typeof value.$u8 === "string") {
+        return base64.decode(value.$u8);
+      }
+      return value;
+    }) as KeyData;
+  }
+  // Legacy format (pre-unification): `base64url(utf8(JSON))` with byte fields
+  // stored as number arrays, reconstructed by key name.
   const decoder = new TextDecoder();
   return JSON.parse(decoder.decode(base64url.decode(data)), (key, value) => {
     if (
@@ -146,5 +186,5 @@ export function decode(data: string): KeyData {
       return new Uint8Array(value);
     }
     return value;
-  });
+  }) as KeyData;
 }

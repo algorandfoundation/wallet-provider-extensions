@@ -28,10 +28,10 @@ export function useKeys() {
     function beforeGenerate() {
       console.log("Hooking into before generate");
     }
-    provider.key.store.hooks.before("generate", beforeGenerate);
+    provider.key.store.hooks?.before("generate", beforeGenerate);
 
     return () => {
-      provider.key.store.hooks.remove("generate", beforeGenerate);
+      provider.key.store.hooks?.remove("generate", beforeGenerate);
     };
   }, [provider]);
 
@@ -43,6 +43,15 @@ export function useKeys() {
  */
 export function useKeystoreStatus() {
   return useStore(keyStore, (state) => state.status);
+}
+
+/**
+ * Hook to access the active keystore algorithm add-ons ("shims"), e.g.
+ * `"BIP32-Ed25519"`, `"Falcon-1024"`. The list reflects what the engine
+ * resolved at runtime, so optional add-ons only appear when available.
+ */
+export function useShims() {
+  return useStore(keyStore, (state) => state.algorithms ?? []);
 }
 
 /**

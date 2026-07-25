@@ -22,6 +22,7 @@ import { isKeystoreAccount } from "@algorandfoundation/accounts-keystore-extensi
 import { isWatchedAccount } from "@/extensions/example";
 import { Alert } from "react-native";
 import { HeaderCard } from "@/components";
+import { deriveAccountKey, nextAccountIndex } from "@/stores/keystore";
 
 export default function Accounts() {
   const { account, key } = useProvider();
@@ -46,25 +47,12 @@ export default function Accounts() {
         return;
       }
 
-      const activeSeed = rootKeys[0].id;
-      // Find next index for context 0 (Accounts)
-      const context0Keys = keys.filter(
-        (k) => k.metadata?.context === 0 && k.metadata?.parentKeyId === activeSeed,
-      );
-      const nextIndex = context0Keys.length;
-
-      await key.store.generate({
-        type: "hd-derived-ed25519",
-        algorithm: "EdDSA",
-        extractable: true,
-        keyUsages: ["sign", "verify"],
-        params: {
-          parentKeyId: activeSeed,
-          context: 0,
-          account: 0,
-          index: nextIndex,
-          derivation: 9,
-        },
+      // Derive the next account key from the first root, delegating the derivation
+      // details to the keystore domain module.
+      const rootKeyId = rootKeys[0].id;
+      await deriveAccountKey(key.store, {
+        rootKeyId,
+        index: nextAccountIndex(keys, rootKeyId),
       });
     } catch (error: any) {
       Alert.alert("Failed to generate account key", error.message);
