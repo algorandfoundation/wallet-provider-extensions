@@ -70,32 +70,20 @@ try {
   console.log(`[${pkg.name}]: Dry run: ${options.dryRun}`);
   console.log(`[${pkg.name}]: Using options ${JSON.stringify(options, null, 2)}`);
 
-  const skipGitPlugin = process.env.PACKAGE_RELEASER_SKIP_GIT_PLUGIN === "true";
-
   if (options.plugins) {
-    options.plugins = options.plugins
-      .filter((plugin) => {
-        const pluginName = Array.isArray(plugin) ? plugin[0] : plugin;
+    options.plugins = options.plugins.map((plugin) => {
+      if (Array.isArray(plugin) && plugin[0] === "@semantic-release/git") {
+        return [
+          plugin[0],
+          {
+            ...plugin[1],
+            message: `chore(release): ${packageName} \n\n\${nextRelease.notes}`,
+          },
+        ];
+      }
 
-        return !(skipGitPlugin && pluginName === "@semantic-release/git");
-      })
-      .map((plugin) => {
-        if (Array.isArray(plugin) && plugin[0] === "@semantic-release/git") {
-          return [
-            plugin[0],
-            {
-              ...plugin[1],
-              message: `chore(release): ${packageName} \n\n\${nextRelease.notes}`,
-            },
-          ];
-        }
-
-        return plugin;
-      });
-
-    if (skipGitPlugin) {
-      console.log(`[${pkg.name}]: Skipping @semantic-release/git plugin`);
-    }
+      return plugin;
+    });
   }
 
   const monoContext = {
