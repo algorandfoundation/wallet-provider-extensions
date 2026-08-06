@@ -1,3 +1,9 @@
+# [react-native-keystore@1.0.0-canary.14](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.13...react-native-keystore@1.0.0-canary.14) (2026-08-06)
+
+### Features
+
+- subtle shims and platform targets (node, web, react-native) ([3eb3936](https://github.com/algorandfoundation/wallet-provider-extensions/commit/3eb393680886b8c982d06a0898ef76be6d40d3f3))
+
 # [react-native-keystore@1.0.0-canary.12](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.11...react-native-keystore@1.0.0-canary.12) (2026-05-13)
 
 ### Features
