@@ -1,3 +1,9 @@
+# [keystore@1.0.0-canary.18](https://github.com/algorandfoundation/wallet-provider-extensions/compare/keystore@1.0.0-canary.17...keystore@1.0.0-canary.18) (2026-08-06)
+
+### Features
+
+- subtle shims and platform targets (node, web, react-native) ([3eb3936](https://github.com/algorandfoundation/wallet-provider-extensions/commit/3eb393680886b8c982d06a0898ef76be6d40d3f3))
+
 # [keystore@1.0.0-canary.16](https://github.com/algorandfoundation/wallet-provider-extensions/compare/keystore@1.0.0-canary.15...keystore@1.0.0-canary.16) (2026-05-13)
 
 ### Features
