@@ -4,6 +4,12 @@
 
 - subtle shims and platform targets (node, web, react-native) ([3eb3936](https://github.com/algorandfoundation/wallet-provider-extensions/commit/3eb393680886b8c982d06a0898ef76be6d40d3f3))
 
+# [identities-extension@1.0.0-canary.3](https://github.com/algorandfoundation/wallet-provider-extensions/compare/identities-extension@1.0.0-canary.2...identities-extension@1.0.0-canary.3) (2026-08-06)
+
+### Features
+
+- subtle shims and platform targets (node, web, react-native) ([3eb3936](https://github.com/algorandfoundation/wallet-provider-extensions/commit/3eb393680886b8c982d06a0898ef76be6d40d3f3))
+
 # identities-extension@1.0.0-canary.1 (2026-05-21)
 
 ### Bug Fixes
