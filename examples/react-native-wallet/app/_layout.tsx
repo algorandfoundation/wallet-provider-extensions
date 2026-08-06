@@ -1,43 +1,24 @@
 import { Stack } from "expo-router";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { AlgorandProvider, ReactNativeProvider } from "@/providers/ReactNativeProvider";
-import { install } from "react-native-quick-crypto";
+import { install, subtle } from "react-native-quick-crypto";
 import { keyStore } from "@/stores/keystore";
 import { keyStoreHooks, accountHooks } from "@/stores/before-after";
-import { fetchSecret, storage } from "@algorandfoundation/react-native-keystore";
-import {
-  initializeKeyStore,
-  Key,
-  KeyData,
-  KeyStoreState,
-  setStatus,
-} from "@algorandfoundation/keystore";
-import { Store } from "@tanstack/store";
 import { accountsStore } from "@/stores/accounts";
 import { identitiesStore } from "@/stores/identities";
 import type { ReactKeystoreOptions } from "@algorandfoundation/react-native-keystore";
 
 install();
 
+// The keystore engine hydrates its reactive `store` from the persisted metadata
+// behind the scenes (via the storage driver) as part of `keystore.ready`, so the
+// app no longer pre-loads keys here. Metadata is surfaced without unlocking any
+// sealed material, and no biometric prompt fires on launch.
 const biometricOptions: ReactKeystoreOptions["keystore"]["authentication"] = {
   biometrics: true,
   prompt: "Authenticate to access your wallet",
 };
-async function bootstrap() {
-  setStatus({ store: keyStore as unknown as Store<KeyStoreState>, status: "loading" });
-  const secrets = await Promise.all(
-    storage
-      .getAllKeys()
-      .map(async (keyId) => fetchSecret<KeyData>({ keyId, options: biometricOptions })),
-  );
-  initializeKeyStore({
-    store: keyStore as unknown as Store<KeyStoreState>,
-    keys: secrets
-      .filter((k) => k !== null)
-      .map(({ privateKey, ...rest }: KeyData) => rest) as Key[],
-  });
-}
-bootstrap();
+
 export default function RootLayout() {
   return (
     <AlgorandProvider
@@ -65,6 +46,12 @@ export default function RootLayout() {
             keystore: {
               store: keyStore,
               hooks: keyStoreHooks,
+              // React Native has no reliable global `crypto.subtle`, so the
+              // host Subtle must be supplied explicitly. `react-native-quick-crypto`'s
+              // `subtle` backs the engine's AES-256-GCM at-rest sealing (without
+              // it, sealing a new seed throws "Cannot read property 'importKey'
+              // of undefined").
+              subtle: subtle as unknown as SubtleCrypto,
               authentication: biometricOptions,
             },
           },

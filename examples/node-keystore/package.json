@@ -1,0 +1,21 @@
+{
+  "name": "node-keystore-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@algorandfoundation/keystore-node": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@scure/bip39": "catalog:",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "catalog:"
+  }
+}

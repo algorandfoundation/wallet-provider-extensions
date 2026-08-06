@@ -18,13 +18,21 @@ import {
   useRootColors,
   useSelectedSeedId,
   useSelectedRootKeyId,
+  useShims,
 } from "@/hooks/useProvider";
 import { setSelectedSeedId, setSelectedRootKeyId } from "@/stores/selection";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { wordlist } from "@scure/bip39/wordlists/english.js";
-import { generateMnemonic, mnemonicToSeed } from "@scure/bip39";
 import { useEffect } from "react";
-import { HeaderCard } from "@/components";
+import { HeaderCard, CapabilityList } from "@/components";
+import {
+  createWalletSeed,
+  generateFalconKey,
+  deriveAccountKey,
+  nextAccountIndex,
+  formatKeyData,
+  bytesToHex,
+  FALCON_ALGORITHM,
+} from "@/stores/keystore";
 
 export default function Index() {
   const { key } = useProvider();
@@ -35,12 +43,25 @@ export default function Index() {
   const selectedSeedId = useSelectedSeedId();
   const selectedRootKeyId = useSelectedRootKeyId();
 
-  const seeds = keys.filter((k) => k.type === "hd-seed");
+  // The keystore's active capabilities (host algorithms + composable shim
+  // add-ons), tagged by source. Falcon key generation is only offered when the
+  // Falcon-1024 add-on actually resolved on this device.
+  const capabilities = useShims();
+  const canGenerateFalcon = capabilities.some((c) => c.algorithm === FALCON_ALGORITHM);
+
+  const seeds = keys.filter((k) => k.type === "seed" || k.type === "hd-seed");
   const rootKeys = keys.filter((k) => k.type === "hd-root-key");
-  const derivedKeys = keys.filter((k) => k.type !== "hd-seed" && k.type !== "hd-root-key");
+  const falconKeys = keys.filter((k) => k.type === "falcon-1024");
+  const derivedKeys = keys.filter(
+    (k) =>
+      k.type !== "seed" &&
+      k.type !== "hd-seed" &&
+      k.type !== "hd-root-key" &&
+      k.type !== "falcon-1024",
+  );
 
   // Stable color mapping: every key is colored by the seed it descends from.
-  const { byKeyId: rootKeyColors } = useRootColors();
+  const { byKeyId: rootKeyColors, colorFor } = useRootColors();
 
   // Root keys reference their originating seed via `metadata.rootKeyId`
   // (older flows used `parentKeyId`, kept as a fallback for compatibility).
@@ -76,33 +97,12 @@ export default function Index() {
 
   const handleImportSeed = async () => {
     try {
-      // Generate a new 24-word mnemonic
-      const mnemonic = generateMnemonic(wordlist, 256);
-      const seed = await mnemonicToSeed(mnemonic);
-
-      const keyId = await key.store.import(
-        {
-          type: "hd-seed",
-          algorithm: "raw",
-          extractable: true,
-          keyUsages: ["deriveKey", "deriveBits"],
-          privateKey: seed,
-        },
-        "bytes",
-      );
-
-      const rootKeyId = await key.store.generate({
-        type: "hd-root-key",
-        algorithm: "raw",
-        extractable: true,
-        keyUsages: ["deriveKey", "deriveBits"],
-        params: {
-          parentKeyId: keyId,
-        },
-      });
+      // Delegate the multi-step mnemonic → seed → XHD root flow to the keystore
+      // domain module, keeping the screen free of orchestration logic.
+      const { seedId, rootKeyId, mnemonic } = await createWalletSeed(key.store);
 
       // Auto-select the newly created seed + its child root.
-      setSelectedSeedId(keyId);
+      setSelectedSeedId(seedId);
       setSelectedRootKeyId(rootKeyId);
 
       Alert.alert(
@@ -115,29 +115,112 @@ export default function Index() {
     }
   };
 
+  const handleGenerateFalcon = async () => {
+    if (!selectedSeedId) {
+      Alert.alert("Select a Seed", "Choose a seed to derive the Falcon key from.");
+      return;
+    }
+    try {
+      await generateFalconKey(key.store, selectedSeedId);
+    } catch (error: any) {
+      Alert.alert("Falcon Generation Failed", error.message);
+    }
+  };
+
+  // Mirror the web example's "Generate account" flow: derive the next standard
+  // BIP32-Ed25519 account from the selected root key (falling back to the first
+  // root). The accounts extension auto-populates an on-chain account from it.
+  const handleGenerateAccount = async () => {
+    const rootKeyId = selectedRootKeyId ?? rootKeys[0]?.id;
+    if (!rootKeyId) {
+      Alert.alert("No Root Key", "Generate a seed first to create a root key.");
+      return;
+    }
+    try {
+      await deriveAccountKey(key.store, {
+        rootKeyId,
+        index: nextAccountIndex(keys, rootKeyId),
+      });
+    } catch (error: any) {
+      Alert.alert("Derive Account Failed", error.message);
+    }
+  };
+
+  // Mirror the web example's per-key "Sign & verify": sign a short demo message
+  // and immediately verify the signature, surfacing the result.
+  const handleSignKey = async (id: string) => {
+    try {
+      const message = new TextEncoder().encode("hello from the react native keystore");
+      const signature = await key.store.sign(id, message);
+      const valid = await key.store.verify(id, message, signature);
+      Alert.alert(
+        "Sign & Verify",
+        `Verified: ${valid ? "\u2705" : "\u274c"}\n\nSignature:\n${bytesToHex(signature)}`,
+        [{ text: "OK" }],
+      );
+    } catch (error: any) {
+      Alert.alert("Sign Failed", error.message);
+    }
+  };
+
+  // Mirror the web example's per-key "Remove", with a confirmation step.
+  const handleRemoveKey = (id: string) => {
+    Alert.alert("Remove Key", "Are you sure you want to remove this key?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => key.store.remove(id) },
+    ]);
+  };
+
   const handleExportKey = async (id: string) => {
     try {
       const keyData = await key.store.export(id);
-      Alert.alert(
-        "Key Material",
-        JSON.stringify(
-          keyData,
-          (_key, value) => {
-            if (value instanceof Uint8Array) {
-              return Array.from(value)
-                .map((b) => b.toString(16).padStart(2, "0"))
-                .join("");
-            }
-            return value;
-          },
-          2,
-        ),
-        [{ text: "OK" }],
-      );
+      Alert.alert("Key Material", formatKeyData(keyData), [{ text: "OK" }]);
     } catch (error: any) {
       Alert.alert("Export Failed", error.message);
     }
   };
+
+  // Shared per-key action row, mirroring the web example's key card: Sign &
+  // verify (only for signing keys), Export, Remove and a details chevron. Used
+  // by every key section below so the actions stay consistent.
+  const renderKeyActions = (item: (typeof keys)[number]) => (
+    <View style={styles.keyActions}>
+      {item.keyUsages?.includes("sign") && (
+        <TouchableOpacity
+          onPress={() => handleSignKey(item.id)}
+          style={styles.actionIcon}
+          hitSlop={8}
+          accessibilityLabel="Sign and verify"
+        >
+          <MaterialCommunityIcons name="signature-freehand" size={24} color="#007AFF" />
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        onPress={() => handleExportKey(item.id)}
+        style={styles.actionIcon}
+        accessibilityLabel="Export"
+      >
+        <MaterialCommunityIcons name="export-variant" size={24} color="#007AFF" />
+        {item.extractable && <View style={styles.exportBadgeSmall} />}
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => handleRemoveKey(item.id)}
+        style={styles.actionIcon}
+        hitSlop={8}
+        accessibilityLabel="Remove"
+      >
+        <MaterialCommunityIcons name="delete-outline" size={24} color="#FF3B30" />
+      </TouchableOpacity>
+      <TouchableOpacity
+        onPress={() => router.push(`/keys/${item.id}`)}
+        style={styles.actionIcon}
+        hitSlop={8}
+        accessibilityLabel="View details"
+      >
+        <MaterialCommunityIcons name="chevron-right-circle" size={24} color="#007AFF" />
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -150,19 +233,34 @@ export default function Index() {
           accentColor="#007AFF"
           actions={[
             {
-              label: "Generate Seed",
+              label: "Seed",
               icon: "seed-plus",
               onPress: handleImportSeed,
               disabled: status !== "idle",
             },
             {
-              label: "Clear All",
+              label: "Account",
+              icon: "account-plus-outline",
+              onPress: handleGenerateAccount,
+              disabled: status !== "idle" || rootKeys.length === 0,
+            },
+            {
+              label: "Falcon",
+              icon: "atom-variant",
+              onPress: handleGenerateFalcon,
+              disabled: status !== "idle" || !selectedSeedId || !canGenerateFalcon,
+            },
+            {
+              label: "Clear",
               icon: "delete-sweep-outline",
               onPress: () => key.store.clear(),
               disabled: status !== "idle",
             },
           ]}
         />
+
+        <Text style={styles.sectionTitle}>Available Algorithms</Text>
+        <CapabilityList capabilities={capabilities} accentColor="#007AFF" />
 
         <Text style={styles.sectionTitle}>Seeds</Text>
         {seeds.length === 0 ? (
@@ -217,27 +315,7 @@ export default function Index() {
                       <Text style={styles.keyAddress}>{item.algorithm}</Text>
                     </View>
                   </View>
-                  <View style={styles.keyActions}>
-                    <TouchableOpacity
-                      onPress={() => handleExportKey(item.id)}
-                      style={styles.actionIcon}
-                    >
-                      <MaterialCommunityIcons name="export-variant" size={24} color="#007AFF" />
-                      {item.extractable && <View style={styles.exportBadgeSmall} />}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => router.push(`/keys/${item.id}`)}
-                      style={styles.actionIcon}
-                      hitSlop={8}
-                      accessibilityLabel="View details"
-                    >
-                      <MaterialCommunityIcons
-                        name="chevron-right-circle"
-                        size={24}
-                        color="#007AFF"
-                      />
-                    </TouchableOpacity>
-                  </View>
+                  {renderKeyActions(item)}
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -297,28 +375,46 @@ export default function Index() {
                       <Text style={styles.keyAddress}>{item.algorithm}</Text>
                     </View>
                   </View>
-                  <View style={styles.keyActions}>
-                    <TouchableOpacity
-                      onPress={() => handleExportKey(item.id)}
-                      style={styles.actionIcon}
-                    >
-                      <MaterialCommunityIcons name="export-variant" size={24} color="#007AFF" />
-                      {item.extractable && <View style={styles.exportBadgeSmall} />}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => router.push(`/keys/${item.id}`)}
-                      style={styles.actionIcon}
-                      hitSlop={8}
-                      accessibilityLabel="View details"
-                    >
-                      <MaterialCommunityIcons
-                        name="chevron-right-circle"
-                        size={24}
-                        color="#007AFF"
-                      />
-                    </TouchableOpacity>
-                  </View>
+                  {renderKeyActions(item)}
                 </TouchableOpacity>
+              </Animated.View>
+            );
+          })
+        )}
+
+        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Falcon Keys</Text>
+        {falconKeys.length === 0 ? (
+          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>
+              {canGenerateFalcon
+                ? "No Falcon keys yet. Select a seed and tap “Falcon Key”."
+                : "Falcon-1024 is not available on this device."}
+            </Text>
+          </Animated.View>
+        ) : (
+          falconKeys.map((item, i) => {
+            const parentColor = colorFor(item.metadata?.parentKeyId as string);
+            return (
+              <Animated.View
+                key={item.id || i}
+                entering={FadeIn.duration(300)}
+                exiting={FadeOut.duration(300)}
+                layout={LinearTransition.springify()}
+              >
+                <View style={styles.keyCard}>
+                  <View style={styles.keyInfo}>
+                    <View
+                      style={[styles.keyIconContainer, { backgroundColor: `${parentColor}15` }]}
+                    >
+                      <MaterialCommunityIcons name="atom-variant" size={20} color={parentColor} />
+                    </View>
+                    <View>
+                      <Text style={[styles.keyType, { color: parentColor }]}>{item.type}</Text>
+                      <Text style={styles.keyAddress}>{item.algorithm}</Text>
+                    </View>
+                  </View>
+                  {renderKeyActions(item)}
+                </View>
               </Animated.View>
             );
           })
@@ -367,27 +463,7 @@ export default function Index() {
                       <Text style={styles.keyAddress}>{item.algorithm}</Text>
                     </View>
                   </View>
-                  <View style={styles.keyActions}>
-                    <TouchableOpacity
-                      onPress={() => handleExportKey(item.id)}
-                      style={styles.actionIcon}
-                    >
-                      <MaterialCommunityIcons name="export-variant" size={24} color="#007AFF" />
-                      {item.extractable && <View style={styles.exportBadgeSmall} />}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => router.push(`/keys/${item.id}`)}
-                      style={styles.actionIcon}
-                      hitSlop={8}
-                      accessibilityLabel="View details"
-                    >
-                      <MaterialCommunityIcons
-                        name="chevron-right-circle"
-                        size={24}
-                        color="#007AFF"
-                      />
-                    </TouchableOpacity>
-                  </View>
+                  {renderKeyActions(item)}
                 </View>
               </Animated.View>
             );

@@ -3,7 +3,7 @@ import { Provider } from "@algorandfoundation/wallet-provider";
 
 import { WithKeyStore } from "@algorandfoundation/react-native-keystore";
 import { Account, AccountStoreApi, WithAccountStore } from "@algorandfoundation/accounts-store";
-import type { KeyStoreAPI, Key } from "@algorandfoundation/keystore";
+import type { KeyStoreAPI, KeyStoreCapability, Key } from "@algorandfoundation/keystore";
 import { type LogMessage, WithLogStore, type LogStoreApi } from "@algorandfoundation/log-store";
 import { keyStoreHooks } from "@/stores/before-after";
 import {
@@ -44,6 +44,8 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
   identities!: IdentitiesExtension["identities"];
   /** Current status of the keystore (e.g., 'idle', 'generating') */
   status!: string;
+  /** Reactive list of active keystore capabilities (host + shim), tagged by source */
+  algorithms!: KeyStoreCapability[];
 
   /** API for account operations */
   account!: {

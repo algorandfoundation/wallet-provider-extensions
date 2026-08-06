@@ -20,6 +20,7 @@ vi.mock("react-native-keychain", () => {
     }),
     ACCESS_CONTROL: {
       BIOMETRY_ANY: "BIOMETRY_ANY",
+      BIOMETRY_CURRENT_SET: "BIOMETRY_CURRENT_SET",
     },
     ACCESSIBLE: {
       WHEN_UNLOCKED_THIS_DEVICE_ONLY: "WHEN_UNLOCKED_THIS_DEVICE_ONLY",

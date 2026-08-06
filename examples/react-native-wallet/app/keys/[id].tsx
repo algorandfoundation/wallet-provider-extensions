@@ -12,18 +12,21 @@ import {
   useRootColors,
 } from "@/hooks/useProvider";
 import { HeaderCard, DetailSection, InfoRow, AssociationRow } from "@/components";
+import { formatKeyData } from "@/stores/keystore";
 
 type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
 
 function iconForKeyType(type: string): IconName {
-  if (type === "hd-seed") return "seed-outline";
+  if (type === "seed" || type === "hd-seed") return "seed-outline";
   if (type === "hd-root-key") return "key-chain";
+  if (type === "falcon-1024") return "atom-variant";
   return "key";
 }
 
 function labelForKeyType(type: string): string {
-  if (type === "hd-seed") return "Seed";
+  if (type === "seed" || type === "hd-seed") return "Seed";
   if (type === "hd-root-key") return "Root Key";
+  if (type === "falcon-1024") return "Falcon Key";
   return "Derived Key";
 }
 
@@ -61,20 +64,7 @@ export default function KeyDetail() {
   const handleExport = async () => {
     try {
       const keyData = await key.store.export(record.id);
-      Alert.alert(
-        "Key Material",
-        JSON.stringify(
-          keyData,
-          (_k, v) =>
-            v instanceof Uint8Array
-              ? Array.from(v)
-                  .map((b) => b.toString(16).padStart(2, "0"))
-                  .join("")
-              : v,
-          2,
-        ),
-        [{ text: "OK" }],
-      );
+      Alert.alert("Key Material", formatKeyData(keyData), [{ text: "OK" }]);
     } catch (e: any) {
       Alert.alert("Export Failed", e.message);
     }

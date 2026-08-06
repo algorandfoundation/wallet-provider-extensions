@@ -8,3 +8,5 @@ export { DetailSection } from "./DetailSection";
 export type { DetailSectionProps } from "./DetailSection";
 export { AssociationRow } from "./AssociationRow";
 export type { AssociationRowProps } from "./AssociationRow";
+export { CapabilityList } from "./CapabilityList";
+export type { CapabilityListProps } from "./CapabilityList";

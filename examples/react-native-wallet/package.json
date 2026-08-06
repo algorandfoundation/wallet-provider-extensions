@@ -21,6 +21,7 @@
     "@algorandfoundation/react-native-keystore": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
     "@expo/vector-icons": "^15.0.3",
+    "@joe-p/react-native-falcon": "^0.1.0",
     "@noble/hashes": "catalog:",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",

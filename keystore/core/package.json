@@ -1,0 +1,82 @@
+{
+  "name": "@algorandfoundation/keystore-core",
+  "version": "1.0.0-canary.16",
+  "description": "Platform-neutral keystore types, errors and helpers.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "keystore/core"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "import": "./dist/errors.js"
+    },
+    "./shims": {
+      "types": "./dist/shims/index.d.ts",
+      "import": "./dist/shims/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "bench": "vitest bench",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@noble/hashes": "catalog:",
+    "@scure/bip39": "catalog:"
+  },
+  "devDependencies": {
+    "@algorandfoundation/dp256": "catalog:",
+    "@algorandfoundation/package-releaser": "workspace:^",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@algorandfoundation/xhd-wallet-api": "catalog:",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:",
+    "falcon-1024": "catalog:",
+    "typedoc": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/dp256": "catalog:",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@algorandfoundation/xhd-wallet-api": "catalog:",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:",
+    "falcon-1024": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/dp256": {
+      "optional": true
+    },
+    "@algorandfoundation/xhd-wallet-api": {
+      "optional": true
+    },
+    "falcon-1024": {
+      "optional": true
+    }
+  }
+}

@@ -1,56 +1,153 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { isKeystoreAccount, WithAccountsKeystore } from "./extension.ts";
 import { base64 } from "@scure/base";
 import type { Account, AccountStoreState } from "@algorandfoundation/accounts-store";
 import { Store } from "@tanstack/store";
+import type { Key, KeyStoreState } from "@algorandfoundation/keystore";
 import {
-  type Key,
-  type KeyStoreState,
-  generateXHDRootKeyFromSeed,
-  generateXHDFromParent,
-  generateEd25519FromSeed,
-} from "@algorandfoundation/keystore";
+  createKeyStore,
+  type DriverCapabilities,
+  type DriverMaterial,
+  type KeyId,
+  type KeyStore,
+  type KeyStoreDriver,
+  type XHDBinding,
+  withSubtleXHD,
+} from "@algorandfoundation/keystore-core";
+import { fromSeed, harden, KeyContext, XHDWalletAPI } from "@algorandfoundation/xhd-wallet-api";
 import type { KeystoreAccount } from "./types.ts";
 
+const FIXED_SEED = new Uint8Array(64).fill(1);
+const host = globalThis.crypto.subtle;
+
+// Same adapter shape `keystore-core`'s own tests use: exposes the (otherwise
+// private) rawSign of XHDWalletAPI so the shim can drive derivation.
+const xhdApi = new XHDWalletAPI();
+const xhd: XHDBinding = {
+  fromSeed: (seed) => fromSeed(Buffer.from(seed)),
+  deriveKey: (rootKey, bip44Path, isPrivate, derivationType) =>
+    xhdApi.deriveKey(rootKey, bip44Path, isPrivate, derivationType),
+  rawSign: (rootKey, bip44Path, data, derivationType) =>
+    // @ts-expect-error accessing the private rawSign to build the binding
+    xhdApi.rawSign(rootKey, bip44Path, data, derivationType),
+  verifyWithPublicKey: (signature, msg, publicKey) =>
+    xhdApi.verifyWithPublicKey(signature, msg, publicKey),
+  ecdh: (rootKey, bip44Path, otherPartyPub, meFirst, derivationType) => {
+    const context = bip44Path[1] === harden(283) ? KeyContext.Address : KeyContext.Identity;
+    const account = (bip44Path[2] ?? harden(0)) & 0x7fff_ffff;
+    const keyIndex = (bip44Path[4] ?? 0) & 0x7fff_ffff;
+    return xhdApi.ECDH(rootKey, context, account, keyIndex, otherPartyPub, meFirst, derivationType);
+  },
+};
+
+const DRIVER_CAPABILITIES: DriverCapabilities = {
+  nativeCryptoKey: false,
+  interactiveUnlock: false,
+  authFactors: [],
+};
+
+/**
+ * A minimal in-memory {@link KeyStoreDriver}, mirroring the fixture used by
+ * `keystore-core`'s own `create.test.ts`, so this suite can produce real
+ * `Key` fixtures (with genuine derived public keys) through `createKeyStore`
+ * rather than the deleted `generate*FromSeed` helpers.
+ */
+function createFixtureDriver(): KeyStoreDriver<void> {
+  const materials = new Map<KeyId, Uint8Array>();
+  const metadata = new Map<KeyId, Key>();
+
+  return {
+    capabilities: DRIVER_CAPABILITIES,
+
+    async put(id: KeyId, material: DriverMaterial): Promise<void> {
+      if (material.kind !== "bytes") {
+        throw new Error("fixture driver cannot persist a CryptoKey");
+      }
+      materials.set(id, Uint8Array.from(material.bytes));
+    },
+
+    async use<T>(id: KeyId, _ctx: void, fn: (material: DriverMaterial) => T | Promise<T>) {
+      const bytes = materials.get(id);
+      if (!bytes) throw new Error(`no material for ${id}`);
+      return fn({ kind: "bytes", bytes });
+    },
+
+    async remove(id: KeyId): Promise<void> {
+      materials.delete(id);
+      metadata.delete(id);
+    },
+
+    async putMeta(key: Key): Promise<void> {
+      metadata.set(key.id, key);
+    },
+
+    async getMeta(id: KeyId): Promise<Key | undefined> {
+      return metadata.get(id);
+    },
+
+    async listMeta(): Promise<Key[]> {
+      return [...metadata.values()];
+    },
+  };
+}
+
 describe("WithAccountsKeystore", () => {
-  const FIXED_SEED = new Uint8Array(64).fill(1);
+  // A single real keystore engine (in-memory driver + XHD shim) shared across
+  // every test in this file, used to mint realistic `Key` fixtures on demand.
+  let keystoreEngine: KeyStore<void>;
+  let rootId: string;
 
-  async function getMockKey(id: string) {
-    const rootKey = await generateXHDRootKeyFromSeed({
-      id: "seed-1",
-      type: "hd-seed",
-      privateKey: FIXED_SEED,
+  beforeAll(async () => {
+    keystoreEngine = createKeyStore<void>({
+      driver: createFixtureDriver(),
+      store: new Store<KeyStoreState>({ keys: [], status: "idle" }),
+      subtle: host,
+      shims: [(h) => withSubtleXHD(h, xhd)],
+    });
+    await keystoreEngine.ready;
+
+    const seedId = await keystoreEngine.importSeed!(FIXED_SEED);
+    rootId = await keystoreEngine.generate({
+      type: "hd-root-key",
       algorithm: "raw",
-      extractable: true,
-    } as any);
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      params: { parentKeyId: seedId },
+    });
+  });
 
-    const keyData = {
+  /** Derives a real `hd-derived-ed25519` address-context key via the XHD engine. */
+  async function getMockKey(id: string): Promise<Key> {
+    const index = Number.parseInt(id.replace("key-", ""), 10) || 0;
+    const keyId = await keystoreEngine.deriveFromSeed!(rootId, `m/44'/283'/0'/0/${index}`, {
       id,
-      type: "hd-derived-ed25519" as const,
-      metadata: {
-        context: 0,
-        account: 0,
-        index: parseInt(id.replace("key-", "")) || 0,
-      },
-    } as any;
-
-    return generateXHDFromParent({
-      key: keyData,
-      parentKey: rootKey,
-    }) as Promise<Key>;
+      algorithm: "EdDSA",
+      metadata: { context: 0, account: 0, index },
+    });
+    return (await keystoreEngine.export(keyId)) as unknown as Key;
   }
 
-  async function getMockEd25519Key(id: string) {
-    return (await generateEd25519FromSeed(
-      {
-        id: "seed-1",
-        type: "hd-seed",
-        privateKey: FIXED_SEED,
-        algorithm: "raw",
-        extractable: true,
-      } as any,
-      { id },
-    )) as unknown as Key;
+  /** A deterministic, id-derived 32-byte seed for standalone ed25519 imports. */
+  function ed25519SeedFor(id: string): Uint8Array {
+    const seed = new Uint8Array(32);
+    for (let i = 0; i < id.length; i += 1) {
+      seed[i % 32] ^= id.charCodeAt(i) + i + 1;
+    }
+    return seed;
+  }
+
+  /** Imports a real standalone ed25519 key, linked to `parentKeyId` metadata. */
+  async function getMockEd25519Key(id: string, parentKeyId = "seed-1"): Promise<Key> {
+    const keyId = await keystoreEngine.import({
+      id,
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+      privateKey: ed25519SeedFor(id),
+      metadata: { parentKeyId },
+    });
+    return (await keystoreEngine.export(keyId)) as unknown as Key;
   }
 
   it("should populate accounts from keystore keys in provider", async () => {
