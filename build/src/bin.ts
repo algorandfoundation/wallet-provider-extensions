@@ -77,7 +77,7 @@ try {
           plugin[0],
           {
             ...plugin[1],
-            message: `chore(release): ${packageName} \n\n\${nextRelease.notes}`,
+            message: `chore(release): ${packageName} [skip ci]\n\n\${nextRelease.notes}`,
           },
         ];
       }
