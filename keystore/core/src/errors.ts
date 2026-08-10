@@ -106,6 +106,26 @@ export class MaterialAccessError extends KeyStoreError {
 }
 
 /**
+ * Error thrown when a keystore cannot be mounted on a provider's `key`
+ * namespace — an unusable mount path, or a path already taken by another
+ * keystore.
+ *
+ * @see {@link import("./mount.ts").mountKeyStore}
+ */
+export class KeyStoreMountError extends KeyStoreError {
+  /**
+   * @param reason - A description of why the keystore could not be mounted.
+   * @param cause - The underlying error that caused this error, if any.
+   */
+  constructor(reason: string, cause?: Error) {
+    super(`Cannot mount keystore: ${reason}`, "KeyStoreMountError", cause);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, KeyStoreMountError);
+    }
+  }
+}
+
+/**
  * Error thrown when provided key data is malformed or invalid for the operation.
  */
 export class InvalidKeyDataError extends KeyStoreError {

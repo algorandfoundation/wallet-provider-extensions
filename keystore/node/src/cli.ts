@@ -25,6 +25,7 @@
  * keystore clear                         # remove every key
  * keystore algorithms                    # list active cryptographic capabilities
  * keystore serve                         # run the RPC service over a local socket
+ * keystore serve --ws --port 7413        # …or over a WebSocket, for remote consumers
  * ```
  */
 
@@ -38,7 +39,12 @@ import { wordlist } from "@scure/bip39/wordlists/english";
 import { Store } from "@tanstack/store";
 
 import { createNodeKeyStore, type NodeKeyStore, type NodeKeyStoreOptions } from "./engine.ts";
-import { createKeyStoreRpcServer, defaultRpcSocketPath } from "./rpc/index.ts";
+import {
+  createKeyStoreRpcServer,
+  createKeyStoreWebSocketServer,
+  DEFAULT_KEYSTORE_WS_PORT,
+  defaultRpcSocketPath,
+} from "./rpc/index.ts";
 
 /** Where the CLI writes its normal and error output. */
 export interface CliIO {
@@ -87,6 +93,11 @@ Commands:
   serve            [--socket <path>]     Run the RPC service over a local socket
                                          (Unix domain socket / named pipe) so
                                          other processes can drive this keystore
+                   [--ws] [--host <h>] [--port <n>]
+                                         Also (or instead) serve a WebSocket, so
+                                         a remote consumer — a wallet, a web page
+                                         — can drive it. Binds 127.0.0.1:7413 by
+                                         default; the link is unauthenticated
 
 Global options:
   --json                                 Emit machine-readable JSON where useful
@@ -383,11 +394,16 @@ async function runGenerate(
 }
 
 /**
- * Handles the `serve` command: builds the Node keystore and hosts it over a
- * local socket via {@link createKeyStoreRpcServer}, so other processes can drive
- * this keystore through the drop-in {@link import("./rpc/client.ts").createRpcKeyStore}
- * client. The command runs until interrupted (SIGINT/SIGTERM), then shuts the
- * service down cleanly.
+ * Handles the `serve` command: builds the Node keystore and hosts it so other
+ * processes can drive it through the drop-in
+ * {@link import("./rpc/client.ts").createRpcKeyStore} client (or any transport's
+ * equivalent).
+ *
+ * By default it listens on a local socket only — the private choice, gated by
+ * filesystem permissions. `--ws` additionally opens a WebSocket, which is what
+ * a *remote* consumer (a wallet, a web page) connects to; pass `--ws --socket
+ * ""` to serve the WebSocket alone. The command runs until interrupted
+ * (SIGINT/SIGTERM), then shuts every listener down cleanly.
  */
 async function runServe(
   args: string[],
@@ -398,26 +414,55 @@ async function runServe(
   const { values } = parseArgs({
     args,
     allowPositionals: true,
-    options: { socket: { type: "string" } },
+    options: {
+      socket: { type: "string" },
+      ws: { type: "boolean" },
+      host: { type: "string" },
+      port: { type: "string" },
+    },
   });
+
+  const port = values.port ? Number.parseInt(values.port, 10) : DEFAULT_KEYSTORE_WS_PORT;
+  if (Number.isNaN(port) || port < 0 || port > 65535) {
+    throw new Error("--port must be a TCP port number");
+  }
+  // An explicit empty `--socket` means "WebSocket only"; otherwise the local
+  // socket is always served, because it is the safe default.
+  const socketPath = values.socket === "" ? undefined : (values.socket ?? defaultRpcSocketPath());
+  if (socketPath === undefined && values.ws !== true) {
+    throw new Error("nothing to serve: pass --ws when disabling the local socket");
+  }
 
   const keystore = build({ store });
   await keystore.ready;
 
-  const server = createKeyStoreRpcServer({
-    keystore,
-    store,
-    path: values.socket ?? defaultRpcSocketPath(),
-  });
-  const boundPath = await server.listen();
-  io.out(`keystore RPC listening on ${boundPath}`);
+  const stop: Array<() => Promise<void>> = [];
+
+  if (socketPath !== undefined) {
+    const server = createKeyStoreRpcServer({ keystore, store, path: socketPath });
+    io.out(`keystore RPC listening on ${await server.listen()}`);
+    stop.push(() => server.close());
+  }
+
+  if (values.ws === true) {
+    const server = createKeyStoreWebSocketServer({
+      keystore,
+      store,
+      port,
+      ...(values.host === undefined ? {} : { host: values.host }),
+    });
+    io.out(`keystore RPC listening on ${await server.listen()}`);
+    io.err("The WebSocket link is unauthenticated; keep it on loopback or behind TLS.");
+    stop.push(() => server.close());
+  }
+
   io.out("Press Ctrl+C to stop.");
 
-  // Keep the process alive until interrupted, then close the service cleanly.
+  // Keep the process alive until interrupted, then close the services cleanly.
   await new Promise<void>((resolve) => {
     const shutdown = (): void => {
       io.err("\nShutting down…");
-      server.close().finally(resolve);
+      Promise.all(stop.map((close) => close())).finally(resolve);
     };
     process.once("SIGINT", shutdown);
     process.once("SIGTERM", shutdown);

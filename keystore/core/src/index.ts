@@ -23,5 +23,6 @@ export * from "./constants.ts";
 export * from "./create.ts";
 export * from "./defaults.ts";
 export * from "./errors.ts";
+export * from "./mount.ts";
 export * from "./shims/index.ts";
 export * from "./types/index.ts";

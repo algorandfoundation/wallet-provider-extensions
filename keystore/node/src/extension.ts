@@ -1,4 +1,8 @@
-import type { KeyStoreExtension, KeyStoreOptions } from "@algorandfoundation/keystore-core";
+import {
+  createKeyStoreExtension,
+  type KeyStoreExtension,
+  type KeyStoreOptions,
+} from "@algorandfoundation/keystore-core";
 import type { LogStoreExtension } from "@algorandfoundation/log-store";
 import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
 
@@ -51,6 +55,10 @@ export interface NodeKeystoreOptions extends KeyStoreOptions {
  * engine already exposes its `hooks` collection on the returned keystore, so the
  * extension surfaces `key.store` as-is without re-assigning it.
  *
+ * The keystore answers at `provider.key.store` unless `options.keystore.mount`
+ * names another path — see
+ * {@link import("@algorandfoundation/keystore-core").createKeyStoreExtension}.
+ *
  * @param provider - The host provider (may carry a `log` extension).
  * @param options - {@link NodeKeystoreOptions}. `options.keystore.store` and
  *   `options.keystore.hooks` are required.
@@ -73,7 +81,7 @@ export interface NodeKeystoreOptions extends KeyStoreOptions {
  * ```
  */
 export const WithKeyStore: Extension<KeyStoreExtension> = (
-  _provider: Provider<any> & Partial<LogStoreExtension>,
+  provider: Provider<any> & Partial<LogStoreExtension>,
   options: NodeKeystoreOptions,
 ) => {
   const keyStore = options.keystore.store;
@@ -95,28 +103,13 @@ export const WithKeyStore: Extension<KeyStoreExtension> = (
       hooks: options.keystore.hooks,
     });
 
-  return {
-    /** Reactive state of all keys in the keystore. */
-    get keys() {
-      return keyStore.state.keys;
-    },
-    /** Reactive status of the keystore (e.g. 'idle', 'signing'). */
-    get status() {
-      return keyStore.state.status;
-    },
-    /**
-     * Reactive list of the composable algorithm add-ons ("shims") active on this
-     * keystore (e.g. `"Falcon-1024"`), populated once the engine is ready.
-     */
-    get algorithms() {
-      return keyStore.state.algorithms ?? [];
-    },
-    /**
-     * The Keystore API for performing cryptographic operations. The engine
-     * already exposes the `hooks` collection used to intercept operations.
-     */
-    key: {
-      store: keystore,
-    },
-  } as KeyStoreExtension;
+  // The mount decides where the API answers (`key.store` by default) and the
+  // helper folds it into any keystore the provider already carries, keeping the
+  // reactive `keys`/`status`/`algorithms` live off this engine's store.
+  return createKeyStoreExtension({
+    provider,
+    store: keyStore,
+    keystore,
+    ...(options.keystore.mount === undefined ? {} : { mount: options.keystore.mount }),
+  }) as KeyStoreExtension;
 };
