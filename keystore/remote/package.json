@@ -1,0 +1,62 @@
+{
+  "name": "@algorandfoundation/keystore-remote",
+  "version": "1.0.0-canary.1",
+  "description": "Transport-neutral JSON-RPC protocol, client engine and responder for driving a keystore across a process or network boundary.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "keystore/remote"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./extension": {
+      "types": "./dist/extension.d.ts",
+      "import": "./dist/extension.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "import": "./dist/protocol.js"
+    },
+    "./websocket": {
+      "types": "./dist/websocket.d.ts",
+      "import": "./dist/websocket.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "bench": "vitest bench",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/keystore-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@algorandfoundation/package-releaser": "workspace:^",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@tanstack/store": "catalog:",
+    "typedoc": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@tanstack/store": "catalog:"
+  }
+}

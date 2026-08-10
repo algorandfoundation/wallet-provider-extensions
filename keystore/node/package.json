@@ -28,6 +28,10 @@
     "./rpc": {
       "types": "./dist/rpc/index.d.ts",
       "import": "./dist/rpc/index.js"
+    },
+    "./ows": {
+      "types": "./dist/ows/index.d.ts",
+      "import": "./dist/ows/index.js"
     }
   },
   "publishConfig": {
@@ -48,6 +52,7 @@
   "dependencies": {
     "@algorandfoundation/dp256": "catalog:",
     "@algorandfoundation/keystore-core": "workspace:*",
+    "@algorandfoundation/keystore-remote": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
     "@algorandfoundation/xhd-wallet-api": "catalog:",
     "@scure/base": "catalog:",
@@ -58,6 +63,7 @@
     "@algorandfoundation/log-store": "workspace:*",
     "@algorandfoundation/package-releaser": "workspace:^",
     "@tanstack/store": "catalog:",
+    "@types/ws": "catalog:",
     "typedoc": "catalog:",
     "vitest": "catalog:"
   },
@@ -72,6 +78,7 @@
     }
   },
   "optionalDependencies": {
-    "@napi-rs/keyring": "catalog:"
+    "@napi-rs/keyring": "catalog:",
+    "ws": "catalog:"
   }
 }

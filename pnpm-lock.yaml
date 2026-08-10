@@ -30,6 +30,9 @@ catalogs:
     '@tanstack/store':
       specifier: ^0.9.0
       version: 0.9.3
+    '@types/ws':
+      specifier: ^8.18.1
+      version: 8.18.1
     before-after-hook:
       specifier: ^4.0.0
       version: 4.0.0
@@ -60,6 +63,9 @@ catalogs:
     vitest:
       specifier: ^4.1.2
       version: 4.1.2
+    ws:
+      specifier: ^8.18.3
+      version: 8.20.0
 
 patchedDependencies:
   '@semantic-release/npm@13.1.5':
@@ -229,6 +235,37 @@ importers:
       before-after-hook:
         specifier: 'catalog:'
         version: 4.0.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.1
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  examples/node-keystore-remote:
+    dependencies:
+      '@algorandfoundation/keystore-node':
+        specifier: workspace:*
+        version: link:../../keystore/node
+      '@algorandfoundation/keystore-remote':
+        specifier: workspace:*
+        version: link:../../keystore/remote
+      '@algorandfoundation/wallet-provider':
+        specifier: 'catalog:'
+        version: 1.0.0-canary.5
+      '@tanstack/store':
+        specifier: 'catalog:'
+        version: 0.9.3
+      before-after-hook:
+        specifier: 'catalog:'
+        version: 4.0.0
+      ws:
+        specifier: 'catalog:'
+        version: 8.20.0
     devDependencies:
       '@types/node':
         specifier: ^22.10.0
@@ -570,6 +607,9 @@ importers:
       '@algorandfoundation/keystore-core':
         specifier: workspace:*
         version: link:../core
+      '@algorandfoundation/keystore-remote':
+        specifier: workspace:*
+        version: link:../remote
       '@algorandfoundation/wallet-provider':
         specifier: 'catalog:'
         version: 1.0.0-canary.5
@@ -598,6 +638,9 @@ importers:
       '@tanstack/store':
         specifier: 'catalog:'
         version: 0.9.3
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.1
       typedoc:
         specifier: 'catalog:'
         version: 0.26.11(typescript@5.9.3)
@@ -608,6 +651,9 @@ importers:
       '@napi-rs/keyring':
         specifier: 'catalog:'
         version: 1.3.0
+      ws:
+        specifier: 'catalog:'
+        version: 8.20.0
 
   keystore/react-native:
     dependencies:
@@ -666,6 +712,28 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.2(@types/node@25.5.0)(jsdom@20.0.3(canvas@2.11.2))(vite@6.4.1(@types/node@25.5.0)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.23.1)(yaml@2.8.3))
+
+  keystore/remote:
+    dependencies:
+      '@algorandfoundation/keystore-core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@algorandfoundation/package-releaser':
+        specifier: workspace:^
+        version: link:../../build
+      '@algorandfoundation/wallet-provider':
+        specifier: 'catalog:'
+        version: 1.0.0-canary.5
+      '@tanstack/store':
+        specifier: 'catalog:'
+        version: 0.9.3
+      typedoc:
+        specifier: 'catalog:'
+        version: 0.26.11(typescript@5.9.3)
       vitest:
         specifier: 'catalog:'
         version: 4.1.2(@types/node@25.5.0)(jsdom@20.0.3(canvas@2.11.2))(vite@6.4.1(@types/node@25.5.0)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.23.1)(yaml@2.8.3))
@@ -3030,6 +3098,9 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@types/yargs-parser@21.0.3':
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}
@@ -10556,6 +10627,10 @@ snapshots:
   '@types/stack-utils@2.0.3': {}
 
   '@types/unist@3.0.3': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 25.5.0
 
   '@types/yargs-parser@21.0.3': {}
 

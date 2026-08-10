@@ -19,6 +19,12 @@
  * under platform per-entry caps), while all UI-safe metadata is kept in a single
  * AES-GCM sealed file keyed by a small master key held in the keychain. The
  * reactive store holds only metadata.
+ *
+ * Finally, it ships the [Open Wallet Standard](https://openwallet.sh/) adapter
+ * ({@link createOwsKeyStore}, {@link WithOwsKeyStore}): the same keystore
+ * surface served by an OWS vault, which keeps custody of the seed and enforces
+ * its policy engine, reached either through the OWS NAPI bindings or the `ows`
+ * CLI. See the `./ows` subpath export for the full surface.
  */
 
 export * from "@algorandfoundation/keystore-core";
@@ -27,16 +33,53 @@ export { createNodeKeyStore, type NodeKeyStore, type NodeKeyStoreOptions } from 
 export { WithKeyStore, type NodeKeystoreOptions } from "./extension.ts";
 export {
   createKeyStoreRpcServer,
+  createKeyStoreWebSocketServer,
   createRpcKeyStore,
+  createSocketTransport,
+  DEFAULT_KEYSTORE_WS_PORT,
   defaultRpcSocketPath,
   isRpcMethod,
   RPC_METHODS,
   type KeyStoreRpcServer,
   type KeyStoreRpcServerOptions,
+  type KeyStoreWebSocketServer,
+  type KeyStoreWebSocketServerOptions,
   type RpcKeyStore,
   type RpcKeyStoreOptions,
   type RpcMethod,
+  type SocketTransportOptions,
+  type WebSocketServerFactory,
 } from "./rpc/index.ts";
+export {
+  createKeyStoreResponder,
+  createLoopbackTransport,
+  createRemoteKeyStore,
+  createWebSocketTransport,
+  WithRemoteKeyStore,
+  withRemoteKeyStoreAt,
+  type KeyStoreResponder,
+  type RemoteChannel,
+  type RemoteKeyStore,
+  type RemoteKeyStoreBlock,
+  type RemoteKeyStoreOptions,
+  type RemoteKeystoreOptions,
+  type RemoteTransport,
+} from "@algorandfoundation/keystore-remote";
+export {
+  createOwsBinding,
+  createOwsCliBinding,
+  createOwsKeyStore,
+  createOwsNativeBinding,
+  OwsError,
+  OwsUnsupportedOperationError,
+  resolveOwsBinding,
+  WithOwsKeyStore,
+  type OwsBinding,
+  type OwsContext,
+  type OwsKeyStore,
+  type OwsKeystoreOptions,
+  type OwsKeyStoreOptions,
+} from "./ows/index.ts";
 export { createKeychainDriver, type KeychainDriverDeps } from "./storage/driver.ts";
 export {
   createNapiKeyring,

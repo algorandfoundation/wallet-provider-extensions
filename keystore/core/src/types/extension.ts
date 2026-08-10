@@ -20,6 +20,17 @@ export interface KeyStoreOptions extends ExtensionOptions {
     store: Store<KeyStoreState>;
     hooks: HookCollection<any>;
     /**
+     * Where under the provider's `key` namespace this keystore is mounted, as a
+     * dot-separated path. Defaults to
+     * {@link import("../mount.ts").DEFAULT_KEYSTORE_MOUNT} (`"store"`), i.e.
+     * `provider.key.store`.
+     *
+     * Give a keystore its own name when several of them live on one provider —
+     * e.g. `"rpc"` for `provider.key.rpc`, or `"rpc.ows"` for a named remote
+     * service at `provider.key.rpc.ows` alongside the local `provider.key.store`.
+     */
+    mount?: KeyStoreMount;
+    /**
      * Host {@link SubtleCrypto} implementation the engine builds on. Defaults to
      * the platform's Subtle (`globalThis.crypto.subtle` on Node/web; on React
      * Native pass `react-native-quick-crypto`'s `subtle`). Only used when the
@@ -111,38 +122,81 @@ export interface KeyStoreState {
 }
 
 /**
- * The interface exposed by the Keystore Extension when added to a Provider.
+ * A keystore backend as an extension surfaces it: the {@link KeyStoreAPI} plus
+ * the two members the shared engine adds on top of it.
  */
-export interface KeyStoreExtension extends KeyStoreState {
-  /** The keystore backend with added support for hooks */
-  key: {
-    store: KeyStoreAPI & {
-      /**
-       * Resolves once the engine's shim stack is layered and existing metadata
-       * has been hydrated into the reactive store. Await it before relying on the
-       * reactive `keys`/`algorithms` (material-touching methods await it
-       * internally). **Optional** because a backend injected via
-       * `options.api.keystore` may be a plain {@link KeyStoreAPI} without a
-       * `ready` phase.
-       */
-      ready?: Promise<void>;
-      /**
-       * Hook collection for intercepting keystore operations.
-       *
-       * The shared `createKeyStore` engine binds this at creation and exposes it
-       * on the returned keystore, so extensions surface it directly without
-       * re-assigning. It is **optional** because a backend injected via
-       * `options.api.keystore` may not have been built with hooks.
-       *
-       * Supported operation ids include (non-exhaustive):
-       * `"generating"`, `"importing"`, `"exporting"`, `"removing"`,
-       * `"listing"`, `"getting metadata"`, `"signing"`, `"verifying"`,
-       * `"encrypting"`, `"decrypting"`, `"deriving"`, `"importing seed"`,
-       * `"logging audit event"`, `"getting audit logs"`, `"batch signing"`.
-       *
-       * Powered by {@link https://github.com/gr2m/before-after-hook before-after-hook}.
-       */
-      hooks?: HookCollection<any>;
-    };
-  };
-}
+export type MountedKeyStoreAPI = KeyStoreAPI & {
+  /**
+   * Resolves once the engine's shim stack is layered and existing metadata
+   * has been hydrated into the reactive store. Await it before relying on the
+   * reactive `keys`/`algorithms` (material-touching methods await it
+   * internally). **Optional** because a backend injected via
+   * `options.api.keystore` may be a plain {@link KeyStoreAPI} without a
+   * `ready` phase.
+   */
+  ready?: Promise<void>;
+  /**
+   * Hook collection for intercepting keystore operations.
+   *
+   * The shared `createKeyStore` engine binds this at creation and exposes it
+   * on the returned keystore, so extensions surface it directly without
+   * re-assigning. It is **optional** because a backend injected via
+   * `options.api.keystore` may not have been built with hooks.
+   *
+   * Supported operation ids include (non-exhaustive):
+   * `"generating"`, `"importing"`, `"exporting"`, `"removing"`,
+   * `"listing"`, `"getting metadata"`, `"signing"`, `"verifying"`,
+   * `"encrypting"`, `"decrypting"`, `"deriving"`, `"importing seed"`,
+   * `"logging audit event"`, `"getting audit logs"`, `"batch signing"`.
+   *
+   * Powered by {@link https://github.com/gr2m/before-after-hook before-after-hook}.
+   */
+  hooks?: HookCollection<any>;
+};
+
+/**
+ * Where a keystore hangs under the provider's `key` namespace: a dot-separated
+ * path, relative to `key`.
+ *
+ * `"store"` (the default) is `provider.key.store`; `"rpc"` is
+ * `provider.key.rpc`; `"rpc.ows"` names a service inside a group, giving
+ * `provider.key.rpc.ows`.
+ */
+export type KeyStoreMount = string;
+
+/**
+ * The object shape a dot-separated {@link KeyStoreMount} describes.
+ *
+ * @typeParam Path - The mount path, e.g. `"store"` or `"rpc.ows"`.
+ * @typeParam Api - What sits at the leaf; the mounted keystore.
+ *
+ * @example
+ * ```typescript
+ * type Group = MountedKeyStore<"rpc.ows", MountedKeyStoreAPI>;
+ * // => { rpc: { ows: MountedKeyStoreAPI } }
+ * ```
+ */
+export type MountedKeyStore<Path extends string, Api> = Path extends `${infer Head}.${infer Rest}`
+  ? { [K in Head]: MountedKeyStore<Rest, Api> }
+  : { [K in Path]: Api };
+
+/**
+ * The interface exposed by a Keystore Extension mounted at `Path`.
+ *
+ * The reactive `keys`/`status`/`algorithms` describe the *provider's* keystore
+ * state; a namespaced keystore joining a provider that already has them leaves
+ * them to the keystore that got there first (see
+ * {@link import("../mount.ts").createKeyStoreExtension}).
+ *
+ * @typeParam Path - The {@link KeyStoreMount} the keystore is mounted at.
+ */
+export type KeyStoreExtensionAt<Path extends string = "store"> = KeyStoreState & {
+  /** The keystore backend(s) with added support for hooks */
+  key: MountedKeyStore<Path, MountedKeyStoreAPI>;
+};
+
+/**
+ * The interface exposed by the Keystore Extension when added to a Provider,
+ * mounted at the default `key.store`.
+ */
+export type KeyStoreExtension = KeyStoreExtensionAt<"store">;

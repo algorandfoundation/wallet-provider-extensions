@@ -1,23 +1,23 @@
 /**
  * @module rpc/server
  *
- * The keystore RPC **service**: it hosts an already-built {@link KeyStore} over a
- * local stream socket (Unix domain socket / named pipe) and speaks the JSON-RPC
- * 2.0 protocol defined in {@link import("./protocol.ts")}.
+ * The keystore RPC **service** over a local stream socket (a Unix domain
+ * socket, or a named pipe on Windows).
+ *
+ * The hosting logic itself — dispatch, encoding, state pushes — is the
+ * transport-neutral {@link createKeyStoreResponder} of
+ * `@algorandfoundation/keystore-remote`; this module only accepts connections
+ * and adapts each socket to a channel. The
+ * {@link import("./websocket.ts").createKeyStoreWebSocketServer WebSocket
+ * service} is the same responder behind a different door.
  *
  * This is the second of the two Node engines: the in-process
  * {@link import("../engine.ts").createNodeKeyStore} is used directly inside a
  * Node application, while this service exposes the same keystore over IPC so
  * third-party processes can drive it through the drop-in
  * {@link import("./client.ts").createRpcKeyStore} client. The service is meant
- * to be run by the `keystore serve` CLI command, which owns the real OS-keychain
- * engine.
- *
- * Every request is dispatched to the hosted keystore against the method
- * allow-list ({@link RPC_METHODS}); the whole surface is exposed. On connect,
- * and on every reactive-store change thereafter, the current {@link KeyStoreState}
- * is pushed to the client as a `state` notification so remote clients stay
- * hydrated without polling.
+ * to be run by the `keystore serve` CLI command, which owns the real
+ * OS-keychain engine.
  */
 
 import { mkdir, rm } from "node:fs/promises";
@@ -25,32 +25,24 @@ import { createServer, type Socket } from "node:net";
 import { dirname } from "node:path";
 
 import type { KeyStore, KeyStoreState } from "@algorandfoundation/keystore-core";
-import type { Store } from "@tanstack/store";
-
 import {
   createFrameDecoder,
-  decodeValue,
-  defaultRpcSocketPath,
+  createKeyStoreResponder,
   encodeFrame,
-  encodeValue,
-  isRpcMethod,
-  JSON_RPC_VERSION,
-  type RpcMessage,
-  type RpcMethod,
-  type RpcRequest,
-  type RpcResponse,
-  RpcErrorCode,
-  RPC_STATE_METHOD,
-} from "./protocol.ts";
+} from "@algorandfoundation/keystore-remote";
+import type { Store } from "@tanstack/store";
+
+import { defaultRpcSocketPath } from "./protocol.ts";
 
 /** Options for {@link createKeyStoreRpcServer}. */
 export interface KeyStoreRpcServerOptions {
   /**
    * The keystore to host. Typically the in-process
    * {@link import("../engine.ts").createNodeKeyStore} engine (OS keychain +
-   * sealed metadata), but any {@link KeyStore} works.
+   * sealed metadata), but any {@link KeyStore} works — including the OWS
+   * adapter, which makes the daemon a front end to an OWS vault.
    */
-  keystore: KeyStore<void>;
+  keystore: KeyStore<never>;
   /**
    * The reactive store backing `keystore`, subscribed to so state changes are
    * pushed to connected clients. This is the same `store` handed to the engine.
@@ -79,79 +71,6 @@ export interface KeyStoreRpcServer {
 }
 
 /**
- * Invokes a single allow-listed keystore method with already-decoded arguments.
- * The `secrets.*` names dispatch into the {@link KeyStore.secrets} namespace;
- * `state` is answered from the reactive store. Missing optional methods throw a
- * descriptive error that is surfaced to the client.
- */
-async function invokeMethod(
-  keystore: KeyStore<void>,
-  store: Store<KeyStoreState>,
-  method: RpcMethod,
-  args: unknown[],
-): Promise<unknown> {
-  if (method === "state") {
-    return store.state;
-  }
-  if (method.startsWith("secrets.")) {
-    const secrets = keystore.secrets;
-    if (!secrets) {
-      throw new Error("this keystore does not support secrets");
-    }
-    const name = method.slice("secrets.".length);
-    const fn = (secrets as unknown as Record<string, unknown>)[name];
-    if (typeof fn !== "function") {
-      throw new Error(`unknown secrets operation: ${name}`);
-    }
-    return (fn as (...a: unknown[]) => Promise<unknown>).apply(secrets, args);
-  }
-  const fn = (keystore as unknown as Record<string, unknown>)[method];
-  if (typeof fn !== "function") {
-    throw new Error(`operation not supported by this keystore: ${method}`);
-  }
-  return (fn as (...a: unknown[]) => Promise<unknown>).apply(keystore, args);
-}
-
-/**
- * Handles one request: validates the method, decodes the args, invokes the
- * keystore and writes back an encoded result or a JSON-RPC error.
- */
-async function handleRequest(
-  request: RpcRequest,
-  socket: Socket,
-  keystore: KeyStore<void>,
-  store: Store<KeyStoreState>,
-): Promise<void> {
-  const write = (response: RpcResponse): void => {
-    socket.write(encodeFrame(response));
-  };
-
-  if (!isRpcMethod(request.method)) {
-    write({
-      jsonrpc: JSON_RPC_VERSION,
-      id: request.id,
-      error: { code: RpcErrorCode.methodNotFound, message: `unknown method: ${request.method}` },
-    });
-    return;
-  }
-
-  try {
-    const args = request.params.map(decodeValue);
-    const result = await invokeMethod(keystore, store, request.method, args);
-    write({ jsonrpc: JSON_RPC_VERSION, id: request.id, result: encodeValue(result) });
-  } catch (error) {
-    write({
-      jsonrpc: JSON_RPC_VERSION,
-      id: request.id,
-      error: {
-        code: RpcErrorCode.operationFailed,
-        message: error instanceof Error ? error.message : String(error),
-      },
-    });
-  }
-}
-
-/**
  * Creates a keystore RPC service that hosts `options.keystore` over a local
  * socket. The service is not listening until {@link KeyStoreRpcServer.listen} is
  * awaited.
@@ -173,54 +92,35 @@ async function handleRequest(
  */
 export function createKeyStoreRpcServer(options: KeyStoreRpcServerOptions): KeyStoreRpcServer {
   const socketPath = options.path ?? defaultRpcSocketPath();
-  const { keystore, store } = options;
+  const responder = createKeyStoreResponder({
+    keystore: options.keystore,
+    store: options.store,
+  });
   const sockets = new Set<Socket>();
 
   const server = createServer((socket: Socket) => {
     sockets.add(socket);
     const decoder = createFrameDecoder();
-
-    // Push the current state on connect, then on every subsequent change, so a
-    // client engine can keep its reactive store hydrated without polling.
-    let unsubscribe: (() => void) | undefined;
-    const sendState = (): void => {
-      socket.write(
-        encodeFrame({
-          jsonrpc: JSON_RPC_VERSION,
-          method: RPC_STATE_METHOD,
-          params: [encodeValue(store.state)],
-        }),
-      );
-    };
-    keystore.ready
-      .then(() => {
-        sendState();
-        // TanStack Store's `subscribe` returns a `Subscription`; normalize it to
-        // a plain unsubscribe callback for cleanup on disconnect.
-        const subscription = store.subscribe(sendState);
-        unsubscribe = () => subscription.unsubscribe();
-      })
-      .catch(() => {
-        // A failed `ready` still surfaces per-request; nothing to push here.
-      });
+    const session = responder.open({
+      send: (frame: string) => {
+        socket.write(frame);
+      },
+      close: () => socket.end(),
+    });
 
     socket.on("data", (chunk: Buffer) => {
-      let messages: RpcMessage[];
+      let messages;
       try {
-        messages = decoder.push(chunk);
+        messages = decoder.push(chunk.toString("utf8"));
       } catch {
         // Ignore an unparseable frame rather than tear down the connection.
         return;
       }
-      for (const message of messages) {
-        if ("id" in message && typeof message.id === "number" && "method" in message) {
-          void handleRequest(message as RpcRequest, socket, keystore, store);
-        }
-      }
+      for (const message of messages) session.receive(encodeFrame(message));
     });
 
     const cleanup = (): void => {
-      unsubscribe?.();
+      session.close();
       sockets.delete(socket);
     };
     socket.on("close", cleanup);

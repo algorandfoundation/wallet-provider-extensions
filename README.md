@@ -36,6 +36,8 @@ Building blocks:
 - **Source Bridges**:
   - **[React Native Keystore](./keystore/react-native)** — secure implementation for React Native using Keychain/MMKV.
     - [**Integration Guide**](./keystore/react-native/BOOTSTRAPPING.md): how to adopt the keystore in React Native.
+  - **[Open Wallet Standard adapter](./keystore/node#open-wallet-standard-ows-adapter)** — binds the node keystore to an [OWS](https://openwallet.sh/) vault (via the OWS NAPI bindings or the `ows` CLI), so OWS keeps custody of the seed and enforces its policy engine while the provider keeps this project's API.
+  - **[Remote Keystore](./keystore/remote)** — the keystore across a boundary: a pure, transport-neutral JSON-RPC protocol with a drop-in client engine, a host-side responder and a Provider extension. Run a keystore daemon (local socket or WebSocket, via [keystore-node](./keystore/node#reaching-the-daemon-transports)) and drive it from another process, another machine or a web page — application code cannot tell the difference. Keystores are **namespaced**: the extension mounts at `provider.key.store` by default, or under a name of its own (`provider.key.rpc.ows`) so remote services can sit beside a local keystore on the same provider. See the [remote example](./examples/node-keystore-remote).
 
 ### Accounts
 
