@@ -26,6 +26,31 @@ export interface ReactKeystoreOptions extends KeyStoreOptions {
 }
 
 /**
+ * The context this package's data migrations run against (see `./migrations`).
+ *
+ * Built by `WithKeyStore` when it registers the module with a provider's
+ * `migrations` extension, and resolved by the runner **lazily** — only when at
+ * least one revision is actually pending — so constructing it must stay cheap
+ * and side-effect-free. Revision `0001` only touches `storage`; revision
+ * `0002` additionally opens and re-seals material, which is why the host
+ * `subtle` and the master-key read are part of the context rather than being
+ * imported concretely by the revision files.
+ */
+export interface KeystoreMigrationContext {
+  /** The MMKV-style store holding this keystore's records. */
+  storage: KeychainStorage;
+  /** Host Subtle implementation used to open/re-seal material. */
+  subtle: SubtleCrypto;
+  /**
+   * Resolves the existing master key for a **read**. Must not create one — a
+   * missing master key is how a fresh install (nothing to migrate) looks.
+   */
+  masterKeyForRead: (options?: AuthenticationOptions) => Promise<Uint8Array>;
+  /** Authentication policy forwarded to {@link KeystoreMigrationContext.masterKeyForRead}. */
+  authentication?: AuthenticationOptions;
+}
+
+/**
  * The material-touching keystore operations that can carry their own
  * authentication prompt wording (via {@link AuthenticationOptions.prompts} /
  * {@link AuthenticationOptions.resolvePrompt}). Mirrors `KeyStoreAPI` in

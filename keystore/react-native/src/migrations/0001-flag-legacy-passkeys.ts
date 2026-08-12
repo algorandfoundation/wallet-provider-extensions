@@ -1,6 +1,6 @@
 import type { Migration } from "@algorandfoundation/provider-migrations";
 import { migrateLegacyPasskeys } from "../storage/driver.ts";
-import type { KeychainStorage } from "../storage/driver.ts";
+import type { KeystoreMigrationContext } from "../types.ts";
 
 /**
  * Flags legacy passkeys — those derived from the XHD root before the
@@ -13,10 +13,10 @@ import type { KeychainStorage } from "../storage/driver.ts";
  * biometric prompt fires. It is idempotent — an already-flagged record and a
  * new-scheme passkey are both skipped — and a no-op on empty storage.
  */
-export const migration: Migration<KeychainStorage> = {
+export const migration: Migration<KeystoreMigrationContext> = {
   id: 1,
   name: "flag-legacy-passkeys",
-  up: (storage: KeychainStorage): void => {
+  up: ({ storage }: KeystoreMigrationContext): void => {
     migrateLegacyPasskeys(storage);
   },
 };

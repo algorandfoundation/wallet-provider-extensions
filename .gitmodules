@@ -1,0 +1,3 @@
+[submodule "passkeys/react-native-autofill"]
+	path = passkeys/react-native-autofill
+	url = git@github.com:algorandfoundation/react-native-passkey-autofill.git

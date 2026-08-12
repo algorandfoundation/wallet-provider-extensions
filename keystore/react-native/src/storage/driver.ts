@@ -30,9 +30,10 @@ import { base64 } from "@scure/base";
 
 import type { AuthenticationOptions } from "../types.ts";
 
-/** Storage-key prefixes so material and metadata share one MMKV instance. */
-const MATERIAL_PREFIX = "m/";
-const METADATA_PREFIX = "k/";
+/** Storage-key prefix for sealed material records (`m/<id>`). */
+export const MATERIAL_PREFIX = "m/";
+/** Storage-key prefix for plaintext metadata records (`k/<id>`). */
+export const METADATA_PREFIX = "k/";
 
 /**
  * The minimal MMKV-style synchronous key/value surface the driver relies on.
@@ -89,7 +90,7 @@ const CAPABILITIES: DriverCapabilities = {
 };
 
 /** Serializes {@link Key} metadata to a string, base64-encoding any bytes. */
-function serializeKey(key: Key): string {
+export function serializeKey(key: Key): string {
   return JSON.stringify(key, (_k, value) => {
     if (value instanceof Uint8Array) return { $u8: base64.encode(value) };
     return value;
