@@ -2,6 +2,40 @@
 
 A secure key management system for the Algorand Wallet Provider. Manage cryptographic keys, derive HD wallets from BIP39 seeds, and sign arbitrary data—all while keeping private keys locked away in a secure vault.
 
+## Migrations
+
+This package registers its data migrations with
+[`@algorandfoundation/provider-migrations`](../../migrations) when that extension
+is present on the provider.
+
+> **Breaking change.** Legacy passkey flagging (records derived from the XHD root
+> before the deterministic-P256 split) used to run automatically on every engine
+> start. It is now revision `0001` and runs only when `WithMigrations` is
+> installed. `@algorandfoundation/provider-migrations` is an **optional peer
+> dependency** — it is not installed for you — so add it first:
+>
+> ```bash
+> pnpm add @algorandfoundation/provider-migrations
+> ```
+>
+> Then add it — **first** — to your provider:
+>
+> ```typescript
+> import { WithMigrations, keyValueLedger } from "@algorandfoundation/provider-migrations";
+>
+> const MyProvider = Provider.withExtensions([WithMigrations, WithKeyStore]);
+> const provider = new MyProvider(config, {
+>   migrations: {
+>     ledger: keyValueLedger({ get: (k) => mmkv.getString(k), set: (k, v) => mmkv.set(k, v) }),
+>   },
+>   keystore: { store, hooks },
+> });
+> await provider.migrations.ready;
+> ```
+>
+> Without it, legacy passkeys are never flagged and the UI cannot prompt users to
+> recreate them.
+
 ## Why This Exists
 
 Building a non-custodial wallet requires a **secure, isolated key vault**. The Keystore Extension separates key management from wallet logic:

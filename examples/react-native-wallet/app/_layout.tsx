@@ -6,6 +6,7 @@ import { keyStore } from "@/stores/keystore";
 import { keyStoreHooks, accountHooks } from "@/stores/before-after";
 import { accountsStore } from "@/stores/accounts";
 import { identitiesStore } from "@/stores/identities";
+import { migrationsLedger } from "@/stores/migrations";
 import type { ReactKeystoreOptions } from "@algorandfoundation/react-native-keystore";
 
 install();
@@ -19,45 +20,50 @@ const biometricOptions: ReactKeystoreOptions["keystore"]["authentication"] = {
   prompt: "Authenticate to access your wallet",
 };
 
+/**
+ * The single provider instance for the application.
+ *
+ * Constructed at module scope, not inside the component: a new instance per
+ * render would re-register every extension and re-run migrations on each pass.
+ */
+const provider = new ReactNativeProvider(
+  {
+    id: "wallet-provider",
+    name: "Wallet Provider",
+  },
+  {
+    migrations: { ledger: migrationsLedger },
+    logs: {},
+    accounts: {
+      store: accountsStore,
+      hooks: accountHooks,
+      keystore: {
+        autoPopulate: true,
+      },
+    },
+    identities: {
+      store: identitiesStore,
+      keystore: {
+        autoPopulate: true,
+      },
+    },
+    keystore: {
+      store: keyStore,
+      hooks: keyStoreHooks,
+      // React Native has no reliable global `crypto.subtle`, so the
+      // host Subtle must be supplied explicitly. `react-native-quick-crypto`'s
+      // `subtle` backs the engine's AES-256-GCM at-rest sealing (without
+      // it, sealing a new seed throws "Cannot read property 'importKey'
+      // of undefined").
+      subtle: subtle as unknown as SubtleCrypto,
+      authentication: biometricOptions,
+    },
+  },
+);
+
 export default function RootLayout() {
   return (
-    <AlgorandProvider
-      provider={
-        new ReactNativeProvider(
-          {
-            id: "wallet-provider",
-            name: "Wallet Provider",
-          },
-          {
-            logs: {},
-            accounts: {
-              store: accountsStore,
-              hooks: accountHooks,
-              keystore: {
-                autoPopulate: true,
-              },
-            },
-            identities: {
-              store: identitiesStore,
-              keystore: {
-                autoPopulate: true,
-              },
-            },
-            keystore: {
-              store: keyStore,
-              hooks: keyStoreHooks,
-              // React Native has no reliable global `crypto.subtle`, so the
-              // host Subtle must be supplied explicitly. `react-native-quick-crypto`'s
-              // `subtle` backs the engine's AES-256-GCM at-rest sealing (without
-              // it, sealing a new seed throws "Cannot read property 'importKey'
-              // of undefined").
-              subtle: subtle as unknown as SubtleCrypto,
-              authentication: biometricOptions,
-            },
-          },
-        )
-      }
-    >
+    <AlgorandProvider provider={provider}>
       <Stack
         screenOptions={{
           headerShadowVisible: false,

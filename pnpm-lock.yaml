@@ -260,6 +260,9 @@ importers:
       '@algorandfoundation/log-store':
         specifier: workspace:*
         version: link:../../log
+      '@algorandfoundation/provider-migrations':
+        specifier: workspace:*
+        version: link:../../migrations
       '@algorandfoundation/react-native-keystore':
         specifier: workspace:*
         version: link:../../keystore/react-native
@@ -654,6 +657,9 @@ importers:
       '@algorandfoundation/package-releaser':
         specifier: workspace:^
         version: link:../../build
+      '@algorandfoundation/provider-migrations':
+        specifier: workspace:*
+        version: link:../../migrations
       falcon-1024:
         specifier: 'catalog:'
         version: 0.2.0
@@ -728,6 +734,22 @@ importers:
       before-after-hook:
         specifier: 'catalog:'
         version: 4.0.0
+
+  migrations:
+    dependencies:
+      '@algorandfoundation/wallet-provider':
+        specifier: 'catalog:'
+        version: 1.0.0-canary.5
+    devDependencies:
+      '@algorandfoundation/package-releaser':
+        specifier: workspace:^
+        version: link:../build
+      before-after-hook:
+        specifier: 'catalog:'
+        version: 4.0.0
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.2(@types/node@25.5.0)(jsdom@20.0.3(canvas@2.11.2))(vite@6.4.1(@types/node@25.5.0)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.23.1)(yaml@2.8.3))
 
 packages:
 

@@ -13,11 +13,8 @@ import * as Keychain from "react-native-keychain";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createReactNativeKeyStore, type ReactNativeKeyStore } from "./engine.ts";
-import {
-  type KeychainStorage,
-  migrateLegacyPasskeys,
-  PASSKEY_MIGRATION_NEEDED,
-} from "./storage/driver.ts";
+import { memoryStorage, seedLegacyPasskey } from "./storage/__fixtures__.ts";
+import { migrateLegacyPasskeys, PASSKEY_MIGRATION_NEEDED } from "./storage/driver.ts";
 
 const message = new TextEncoder().encode("the quick brown fox");
 // The setup file (see vitest.config.ts) points global.crypto at Node webcrypto,
@@ -58,22 +55,6 @@ const dp256: DP256Binding = {
 };
 
 const shims: SubtleShim[] = [(h) => withSubtleXHD(h, xhd), (h) => withSubtleDP256(h, dp256)];
-
-/** A fresh in-memory MMKV-style store per test (real Keychain master is mocked). */
-function memoryStorage(): KeychainStorage & { entries(): [string, string][] } {
-  const map = new Map<string, string>();
-  return {
-    getString: (key) => map.get(key),
-    set: (key, value) => {
-      map.set(key, value);
-    },
-    remove: (key) => {
-      map.delete(key);
-    },
-    getAllKeys: () => [...map.keys()],
-    entries: () => [...map.entries()],
-  };
-}
 
 describe("createReactNativeKeyStore", () => {
   let store: Store<KeyStoreState>;
@@ -392,28 +373,6 @@ describe("operation tagging", () => {
 });
 
 describe("migrateLegacyPasskeys", () => {
-  /** Seeds a legacy passkey metadata record (pre-dp256-split, no `scheme`). */
-  function seedLegacyPasskey(storage: KeychainStorage, id: string): void {
-    storage.set(
-      `k/${id}`,
-      JSON.stringify({
-        id,
-        type: "hd-derived-p256",
-        algorithm: "P256",
-        extractable: false,
-        keyUsages: ["sign", "verify"],
-        metadata: {
-          storage: "none",
-          origin: "https://example.com",
-          userHandle: "user-123",
-          counter: 0,
-          parentKeyId: "xhd-root-1",
-        },
-        version: 1,
-      }),
-    );
-  }
-
   it("flags a legacy passkey needs-migration in place, without copying", () => {
     const storage = memoryStorage();
     seedLegacyPasskey(storage, "pk1");
@@ -461,15 +420,106 @@ describe("migrateLegacyPasskeys", () => {
     expect(pk2.metadata.migration).toBeUndefined();
   });
 
-  it("surfaces migration markers in the reactive store on startup", async () => {
+  it("surfaces migration markers in the reactive store once `before` completes", async () => {
     const storage = memoryStorage();
     seedLegacyPasskey(storage, "pk1");
 
     const store = new Store<KeyStoreState>({ keys: [], status: "idle" });
-    const keystore = createReactNativeKeyStore({ store, subtle, shims, storage });
+    const keystore = createReactNativeKeyStore({
+      store,
+      subtle,
+      shims,
+      storage,
+      before: Promise.resolve().then(() => {
+        migrateLegacyPasskeys(storage);
+      }),
+    });
     await keystore.ready;
 
     const marker = store.state.keys.find((k) => k.id === "pk1");
     expect(marker?.metadata?.migration).toBe(PASSKEY_MIGRATION_NEEDED);
+  });
+});
+
+describe("createReactNativeKeyStore — `before` gate", () => {
+  it("does not settle `ready` until `before` settles", async () => {
+    const storage = memoryStorage();
+    const store = new Store<KeyStoreState>({ keys: [], status: "idle" });
+    let release!: () => void;
+    const before = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const keystore = createReactNativeKeyStore({
+      store,
+      subtle: globalThis.crypto.subtle,
+      storage,
+      shims: [], // no dynamic import, so the gate is the only thing holding `ready`
+      before,
+    });
+
+    let settled = false;
+    void keystore.ready.then(() => {
+      settled = true;
+    });
+
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(settled).toBe(false);
+
+    release();
+    await keystore.ready;
+    expect(settled).toBe(true);
+  });
+
+  it("resolves normally when `before` is omitted", async () => {
+    const storage = memoryStorage();
+    const store = new Store<KeyStoreState>({ keys: [], status: "idle" });
+
+    const keystore = createReactNativeKeyStore({
+      store,
+      subtle: globalThis.crypto.subtle,
+      storage,
+    });
+
+    await expect(keystore.ready).resolves.toBeUndefined();
+  });
+
+  it("rejects `ready` when `before` rejects", async () => {
+    const storage = memoryStorage();
+    const store = new Store<KeyStoreState>({ keys: [], status: "idle" });
+
+    const keystore = createReactNativeKeyStore({
+      store,
+      subtle: globalThis.crypto.subtle,
+      storage,
+      before: Promise.reject(new Error("migrations failed")),
+    });
+
+    await expect(keystore.ready).rejects.toThrow("migrations failed");
+  });
+
+  it("never raises an unhandled rejection when `before` rejects and nobody awaits `ready`, yet a caller who does await still sees the rejection", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    const storage = memoryStorage();
+    const store = new Store<KeyStoreState>({ keys: [], status: "idle" });
+
+    const keystore = createReactNativeKeyStore({
+      store,
+      subtle: globalThis.crypto.subtle,
+      storage,
+      before: Promise.reject(new Error("migrations failed")),
+    });
+    // Deliberately not awaiting `keystore.ready` here, e.g. an app that
+    // renders a "migration failed" screen and never touches `key.store`.
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off("unhandledRejection", unhandled);
+
+    expect(unhandled).not.toHaveBeenCalled();
+
+    // The rejection is not swallowed: a caller who does await still observes it.
+    await expect(keystore.ready).rejects.toThrow("migrations failed");
   });
 });

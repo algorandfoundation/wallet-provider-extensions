@@ -3,6 +3,8 @@ import type { LogStoreExtension } from "@algorandfoundation/log-store";
 import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
 
 import { createReactNativeKeyStore } from "./engine.ts";
+import { migrations } from "./migrations/index.ts";
+import { storage as defaultStorage } from "./storage/state.ts";
 import type { ReactKeystoreOptions } from "./types.ts";
 
 /**
@@ -24,7 +26,10 @@ import type { ReactKeystoreOptions } from "./types.ts";
  * engine already exposes its `hooks` collection on the returned keystore, so the
  * extension surfaces `key.store` as-is without re-assigning it.
  *
- * @param provider - The host provider (may carry a `log` extension).
+ * @param provider - The host provider (may carry `log` and `migrations`
+ *   extensions). When a `migrations` extension is present, this package's
+ *   revisions (see `./migrations/index.ts`) are registered against it and the
+ *   engine defers hydration until they have run.
  * @param options - {@link ReactKeystoreOptions}. `options.keystore.store` and
  *   `options.keystore.hooks` are required; the crypto bindings are required only
  *   when the extension builds the engine itself.
@@ -32,6 +37,18 @@ import type { ReactKeystoreOptions } from "./types.ts";
  * @returns The {@link KeyStoreExtension} surface with reactive `keys`/`status`
  *   and the `key.store` keystore API (which already exposes `hooks` when the
  *   engine was built with them).
+ *
+ * @remarks
+ * Migration registration (`migrationsApi?.register(...)`) always runs,
+ * regardless of which code path above supplies the keystore API — but the
+ * `before` gate (which sequences `createReactNativeKeyStore`'s hydration
+ * behind `provider.migrations?.ready`) only exists on the engine-building
+ * path. When `options.api.keystore` is injected, `createReactNativeKeyStore`
+ * is never called, so that gate never exists: this package's migrations
+ * still run against `options.keystore.storage ?? defaultStorage`, but with no
+ * ordering guarantee relative to the injected backend. A consumer who injects
+ * `options.api.keystore` owns sequencing the injected backend against
+ * `provider.migrations.ready` itself.
  *
  * @example
  * ```typescript
@@ -52,10 +69,35 @@ import type { ReactKeystoreOptions } from "./types.ts";
  * ```
  */
 export const WithKeyStore: Extension<KeyStoreExtension> = (
-  _provider: Provider<any> & Partial<LogStoreExtension>,
+  provider: Provider<any> & Partial<LogStoreExtension>,
   options: ReactKeystoreOptions,
 ) => {
   const keyStore = options.keystore.store;
+  const storage = options.keystore.storage ?? defaultStorage;
+
+  // Opt-in: a no-op unless the provider carries a migrations extension. That
+  // is silent by design (see `register`'s no-op contract), but silent opt-in
+  // for a whole feature is easy to misconfigure — `WithMigrations` must be
+  // installed *first* in the extensions array, and getting that wrong yields
+  // no registration, no gate and no error. This can't be detected from inside
+  // `WithMigrations` itself (it runs before every other extension), so the
+  // cheap check lives here instead: warn once, when there is something this
+  // package would have registered.
+  const migrationsApi = (provider as any)?.migrations;
+  if (!migrationsApi && migrations.length > 0) {
+    provider.log?.warn(
+      "@algorandfoundation/react-native-keystore has data migrations to run, but no " +
+        "`migrations` extension is installed on the provider. Add `WithMigrations` from " +
+        '"@algorandfoundation/provider-migrations" — first — in the provider\'s extensions ' +
+        "array, or these migrations will never run.",
+      { module: "@algorandfoundation/react-native-keystore" },
+    );
+  }
+  migrationsApi?.register({
+    module: "@algorandfoundation/react-native-keystore",
+    context: () => storage,
+    migrations,
+  });
 
   // Single source of the API: use an injected backend when present, otherwise
   // build the shared React Native engine and let it own every operation. The
@@ -67,9 +109,10 @@ export const WithKeyStore: Extension<KeyStoreExtension> = (
       store: keyStore,
       subtle: options.keystore.subtle as SubtleCrypto,
       shims: options.keystore.shims,
-      storage: options.keystore.storage,
+      storage,
       hooks: options.keystore.hooks,
       authentication: options.keystore.authentication,
+      before: migrationsApi?.ready,
     });
 
   return {

@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@algorandfoundation/package-releaser": "workspace:^",
+    "@algorandfoundation/provider-migrations": "workspace:*",
     "falcon-1024": "catalog:",
     "react-native": "catalog:",
     "typedoc": "catalog:",
@@ -56,12 +57,16 @@
   },
   "peerDependencies": {
     "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/provider-migrations": "workspace:*",
     "@joe-p/react-native-falcon": "^0.1.0",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
   },
   "peerDependenciesMeta": {
     "@algorandfoundation/log-store": {
+      "optional": true
+    },
+    "@algorandfoundation/provider-migrations": {
       "optional": true
     },
     "@joe-p/react-native-falcon": {

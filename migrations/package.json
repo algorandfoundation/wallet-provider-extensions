@@ -1,0 +1,50 @@
+{
+  "name": "@algorandfoundation/provider-migrations",
+  "version": "0.0.0",
+  "description": "Revision-tracked data migrations for Wallet Provider extensions.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "migrations"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules docs",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/wallet-provider": "catalog:"
+  },
+  "devDependencies": {
+    "@algorandfoundation/package-releaser": "workspace:^",
+    "before-after-hook": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "before-after-hook": "catalog:"
+  }
+}

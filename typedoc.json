@@ -12,7 +12,8 @@
     "identities/extension",
     "identities/store",
     "identities/keystore-extension",
-    "log"
+    "log",
+    "migrations"
   ],
   "externalSymbolLinkMappings": {
     "@algorandfoundation/xhd-wallet-api": {

@@ -1,6 +1,7 @@
 import { createContext, type ReactNode } from "react";
 import { Provider } from "@algorandfoundation/wallet-provider";
 
+import { WithMigrations, type MigrationsApi } from "@algorandfoundation/provider-migrations";
 import { WithKeyStore } from "@algorandfoundation/react-native-keystore";
 import { Account, AccountStoreApi, WithAccountStore } from "@algorandfoundation/accounts-store";
 import type { KeyStoreAPI, KeyStoreCapability, Key } from "@algorandfoundation/keystore";
@@ -26,6 +27,7 @@ export type AppAccount = WatchedAccount | KeystoreAccount | Account;
  */
 export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXTENSIONS> {
   static EXTENSIONS = [
+    WithMigrations,
     WithLogStore,
     WithKeyStore,
     WithAccountStore<AppAccount>,
@@ -34,6 +36,8 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
     WithWatchedAccount,
   ] as const;
 
+  /** Data migration registry and run control */
+  migrations!: MigrationsApi;
   /** Reactive array of keys in the keystore */
   keys!: Key[];
   /** Reactive array of accounts in the account store */
