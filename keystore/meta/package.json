@@ -15,10 +15,19 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
+      "react-native": {
+        "types": "./dist/index.native.d.ts",
+        "default": "./dist/index.native.js"
+      },
+      "browser": {
+        "types": "./dist/index.web.d.ts",
+        "default": "./dist/index.web.js"
+      },
+      "node": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
       "types": "./dist/index.d.ts",
-      "react-native": "./dist/index.native.js",
-      "browser": "./dist/index.web.js",
-      "node": "./dist/index.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     }
