@@ -1,6 +1,6 @@
 {
   "name": "@algorandfoundation/keystore-web",
-  "version": "1.0.0-canary.2",
+  "version": "1.0.0-canary.3",
   "description": "Browser keystore implementation (WebCrypto + IndexedDB) for Algorand Providers.",
   "license": "Apache-2.0",
   "author": "Algorand Foundation",
