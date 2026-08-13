@@ -1,3 +1,13 @@
+# [react-native-keystore@1.0.0-canary.17](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.16...react-native-keystore@1.0.0-canary.17) (2026-08-13)
+
+### Bug Fixes
+
+- **keystore-core:** backwards compatibility for deprecated hd-seed ([9559130](https://github.com/algorandfoundation/wallet-provider-extensions/commit/9559130bf9d0bab1ad2c7fe13e9ae636be61931c))
+
+### Features
+
+- **keystore-core:** native PBKDF2 for deterministic-P256 ([c92e5da](https://github.com/algorandfoundation/wallet-provider-extensions/commit/c92e5da9f3c6925745012dd488ef16360bd5d719))
+
 # [react-native-keystore@1.0.0-canary.16](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.15...react-native-keystore@1.0.0-canary.16) (2026-08-13)
 
 ### Features
