@@ -1,6 +1,6 @@
 {
   "name": "@algorandfoundation/provider-migrations",
-  "version": "0.0.0",
+  "version": "1.0.0-canary.1",
   "description": "Revision-tracked data migrations for Wallet Provider extensions.",
   "license": "Apache-2.0",
   "author": "Algorand Foundation",
