@@ -1,3 +1,9 @@
+# [keystore@1.0.0-canary.20](https://github.com/algorandfoundation/wallet-provider-extensions/compare/keystore@1.0.0-canary.19...keystore@1.0.0-canary.20) (2026-08-13)
+
+### Features
+
+- keystore migrations ([a7ed907](https://github.com/algorandfoundation/wallet-provider-extensions/commit/a7ed90757812833b0712b85438651d008a1e49dc))
+
 # [keystore@1.0.0-canary.19](https://github.com/algorandfoundation/wallet-provider-extensions/compare/keystore@1.0.0-canary.18...keystore@1.0.0-canary.19) (2026-08-13)
 
 ### Features
