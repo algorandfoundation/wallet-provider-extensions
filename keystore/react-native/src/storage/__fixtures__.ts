@@ -5,6 +5,8 @@
  * test-only helpers and must never ship in `dist/`.
  */
 
+import { MasterKeyNotFoundError } from "../errors.ts";
+import type { KeystoreMigrationContext } from "../types.ts";
 import type { KeychainStorage } from "./driver.ts";
 
 /** A fresh in-memory MMKV-style store per test (real Keychain master is mocked). */
@@ -20,6 +22,26 @@ export function memoryStorage(): KeychainStorage & { entries(): [string, string]
     },
     getAllKeys: () => [...map.keys()],
     entries: () => [...map.entries()],
+  };
+}
+
+/**
+ * A {@link KeystoreMigrationContext} over `storage` for driving migration
+ * revisions in tests. By default `masterKeyForRead` reports that no master key
+ * exists (the fresh-install case); pass an override for tests that exercise
+ * material adoption.
+ */
+export function migrationContext(
+  storage: KeychainStorage,
+  overrides: Partial<KeystoreMigrationContext> = {},
+): KeystoreMigrationContext {
+  return {
+    storage,
+    subtle: globalThis.crypto.subtle,
+    masterKeyForRead: async () => {
+      throw new MasterKeyNotFoundError();
+    },
+    ...overrides,
   };
 }
 

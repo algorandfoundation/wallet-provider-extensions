@@ -4,8 +4,9 @@ import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
 
 import { createReactNativeKeyStore } from "./engine.ts";
 import { migrations } from "./migrations/index.ts";
+import { readMasterKey } from "./storage/crypto.ts";
 import { storage as defaultStorage } from "./storage/state.ts";
-import type { ReactKeystoreOptions } from "./types.ts";
+import type { KeystoreMigrationContext, ReactKeystoreOptions } from "./types.ts";
 
 /**
  * Wallet Provider Extension that adds Keystore functionality.
@@ -95,7 +96,15 @@ export const WithKeyStore: Extension<KeyStoreExtension> = (
   }
   migrationsApi?.register({
     module: "@algorandfoundation/react-native-keystore",
-    context: () => storage,
+    // Resolved lazily by the runner, only when a revision is pending. Revision
+    // 0002 opens and re-seals material, so the context carries the host
+    // `subtle` and the master-key read alongside the storage instance.
+    context: (): KeystoreMigrationContext => ({
+      storage,
+      subtle: options.keystore.subtle as SubtleCrypto,
+      masterKeyForRead: (auth) => readMasterKey(auth ?? options.keystore.authentication),
+      authentication: options.keystore.authentication,
+    }),
     migrations,
   });
 

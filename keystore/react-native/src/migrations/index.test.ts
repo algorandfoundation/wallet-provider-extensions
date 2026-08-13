@@ -9,7 +9,7 @@ describe("migrations manifest", () => {
     ).not.toThrow();
   });
 
-  it("declares at least revision 1", () => {
-    expect(migrations.map((m) => m.id)).toContain(1);
+  it("declares revisions 1 and 2, in order", () => {
+    expect(migrations.map((m) => m.id)).toEqual([1, 2]);
   });
 });

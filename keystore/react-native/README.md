@@ -36,6 +36,28 @@ is present on the provider.
 > Without it, legacy passkeys are never flagged and the UI cannot prompt users to
 > recreate them.
 
+### Revisions
+
+| Revision | Name                   | What it does                                                                                                                                                                                                                                                                                                                        |
+| -------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001`   | `flag-legacy-passkeys` | Flags passkeys derived from the XHD root before the deterministic-P256 split as needing migration. Metadata-only — nothing is decrypted and no biometric prompt fires.                                                                                                                                                              |
+| `0002`   | `adopt-flat-records`   | Adopts legacy **flat** `<id>` records — one sealed blob per key, as written by the deprecated `commit()` helper and by older native passkey AutoFill credential providers sharing the same MMKV instance — into the split `k/<id>` + `m/<id>` layout the driver reads, then re-runs the passkey flag pass over what became visible. |
+
+> Revision `0002` decrypts material, so it reads the master key **once** for the
+> whole pass — the only step that can raise a biometric/passcode prompt, and only
+> when at least one flat record actually exists. A record it cannot decrypt (or
+> that carries no `privateKey`/`seed` material, e.g. a native credential wrapped
+> by a biometric cipher this package cannot open) is left untouched and reported
+> through the provider's log — never deleted.
+>
+> Because `0002` runs **once per ledger**, anything that keeps writing flat
+> records after it has run stays invisible to the driver. Update the native
+> passkey AutoFill provider to a version that writes the split `k/` + `m/`
+> layout **before** (or together with) shipping this migration —
+> `@algorandfoundation/react-native-passkey-autofill` does so from
+> `1.0.0-canary.23` (see its `KeystoreRecords`/`PasskeyCredentialStore`
+> record-format owners).
+
 ## Why This Exists
 
 Building a non-custodial wallet requires a **secure, isolated key vault**. The Keystore Extension separates key management from wallet logic:

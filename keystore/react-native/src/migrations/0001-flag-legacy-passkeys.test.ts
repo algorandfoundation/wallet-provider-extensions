@@ -1,7 +1,7 @@
 import { createSecretScratch } from "@algorandfoundation/provider-migrations";
 import { assertIdempotent } from "@algorandfoundation/provider-migrations/testing";
 import { describe, expect, it } from "vitest";
-import { memoryStorage, seedLegacyPasskey } from "../storage/__fixtures__.ts";
+import { memoryStorage, migrationContext, seedLegacyPasskey } from "../storage/__fixtures__.ts";
 import { PASSKEY_MIGRATION_NEEDED } from "../storage/driver.ts";
 import { migration } from "./0001-flag-legacy-passkeys.ts";
 
@@ -17,7 +17,7 @@ describe("revision 0001 — flag-legacy-passkeys", () => {
 
     const { scratch, wipeAll } = createSecretScratch();
     try {
-      await migration.up(storage, {
+      await migration.up(migrationContext(storage), {
         revision: { module: "test", id: 1, name: "flag-legacy-passkeys" },
         secrets: scratch,
       });
@@ -50,17 +50,17 @@ describe("revision 0001 — flag-legacy-passkeys", () => {
             version: 1,
           }),
         );
-        return storage;
+        return migrationContext(storage);
       },
-      snapshot: (storage) => (storage as ReturnType<typeof memoryStorage>).entries(),
+      snapshot: (ctx) => (ctx.storage as ReturnType<typeof memoryStorage>).entries(),
     });
   });
 
   it("is a no-op on empty storage", async () => {
     await assertIdempotent({
       migration,
-      context: () => memoryStorage(),
-      snapshot: (storage) => (storage as ReturnType<typeof memoryStorage>).entries(),
+      context: () => migrationContext(memoryStorage()),
+      snapshot: (ctx) => (ctx.storage as ReturnType<typeof memoryStorage>).entries(),
     });
   });
 });

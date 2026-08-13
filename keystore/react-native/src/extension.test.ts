@@ -229,7 +229,7 @@ describe("WithKeyStore — migrations registration", () => {
     expect(register).toHaveBeenCalledTimes(1);
     const registered = register.mock.calls[0]![0];
     expect(registered.module).toBe("@algorandfoundation/react-native-keystore");
-    expect(registered.migrations.map((m: { id: number }) => m.id)).toEqual([1]);
+    expect(registered.migrations.map((m: { id: number }) => m.id)).toEqual([1, 2]);
   });
 
   it("is a no-op when the provider has no migrations extension", () => {
