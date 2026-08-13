@@ -1,3 +1,9 @@
+# [accounts-keystore-extension@1.0.0-canary.10](https://github.com/algorandfoundation/wallet-provider-extensions/compare/accounts-keystore-extension@1.0.0-canary.9...accounts-keystore-extension@1.0.0-canary.10) (2026-08-13)
+
+### Features
+
+- extractable keys and seeds ([b78f0f8](https://github.com/algorandfoundation/wallet-provider-extensions/commit/b78f0f8a0acc0d3c895ae9155f56ddb4ca6f0a55))
+
 # [accounts-keystore-extension@1.0.0-canary.9](https://github.com/algorandfoundation/wallet-provider-extensions/compare/accounts-keystore-extension@1.0.0-canary.8...accounts-keystore-extension@1.0.0-canary.9) (2026-08-13)
 
 ### Bug Fixes
