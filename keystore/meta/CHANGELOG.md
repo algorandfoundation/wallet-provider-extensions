@@ -1,3 +1,13 @@
+# [keystore@1.0.0-canary.21](https://github.com/algorandfoundation/wallet-provider-extensions/compare/keystore@1.0.0-canary.20...keystore@1.0.0-canary.21) (2026-08-13)
+
+### Bug Fixes
+
+- **keystore-core:** backwards compatibility for deprecated hd-seed ([9559130](https://github.com/algorandfoundation/wallet-provider-extensions/commit/9559130bf9d0bab1ad2c7fe13e9ae636be61931c))
+
+### Features
+
+- **keystore-core:** native PBKDF2 for deterministic-P256 ([c92e5da](https://github.com/algorandfoundation/wallet-provider-extensions/commit/c92e5da9f3c6925745012dd488ef16360bd5d719))
+
 # [keystore@1.0.0-canary.20](https://github.com/algorandfoundation/wallet-provider-extensions/compare/keystore@1.0.0-canary.19...keystore@1.0.0-canary.20) (2026-08-13)
 
 ### Features
