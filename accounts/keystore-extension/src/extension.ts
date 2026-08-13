@@ -10,7 +10,7 @@ import type {
   KeyStoreExtension,
   KeyStoreState,
   XHDDerivedKeyData,
-} from "@algorandfoundation/keystore";
+} from "@algorandfoundation/keystore-core";
 import { base64 } from "@scure/base";
 import type { Extension } from "@algorandfoundation/wallet-provider";
 import type { LogStoreApi, LogStoreExtension } from "@algorandfoundation/log-store";

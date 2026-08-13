@@ -3,7 +3,7 @@ import { isKeystoreAccount, WithAccountsKeystore } from "./extension.ts";
 import { base64 } from "@scure/base";
 import type { Account, AccountStoreState } from "@algorandfoundation/accounts-store";
 import { Store } from "@tanstack/store";
-import type { Key, KeyStoreState } from "@algorandfoundation/keystore";
+import type { Key, KeyStoreState } from "@algorandfoundation/keystore-core";
 import {
   createKeyStore,
   type DriverCapabilities,

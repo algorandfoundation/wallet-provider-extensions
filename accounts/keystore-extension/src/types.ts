@@ -1,6 +1,6 @@
 import type { Account, AccountStoreOptions } from "@algorandfoundation/accounts-store";
 import type { ExtensionOptions } from "@algorandfoundation/wallet-provider";
-import type { KeyStoreOptions } from "@algorandfoundation/keystore";
+import type { KeyStoreOptions } from "@algorandfoundation/keystore-core";
 
 /**
  * Represents an account that is backed by the keystore for signing.

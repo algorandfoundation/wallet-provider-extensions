@@ -35,7 +35,7 @@
   "dependencies": {
     "@algorandfoundation/identities-keystore-extension": "workspace:*",
     "@algorandfoundation/identities-store": "workspace:*",
-    "@algorandfoundation/keystore": "workspace:*",
+    "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:"
   },
   "devDependencies": {

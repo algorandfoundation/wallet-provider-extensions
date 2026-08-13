@@ -3,7 +3,7 @@ import type {
   IdentityStoreOptions,
   DIDDocument,
 } from "@algorandfoundation/identities-store";
-import type { KeyStoreOptions } from "@algorandfoundation/keystore";
+import type { KeyStoreOptions } from "@algorandfoundation/keystore-core";
 
 /**
  * Options for the IdentitiesKeystore extension.

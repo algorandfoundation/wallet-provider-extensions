@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Store } from "@tanstack/store";
 import { WithIdentities } from "./extension.ts";
-import type { KeyStoreState } from "@algorandfoundation/keystore";
+import type { KeyStoreState } from "@algorandfoundation/keystore-core";
 import type { IdentityStoreState } from "@algorandfoundation/identities-store";
 
 describe("WithIdentities Extension", () => {

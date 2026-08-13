@@ -36,12 +36,11 @@
   },
   "dependencies": {
     "@algorandfoundation/accounts-store": "workspace:*",
-    "@algorandfoundation/keystore": "workspace:*",
+    "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
     "@scure/base": "catalog:"
   },
   "devDependencies": {
-    "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/log-store": "workspace:*",
     "@algorandfoundation/package-releaser": "workspace:*",
     "@algorandfoundation/xhd-wallet-api": "catalog:",

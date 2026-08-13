@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "@algorandfoundation/identities-store": "workspace:*",
-    "@algorandfoundation/keystore": "workspace:*",
+    "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
     "@scure/base": "catalog:",
     "before-after-hook": "catalog:"

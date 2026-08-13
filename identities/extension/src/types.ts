@@ -1,5 +1,5 @@
 import type { Store } from "@tanstack/store";
-import type { KeyStoreState } from "@algorandfoundation/keystore";
+import type { KeyStoreState } from "@algorandfoundation/keystore-core";
 import type {
   IdentityStoreApi,
   IdentityStoreExtension,

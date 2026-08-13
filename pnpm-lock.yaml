@@ -134,9 +134,9 @@ importers:
       '@algorandfoundation/accounts-store':
         specifier: workspace:*
         version: link:../store
-      '@algorandfoundation/keystore':
+      '@algorandfoundation/keystore-core':
         specifier: workspace:*
-        version: link:../../keystore/meta
+        version: link:../../keystore/core
       '@algorandfoundation/wallet-provider':
         specifier: 'catalog:'
         version: 1.0.0-canary.5
@@ -150,9 +150,6 @@ importers:
         specifier: 'catalog:'
         version: 4.0.0
     devDependencies:
-      '@algorandfoundation/keystore-core':
-        specifier: workspace:*
-        version: link:../../keystore/core
       '@algorandfoundation/log-store':
         specifier: workspace:*
         version: link:../../log
@@ -424,9 +421,9 @@ importers:
       '@algorandfoundation/identities-store':
         specifier: workspace:*
         version: link:../store
-      '@algorandfoundation/keystore':
+      '@algorandfoundation/keystore-core':
         specifier: workspace:*
-        version: link:../../keystore/meta
+        version: link:../../keystore/core
       '@algorandfoundation/wallet-provider':
         specifier: 'catalog:'
         version: 1.0.0-canary.5
@@ -449,9 +446,9 @@ importers:
       '@algorandfoundation/identities-store':
         specifier: workspace:*
         version: link:../store
-      '@algorandfoundation/keystore':
+      '@algorandfoundation/keystore-core':
         specifier: workspace:*
-        version: link:../../keystore/meta
+        version: link:../../keystore/core
       '@algorandfoundation/wallet-provider':
         specifier: 'catalog:'
         version: 1.0.0-canary.5
