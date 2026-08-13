@@ -1,6 +1,6 @@
 {
   "name": "@algorandfoundation/keystore-node",
-  "version": "1.0.0-canary.2",
+  "version": "1.0.0-canary.3",
   "description": "WebCrypto/noble keystore implementation for Node.js and other server runtimes.",
   "license": "Apache-2.0",
   "author": "Algorand Foundation",
