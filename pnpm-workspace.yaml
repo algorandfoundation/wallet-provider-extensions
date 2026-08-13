@@ -30,6 +30,37 @@ catalog:
   "typescript": "^5.6.0"
   "vitest": "^4.1.2"
 
+overrides:
+  # Security overrides for transitive dependencies (see `pnpm audit`).
+  # Each entry is pinned to the lowest fixed release inside the major line that
+  # is already resolved, to keep the remediation non-breaking.
+  "@babel/core@7": "^7.29.6"
+  "@tootallnate/once@2": "^2.0.1"
+  "@xmldom/xmldom@0.8": "^0.8.13"
+  "brace-expansion@1": "^1.1.18"
+  "brace-expansion@2": "^2.1.4"
+  "brace-expansion@5": "^5.0.9"
+  "fast-uri@3": "^3.1.5"
+  "form-data@4": "^4.0.6"
+  "js-yaml@3": "^3.15.1"
+  "js-yaml@4": "^4.3.1"
+  "linkify-it@5": "^5.0.2"
+  "lodash@4": "^4.18.0"
+  "lodash-es@4": "^4.18.0"
+  "markdown-it@14": "^14.2.0"
+  "nanoid@3": "^3.3.17"
+  "postcss@8": "^8.5.23"
+  "shell-quote@1": "^1.9.0"
+  "tar": "^7.5.21"
+  "undici@6": "^6.28.0"
+  "undici@7": "^7.29.0"
+  # xcode@3 (expo config plugins, iOS only) pins uuid@^7, which has no fixed
+  # release in its own major; it only calls `uuid.v4()`, which v11 still exposes.
+  "uuid@7": "^11.1.1"
+  "ws@6": "^6.2.4"
+  "ws@7": "^7.5.11"
+  "ws@8": "^8.21.0"
+
 patchedDependencies:
   "@semantic-release/npm@13.1.5": patches/@semantic-release__npm@13.1.5.patch
   "react-native-keychain@10.0.0": patches/react-native-keychain@10.0.0.patch
