@@ -1,3 +1,14 @@
+# [identities-extension@1.0.0-canary.4](https://github.com/algorandfoundation/wallet-provider-extensions/compare/identities-extension@1.0.0-canary.3...identities-extension@1.0.0-canary.4) (2026-08-13)
+
+### Bug Fixes
+
+- bind to core package ([d4f1e35](https://github.com/algorandfoundation/wallet-provider-extensions/commit/d4f1e3563abb6d8eb4a5cd3aaf38982786a25419))
+- **keystore-core:** backwards compatibility for deprecated hd-seed ([9559130](https://github.com/algorandfoundation/wallet-provider-extensions/commit/9559130bf9d0bab1ad2c7fe13e9ae636be61931c))
+
+### Features
+
+- **keystore-core:** native PBKDF2 for deterministic-P256 ([c92e5da](https://github.com/algorandfoundation/wallet-provider-extensions/commit/c92e5da9f3c6925745012dd488ef16360bd5d719))
+
 # [identities-extension@1.0.0-canary.3](https://github.com/algorandfoundation/wallet-provider-extensions/compare/identities-extension@1.0.0-canary.2...identities-extension@1.0.0-canary.3) (2026-08-06)
 
 ### Features
