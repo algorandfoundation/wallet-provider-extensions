@@ -38,7 +38,6 @@ import {
   createKeychainDriver,
   type KeychainCrypto,
   type KeychainStorage,
-  migrateLegacyPasskeys,
 } from "./storage/driver.ts";
 import { storage as defaultStorage } from "./storage/state.ts";
 import type { AuthenticationOperation, AuthenticationOptions } from "./types.ts";
@@ -89,6 +88,18 @@ export interface ReactNativeKeyStoreOptions {
    * behaviour where authentication options were applied to every operation.
    */
   authentication?: AuthenticationOptions;
+  /**
+   * Work that must complete before the engine reads any persisted state.
+   *
+   * The keystore hydrates its reactive store from the driver during `ready`, so
+   * anything that rewrites persisted metadata — notably a migration run — has to
+   * finish first or the store mirrors pre-migration data. `WithKeyStore` passes
+   * `provider.migrations?.ready` here.
+   *
+   * A rejection propagates to `ready`: a keystore whose data failed to migrate
+   * is not one an application should read from.
+   */
+  before?: Promise<unknown>;
 }
 
 /**
@@ -299,13 +310,14 @@ export function createReactNativeKeyStore(
     wipe: (key) => key.fill(0),
   };
 
-  // Non-destructively flag any legacy passkeys (derived from the XHD root under
-  // the old scheme) as needing migration before the core engine hydrates its
-  // metadata, so the reactive store surfaces the markers on first launch. This
-  // is metadata-only — no material is decrypted and no biometric prompt fires.
-  migrateLegacyPasskeys(storage);
-
   const driver = createKeychainDriver({ storage, crypto });
+
+  // Anything that rewrites persisted metadata (a migration run) must finish
+  // before core hydrates its reactive store from the driver, otherwise the
+  // store mirrors pre-migration data.
+  const gated = options.before
+    ? { ...driver, ready: options.before.then(() => driver.ready) }
+    : driver;
 
   // When the caller passes no explicit `shims`, build the default set lazily so
   // the native `@joe-p/react-native-falcon` binding can be loaded asynchronously and
@@ -320,11 +332,24 @@ export function createReactNativeKeyStore(
     });
 
   const keystore = createKeyStore<AuthenticationOptions>({
-    driver,
+    driver: gated,
     store: options.store,
     subtle: options.subtle,
     shims,
     hooks: options.hooks,
+  });
+
+  // An application is free never to await `keystore.ready` (e.g. it renders a
+  // "migration failed" screen and never touches `key.store`). Core's `ready`
+  // awaits `driver.ready` — the `before`-gated promise above — internally, so
+  // when `before` rejects, that rejection propagates to `keystore.ready`
+  // itself; without a handler attached to it, that would surface as an
+  // unhandled promise rejection. `.catch()` registers a handler on this exact
+  // promise (not just on the derived one it returns), so it does not swallow
+  // anything: a caller who does `await keystore.ready` still observes the
+  // rejection normally.
+  keystore.ready.catch(() => {
+    /* surfaced through `ready` to whoever awaits it */
   });
 
   return withOperationTags(keystore, options.store, defaultAuth);

@@ -12,7 +12,12 @@ import Hook from "before-after-hook";
 import { describe, expect, it, vi } from "vitest";
 
 import { WithKeyStore } from "./extension.ts";
+import {
+  memoryStorage as fixtureMemoryStorage,
+  seedLegacyPasskey,
+} from "./storage/__fixtures__.ts";
 import type { KeychainStorage } from "./storage/driver.ts";
+import { PASSKEY_MIGRATION_NEEDED } from "./storage/driver.ts";
 import type { ReactKeystoreOptions } from "./types.ts";
 
 const message = new TextEncoder().encode("the quick brown fox");
@@ -71,7 +76,7 @@ function createTestSetup() {
   const options: ReactKeystoreOptions = {
     keystore: { store, hooks, subtle, shims, storage },
   };
-  const provider = { log: { debug: vi.fn() } } as any;
+  const provider = { log: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() } } as any;
   const extension = WithKeyStore(provider, options);
   return { store, hooks, storage, extension };
 }
@@ -208,5 +213,117 @@ describe("WithKeyStore Extension", () => {
       await extension.key.store.verify(id1, new TextEncoder().encode("msg1"), signatures[0]!),
     ).toBe(true);
     expect(batchBefore).toHaveBeenCalled();
+  });
+});
+
+describe("WithKeyStore — migrations registration", () => {
+  it("registers its migration module when the provider carries one", () => {
+    const register = vi.fn();
+    const provider: any = { migrations: { register, ready: Promise.resolve() } };
+
+    WithKeyStore(provider, {
+      keystore: { store: new Store<KeyStoreState>({ keys: [], status: "idle" }) },
+      api: { keystore: {} as any },
+    } as any);
+
+    expect(register).toHaveBeenCalledTimes(1);
+    const registered = register.mock.calls[0]![0];
+    expect(registered.module).toBe("@algorandfoundation/react-native-keystore");
+    expect(registered.migrations.map((m: { id: number }) => m.id)).toEqual([1]);
+  });
+
+  it("is a no-op when the provider has no migrations extension", () => {
+    expect(() =>
+      WithKeyStore(
+        {} as any,
+        {
+          keystore: { store: new Store<KeyStoreState>({ keys: [], status: "idle" }) },
+          api: { keystore: {} as any },
+        } as any,
+      ),
+    ).not.toThrow();
+  });
+
+  it("warns via the log extension when no migrations extension is installed", () => {
+    const warn = vi.fn();
+    const provider: any = { log: { warn } };
+
+    WithKeyStore(provider, {
+      keystore: { store: new Store<KeyStoreState>({ keys: [], status: "idle" }) },
+      api: { keystore: {} as any },
+    } as any);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const [message] = warn.mock.calls[0]!;
+    expect(message).toContain("@algorandfoundation/react-native-keystore");
+    expect(message).toContain("WithMigrations");
+  });
+
+  it("does not throw when neither a migrations nor a log extension is present", () => {
+    expect(() =>
+      WithKeyStore(
+        {} as any,
+        {
+          keystore: { store: new Store<KeyStoreState>({ keys: [], status: "idle" }) },
+          api: { keystore: {} as any },
+        } as any,
+      ),
+    ).not.toThrow();
+  });
+
+  it("closes the loop: a legacy passkey flagged by the registered migration surfaces in the engine's keys", async () => {
+    const register = vi.fn();
+    // `ready` only settles once the test below has actually driven the
+    // registered migration against `registered.context()` — mirroring the
+    // real gate in `createReactNativeKeyStore` (`before`), so the engine
+    // cannot hydrate before the migration has run.
+    let resolveReady!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      resolveReady = resolve;
+    });
+    const provider: any = { migrations: { register, ready } };
+    const storage = fixtureMemoryStorage();
+    seedLegacyPasskey(storage, "pk1");
+
+    // No `api.keystore` here — this exercises the real
+    // `createReactNativeKeyStore` path, not the injected-backend shortcut, so
+    // the assertion below pins down the actual engine's storage, not a stub's.
+    const extension = WithKeyStore(provider, {
+      keystore: {
+        store: new Store<KeyStoreState>({ keys: [], status: "idle" }),
+        subtle: globalThis.crypto.subtle,
+        // Explicit shims (empty) sidestep the default set's dynamic Falcon
+        // import — irrelevant here and would only slow the test down.
+        shims: [],
+        storage,
+      },
+    } as any);
+
+    expect(register).toHaveBeenCalledTimes(1);
+    const registered = register.mock.calls[0]![0];
+
+    // Drive the migration exactly as `applyMigrations` would: against the
+    // context the module registered, not the local `storage` fixture
+    // directly. If `extension.ts` ever built the engine from a *different*
+    // storage instance than the one it registered, this still writes the
+    // flag to the registered (correct) storage, while the engine below would
+    // be reading from the other one — so the flag would never surface and
+    // the assertion at the bottom would fail.
+    const ctx = registered.context();
+    for (const revision of registered.migrations) {
+      await revision.up(ctx, {
+        revision: { module: registered.module, id: revision.id, name: revision.name },
+        secrets: {} as any,
+      });
+    }
+    resolveReady();
+
+    await extension.key.store.ready;
+
+    // The end-to-end assertion: the flag written by the migration reaches
+    // the extension's reactive `keys`, proving the engine actually reads
+    // from the same MMKV instance the migration rewrote.
+    const flagged = extension.keys.find((k) => k.id === "pk1");
+    expect(flagged?.metadata?.migration).toBe(PASSKEY_MIGRATION_NEEDED);
   });
 });

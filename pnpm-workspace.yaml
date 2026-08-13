@@ -1,5 +1,6 @@
 packages:
   - "log"
+  - "migrations"
   - "accounts/**"
   - "keystore/**"
   - "identities/**"
