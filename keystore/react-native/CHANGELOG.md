@@ -1,3 +1,9 @@
+# [react-native-keystore@1.0.0-canary.16](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.15...react-native-keystore@1.0.0-canary.16) (2026-08-13)
+
+### Features
+
+- keystore migrations ([a7ed907](https://github.com/algorandfoundation/wallet-provider-extensions/commit/a7ed90757812833b0712b85438651d008a1e49dc))
+
 # [react-native-keystore@1.0.0-canary.15](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.14...react-native-keystore@1.0.0-canary.15) (2026-08-13)
 
 ### Features

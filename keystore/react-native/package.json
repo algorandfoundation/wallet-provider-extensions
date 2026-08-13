@@ -1,6 +1,6 @@
 {
   "name": "@algorandfoundation/react-native-keystore",
-  "version": "1.0.0-canary.15",
+  "version": "1.0.0-canary.16",
   "description": "React Native Keystore for Algorand Providers. Supports Ed25519, XHD, and P-256 derived keys.",
   "license": "Apache-2.0",
   "author": "Algorand Foundation",
