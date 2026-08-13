@@ -885,6 +885,42 @@ describe("createKeyStore (byte-only driver)", () => {
     expect(store.state.keys.find((k) => k.id === id)?.type).toBe("seed");
     expect(materials.has(id)).toBe(true);
   });
+
+  it("imports a seed sent under the deprecated `hd-seed` type", async () => {
+    // `hd-seed` is deprecated but still advertised as supported; rejecting it
+    // here broke wallet creation for callers that had not yet renamed it.
+    const id = await keystore.import({
+      id: "legacy-seed",
+      type: "hd-seed",
+      algorithm: "raw",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      privateKey: new Uint8Array(32).fill(5),
+    });
+    expect(id).toBe("legacy-seed");
+    // Stored under the current name, as `generate` already does, so readers
+    // only have to know one spelling.
+    expect(store.state.keys.find((k) => k.id === id)?.type).toBe("seed");
+    expect(materials.has(id)).toBe(true);
+  });
+
+  it("derives from a seed imported under the deprecated type", async () => {
+    const seedId = await keystore.import({
+      type: "hd-seed",
+      algorithm: "raw",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      privateKey: new Uint8Array(32).fill(6),
+    });
+    const rootId = await keystore.generate({
+      type: "hd-root-key",
+      algorithm: "raw",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      params: { parentKeyId: seedId },
+    });
+    expect(store.state.keys.find((k) => k.id === rootId)?.type).toBe("hd-root-key");
+  });
 });
 
 describe("createKeyStore (hooks)", () => {

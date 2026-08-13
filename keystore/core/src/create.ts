@@ -1380,14 +1380,20 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       const id = keyData.id ?? crypto.randomUUID();
       setStatus("importing");
       try {
-        if (keyData.type === "seed" || keyData.type === "hd-root-key") {
+        // `hd-seed` is the deprecated spelling of `seed`, still part of
+        // `KeyType` and still promised to keep working. Normalise it on the way
+        // in exactly as `generate` does, so records converge on the current
+        // name and an older caller does not hit `import of type hd-seed is not
+        // supported`.
+        const type = keyData.type === "hd-seed" ? "seed" : keyData.type;
+        if (type === "seed" || type === "hd-root-key") {
           if (!(keyData.privateKey instanceof Uint8Array)) {
-            throw new InvalidKeyDataError(`${keyData.type} import requires Uint8Array privateKey`);
+            throw new InvalidKeyDataError(`${type} import requires Uint8Array privateKey`);
           }
           await putBytes(id, Uint8Array.from(keyData.privateKey), ctx);
           await addMetadata({
             id,
-            type: keyData.type,
+            type,
             algorithm: "raw",
             extractable: false,
             keyUsages: keyData.keyUsages ?? ["deriveBits", "deriveKey"],
