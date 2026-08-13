@@ -1,3 +1,9 @@
+# [identities-extension@1.0.0-canary.5](https://github.com/algorandfoundation/wallet-provider-extensions/compare/identities-extension@1.0.0-canary.4...identities-extension@1.0.0-canary.5) (2026-08-13)
+
+### Features
+
+- extractable keys and seeds ([b78f0f8](https://github.com/algorandfoundation/wallet-provider-extensions/commit/b78f0f8a0acc0d3c895ae9155f56ddb4ca6f0a55))
+
 # [identities-extension@1.0.0-canary.4](https://github.com/algorandfoundation/wallet-provider-extensions/compare/identities-extension@1.0.0-canary.3...identities-extension@1.0.0-canary.4) (2026-08-13)
 
 ### Bug Fixes
