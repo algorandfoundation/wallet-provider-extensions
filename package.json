@@ -17,8 +17,8 @@
     "build:releaser": "pnpm run --filter @algorandfoundation/package-releaser build",
     "build:log": "pnpm run --filter @algorandfoundation/log-store build",
     "build:migrations": "pnpm run --filter @algorandfoundation/provider-migrations build",
-    "build:stores": "pnpm run --filter @algorandfoundation/keystore-core build && pnpm run --filter @algorandfoundation/keystore-node build && pnpm run --filter @algorandfoundation/keystore-web build && pnpm run --filter @algorandfoundation/react-native-keystore build && pnpm run --filter @algorandfoundation/keystore build && pnpm run --filter @algorandfoundation/accounts-store build && pnpm run --filter @algorandfoundation/identities-store build",
-    "build:extensions": "pnpm run --filter @algorandfoundation/accounts-keystore-extension build && pnpm run --filter @algorandfoundation/identities-keystore-extension build && pnpm run --filter @algorandfoundation/identities-extension build",
+    "build:stores": "pnpm run --filter @algorandfoundation/keystore-core build && pnpm run --filter @algorandfoundation/keystore-node build && pnpm run --filter @algorandfoundation/keystore-web build && pnpm run --filter @algorandfoundation/react-native-keystore build && pnpm run --filter @algorandfoundation/keystore build && pnpm run --filter @algorandfoundation/accounts-store build && pnpm run --filter @algorandfoundation/identities-store build && pnpm run --filter @algorandfoundation/credentials-core build && pnpm run --filter @algorandfoundation/credentials-web build && pnpm run --filter @algorandfoundation/react-native-credentials build && pnpm run --filter @algorandfoundation/credentials build",
+    "build:extensions": "pnpm run --filter @algorandfoundation/accounts-keystore-extension build && pnpm run --filter @algorandfoundation/identities-keystore-extension build && pnpm run --filter @algorandfoundation/identities-extension build && pnpm run --filter @algorandfoundation/identities build && pnpm run --filter @algorandfoundation/credentials-intermezzo-extension build && pnpm run --filter @algorandfoundation/identities-intermezzo-extension build",
     "clean": "pnpm run -r --if-present clean && rm -rf coverage node_modules docs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
@@ -32,6 +32,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@algorandfoundation/intermezzo-client": "link:../intermezzo-client-js",
     "@babel/parser": "^7.28.6"
   },
   "devDependencies": {

@@ -4,11 +4,14 @@ packages:
   - "accounts/**"
   - "keystore/**"
   - "identities/**"
+  - "credentials/**"
   - "examples/*"
   - "build"
 
 catalog:
+  "@algorandfoundation/algokit-utils": "^10.0.0-beta.2"
   "@algorandfoundation/dp256": "^1.1.0"
+  "@algorandfoundation/intermezzo-client": "^1.0.0-canary.1"
   "@algorandfoundation/wallet-provider": "^1.0.0-canary.5"
   "@algorandfoundation/xhd-wallet-api": "^2.0.0-canary.1"
   "@napi-rs/keyring": "^1.1.7"
@@ -34,6 +37,7 @@ overrides:
   # Security overrides for transitive dependencies (see `pnpm audit`).
   # Each entry is pinned to the lowest fixed release inside the major line that
   # is already resolved, to keep the remediation non-breaking.
+  "@algorandfoundation/intermezzo-client": link:../intermezzo-client-js
   "@babel/core@7": "^7.29.6"
   "@tootallnate/once@2": "^2.0.1"
   "@xmldom/xmldom@0.8": "^0.8.13"
@@ -45,8 +49,8 @@ overrides:
   "js-yaml@3": "^3.15.1"
   "js-yaml@4": "^4.3.1"
   "linkify-it@5": "^5.0.2"
-  "lodash@4": "^4.18.0"
   "lodash-es@4": "^4.18.0"
+  "lodash@4": "^4.18.0"
   "markdown-it@14": "^14.2.0"
   "nanoid@3": "^3.3.17"
   "postcss@8": "^8.5.23"
