@@ -2,7 +2,7 @@
 
 The **Identities** domain manages decentralized identifiers (DIDs) and the DID documents that describe them. It is the bridge between a wallet's cryptographic material and the standardized identity layer (verification methods, services, controller relationships) consumed by external systems.
 
-> 💡 **Recommended entry point:** use [`@algorandfoundation/identities-extension`](./extension) — the unified meta-package — unless you specifically need to compose the building blocks yourself.
+> 💡 **Recommended entry point:** use [`@algorandfoundation/identities`](./meta) — the meta-package with conditional platform exports — unless you specifically need to compose the building blocks yourself.
 
 ## Responsibilities
 
@@ -13,17 +13,23 @@ The **Identities** domain manages decentralized identifiers (DIDs) and the DID d
 
 ## Packages
 
-This domain is split into a generic store, an optional keystore source bridge, and a unified meta-extension that ties them together.
+This domain is split into a generic store, an optional keystore source bridge, a unified extension that ties them together, and a meta-package with conditional platform exports on top.
 
-### Unified Extension _(recommended)_
+### Meta Package _(recommended)_
 
-- [`@algorandfoundation/identities-extension`](./extension) — meta-package that bundles the identity store with the keystore bridge and **dynamically loads the bridge only when the provider exposes a keystore**. Compatible with React Native (Metro) and standard ESM bundlers.
+- [`@algorandfoundation/identities`](./meta) — keystore-style meta with conditional `exports` (`react-native` / `browser` / `node`). Today every condition resolves to the same platform-neutral composition (store + unified `WithIdentities`); per-platform identities packages (e.g. an mDoc-backed identity source via the Digital Credentials API) will slot in later without any application-facing change.
+
+### Unified Extension
+
+- [`@algorandfoundation/identities-extension`](./extension) — bundles the identity store with the keystore bridge and **dynamically loads the bridge only when the provider exposes a keystore**. Compatible with React Native (Metro) and standard ESM bundlers.
 
 ### Building Blocks
 
 - **Generic Store** — [`@algorandfoundation/identities-store`](./store): types, the reactive identity store, and the `WithIdentityStore` extension. Source-agnostic.
 - **Source Bridges**
   - [`@algorandfoundation/identities-keystore-extension`](./keystore-extension): optional bridge that builds DID documents from keystore-managed seeds and their derived keys, and restores identities from existing DID documents back into the keystore lineage.
+- **Backend Bridges** _(opt-in, not part of the unified extension)_
+  - [`@algorandfoundation/identities-intermezzo-extension`](./intermezzo-extension): bridges the identities surface to an [intermezzo](https://github.com/algorandfoundation/intermezzo) backend at `provider.identity.intermezzo` — manager identity endpoints, credential-gated `did:algo` contract anchoring (`anchorIdentity`) and DID-document update flows, plus an algokit-utils Algorand signer derived from an identity's `did:key`. Pairs with [`@algorandfoundation/credentials-intermezzo-extension`](../credentials/intermezzo-extension) and can share a single `IntermezzoClient` instance via `options.intermezzo.client`.
 
 ## Architecture
 
