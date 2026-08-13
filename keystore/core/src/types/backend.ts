@@ -124,7 +124,15 @@ export interface KeyStoreAPI<Ctx = unknown> {
   ): Promise<KeyId>;
 
   /**
-   * Exports a key from the keystore (usually public key only, for security).
+   * Exports a key from the keystore.
+   *
+   * By default only public metadata (type, algorithm, `publicKey`, …) leaves
+   * the store. A key created or imported with `extractable: true` additionally
+   * releases its private material as {@link KeyData.privateKey} — for
+   * `ed25519` keys the 32-byte seed, and for `seed`/`hd-root-key` records the
+   * raw bytes as imported, so the result round-trips through {@link import}
+   * (or {@link importSeed}) unchanged. Releasing material unlocks it through
+   * the backend, so `ctx` (e.g. an authentication prompt) applies here.
    *
    * @param id - The {@link KeyId} of the key to export.
    * @param options - Export options such as {@link KeyFormat}.
@@ -218,6 +226,10 @@ export interface KeyStoreAPI<Ctx = unknown> {
    * bytes at the call site (e.g. `bip39.mnemonicToSeed`) so the mnemonic
    * string never crosses into the keystore — an immutable JS string can't be
    * wiped and would linger in the heap until GC.
+   *
+   * A seed imported with `options.extractable: true` can later release the
+   * same bytes back through {@link export}; by default it stays locked like
+   * every other record.
    *
    * @param seed - The raw seed bytes.
    * @param options - Optional configuration for the seed.

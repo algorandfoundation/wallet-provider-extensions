@@ -200,6 +200,62 @@ describe("createReactNativeKeyStore", () => {
     expect(await keystore.verify(passkeyId, tampered, signature)).toBe(false);
   });
 
+  it("releases an extractable Ed25519 key's seed through export — and only then", async () => {
+    const lockedId = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    expect((await keystore.export(lockedId)).privateKey).toBeUndefined();
+
+    const id = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: true,
+      keyUsages: ["sign", "verify"],
+    });
+    // The material still lives sealed in storage, never in the reactive store.
+    expect(storage.getString(`m/${id}`)).toBeDefined();
+    expect(store.state.keys.find((k) => k.id === id)?.extractable).toBe(true);
+
+    const exported = await keystore.export(id);
+    expect(exported.privateKey).toBeInstanceOf(Uint8Array);
+    expect(exported.privateKey!.byteLength).toBe(32);
+
+    // The released seed IS the stored key: re-importing it yields the same
+    // public key, and the original record still signs/verifies.
+    const reimportedId = await keystore.import({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+      privateKey: exported.privateKey!,
+    });
+    const reimported = store.state.keys.find((k) => k.id === reimportedId);
+    expect(Array.from(reimported!.publicKey!)).toEqual(Array.from(exported.publicKey!));
+
+    const signature = await keystore.sign(id, message);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+  });
+
+  it("releases an extractable imported seed's bytes through export — and only then", async () => {
+    const seed = new Uint8Array(64).fill(11);
+
+    // Default: an imported seed never releases its bytes.
+    const lockedId = await keystore.importSeed!(seed);
+    expect((await keystore.export(lockedId)).privateKey).toBeUndefined();
+
+    const id = await keystore.importSeed!(seed, { extractable: true });
+    // The material still lives sealed in storage, never in the reactive store.
+    expect(storage.getString(`m/${id}`)).toBeDefined();
+    expect(store.state.keys.find((k) => k.id === id)?.extractable).toBe(true);
+
+    // Export releases exactly the imported bytes (round-trips unchanged).
+    const exported = await keystore.export(id);
+    expect(Array.from(exported.privateKey!)).toEqual(Array.from(seed));
+  });
+
   it("removes a key from both storage and the reactive store", async () => {
     const id = await keystore.generate({
       type: "ed25519",
@@ -317,6 +373,43 @@ describe("operation tagging", () => {
     await keystore.sign(id, message, undefined, { prompt: "Just this once" });
 
     expect(readPromptTitles().at(-1)).toBe("Just this once");
+  });
+
+  it("authenticates the export that releases an extractable key's material", async () => {
+    const keystore = createReactNativeKeyStore({
+      store,
+      subtle,
+      shims,
+      storage,
+      authentication: {
+        resolvePrompt: ({ operation }) => `Prompt for ${operation}`,
+      },
+    });
+    await keystore.ready;
+
+    const lockedId = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    const id = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: true,
+      keyUsages: ["sign", "verify"],
+    });
+
+    // A metadata-only export never touches the Keychain…
+    const before = vi.mocked(Keychain.getGenericPassword).mock.calls.length;
+    expect((await keystore.export(lockedId)).privateKey).toBeUndefined();
+    expect(vi.mocked(Keychain.getGenericPassword).mock.calls.length).toBe(before);
+
+    // …while releasing material unlocks it exactly once, under export wording.
+    const exported = await keystore.export(id);
+    expect(exported.privateKey).toBeInstanceOf(Uint8Array);
+    expect(vi.mocked(Keychain.getGenericPassword).mock.calls.length).toBe(before + 1);
+    expect(readPromptTitles().at(-1)).toBe("Prompt for export");
   });
 
   it("never mutates the context object the caller passed in", async () => {

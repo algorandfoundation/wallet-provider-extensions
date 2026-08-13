@@ -314,6 +314,117 @@ describe("createKeyStore (byte-only driver)", () => {
     expect(await keystore.verify(id, tampered, signature)).toBe(false);
   });
 
+  it("never releases private material when exporting a non-extractable key", async () => {
+    const id = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+
+    const exported = await keystore.export(id);
+    expect(exported.publicKey).toBeInstanceOf(Uint8Array);
+    expect(exported.privateKey).toBeUndefined();
+  });
+
+  it("exports the private seed of an Ed25519 key generated extractable", async () => {
+    const id = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: true,
+      keyUsages: ["sign", "verify"],
+    });
+    const meta = store.state.keys.find((k) => k.id === id);
+    expect(meta?.extractable).toBe(true);
+    // The material still lives sealed in the driver, never in metadata.
+    expect(meta?.metadata?.storage).toBe("bytes");
+    expect(materials.has(id)).toBe(true);
+
+    const exported = await keystore.export(id);
+    expect(exported.privateKey).toBeInstanceOf(Uint8Array);
+    expect(exported.privateKey!.byteLength).toBe(32);
+    expect(Array.from(exported.publicKey!)).toEqual(Array.from(meta!.publicKey!));
+
+    // The released seed IS the stored key: re-importing it yields the same
+    // public key, and the original record still signs/verifies.
+    const reimportedId = await keystore.import({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+      privateKey: exported.privateKey!,
+    });
+    const reimported = store.state.keys.find((k) => k.id === reimportedId);
+    expect(Array.from(reimported!.publicKey!)).toEqual(Array.from(meta!.publicKey!));
+
+    const signature = await keystore.sign(id, message);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+  });
+
+  it("round-trips a known Ed25519 seed through an extractable import and export", async () => {
+    const id = await keystore.import({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: true,
+      keyUsages: ["sign", "verify"],
+      privateKey: KNOWN_ED25519_SEED,
+    });
+
+    const exported = await keystore.export(id);
+    expect(Array.from(exported.privateKey!)).toEqual(Array.from(KNOWN_ED25519_SEED));
+    expect(Array.from(exported.publicKey!)).toEqual(Array.from(KNOWN_ED25519_PUBLIC_KEY));
+
+    // Extractability never weakens the signing path.
+    const signature = await keystore.sign(id, message);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+    expect(await keystore.verify(id, message, KNOWN_ED25519_SIGNATURE)).toBe(true);
+  });
+
+  it("imports a seed as extractable on request — and stays locked by default", async () => {
+    const seed = new Uint8Array(64).fill(11);
+
+    // Default: an imported seed never releases its bytes.
+    const lockedId = await keystore.importSeed!(seed);
+    expect(store.state.keys.find((k) => k.id === lockedId)?.extractable).toBe(false);
+    expect((await keystore.export(lockedId)).privateKey).toBeUndefined();
+
+    const id = await keystore.importSeed!(seed, { extractable: true });
+    const meta = store.state.keys.find((k) => k.id === id);
+    expect(meta?.extractable).toBe(true);
+    // The material still lives sealed in the driver, never in metadata.
+    expect(meta?.metadata?.storage).toBe("bytes");
+    expect(materials.has(id)).toBe(true);
+
+    // Export releases exactly the imported bytes (round-trips unchanged).
+    const exported = await keystore.export(id);
+    expect(Array.from(exported.privateKey!)).toEqual(Array.from(seed));
+
+    // Extractability never weakens the derivation path.
+    const rootId = await keystore.generate({
+      type: "hd-root-key",
+      algorithm: "raw",
+      extractable: false,
+      keyUsages: ["sign"],
+      params: { parentKeyId: id },
+    });
+    expect(store.state.keys.find((k) => k.id === rootId)?.type).toBe("hd-root-key");
+  });
+
+  it("round-trips a typed seed import flagged extractable through export", async () => {
+    const seed = new Uint8Array(64).fill(13);
+    const id = await keystore.import({
+      type: "seed",
+      algorithm: "raw",
+      extractable: true,
+      keyUsages: ["deriveBits", "deriveKey"],
+      privateKey: seed,
+    });
+
+    expect(store.state.keys.find((k) => k.id === id)?.extractable).toBe(true);
+    const exported = await keystore.export(id);
+    expect(Array.from(exported.privateKey!)).toEqual(Array.from(seed));
+  });
+
   it("stores a generic host ECDSA P-256 key as sealed bytes and signs/verifies", async () => {
     const id = await keystore.generate({
       type: "ecc",

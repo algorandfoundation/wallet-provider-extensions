@@ -290,6 +290,12 @@ export interface KeyOptions {
   id?: string;
   /** Name/label */
   name?: string;
+  /**
+   * Whether the key can be extracted from the key store (default `false`).
+   * Only an `extractable: true` record ever releases its private material
+   * through {@link KeyStoreAPI.export}.
+   */
+  extractable?: boolean;
   /** Algorithm */
   algorithm?: Algorithm;
   /** Passphrase for encryption */

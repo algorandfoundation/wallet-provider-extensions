@@ -145,6 +145,22 @@ function seedToEd25519Pkcs8(seed: Uint8Array): Uint8Array {
   return pkcs8;
 }
 
+/**
+ * Unwraps the 32-byte Ed25519 seed from the PKCS#8 document produced by
+ * {@link seedToEd25519Pkcs8} — the layout every byte-persisted Ed25519 record
+ * is sealed in, and the shape {@link KeyData.privateKey} is defined as for
+ * `ed25519` keys (so an `export` round-trips through `import` unchanged).
+ */
+function ed25519Pkcs8ToSeed(pkcs8: Uint8Array): Uint8Array {
+  if (
+    pkcs8.byteLength !== ED25519_PKCS8_PREFIX.byteLength + 32 ||
+    !bytesEqual(pkcs8.subarray(0, ED25519_PKCS8_PREFIX.byteLength), ED25519_PKCS8_PREFIX)
+  ) {
+    throw new InvalidKeyFormatError("stored Ed25519 material is not a seed PKCS#8 document");
+  }
+  return Uint8Array.from(pkcs8.subarray(ED25519_PKCS8_PREFIX.byteLength));
+}
+
 /** Decodes an unpadded base64url string (as used by JWK members) into bytes. */
 function base64UrlToBytes(value: string): Uint8Array {
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
@@ -652,21 +668,26 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     id: KeyId,
     ctx?: Ctx,
   ): Promise<KeyId> => {
-    // Generate extractable so we can capture the public bytes, then re-import
-    // the private key as NON-extractable for persistence. The extractable copy
-    // is discarded; only the non-extractable private key is stored.
+    const extractable = options.extractable;
+    // Generated extractable at the host so the public bytes (and, for an
+    // `extractable: true` request, the persisted material) can be captured;
+    // the in-memory extractable pair is discarded after persistence.
     const pair = (await host.generateKey({ name: "Ed25519" }, true, [
       "sign",
       "verify",
     ])) as CryptoKeyPair;
     const publicKey = new Uint8Array(await host.exportKey("raw", pair.publicKey));
-    if (native) {
+    if (native && !extractable) {
+      // Re-import the private key as NON-extractable for persistence; only the
+      // non-extractable private key is stored.
       const pkcs8 = new Uint8Array(await host.exportKey("pkcs8", pair.privateKey));
       const privateKey = await host.importKey("pkcs8", pkcs8, { name: "Ed25519" }, false, ["sign"]);
       pkcs8.fill(0);
       await driver.put(id, { kind: "cryptokey", privateKey, publicKey: pair.publicKey }, ctx);
     } else {
-      // Byte-only backend: persist the private key as sealed pkcs8 bytes.
+      // Byte-only backend — or a key requested `extractable: true`, whose
+      // material `export` must be able to hand back: persist the private key
+      // as sealed pkcs8 bytes.
       const pkcs8 = new Uint8Array(await host.exportKey("pkcs8", pair.privateKey));
       await putBytes(id, pkcs8, ctx);
     }
@@ -674,12 +695,12 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       id,
       type: "ed25519",
       algorithm: "EdDSA",
-      extractable: false,
+      extractable,
       keyUsages: options.keyUsages,
       publicKey,
-      format: native ? undefined : "pkcs8",
+      format: native && !extractable ? undefined : "pkcs8",
       metadata: {
-        storage: native ? "cryptokey" : "bytes",
+        storage: native && !extractable ? "cryptokey" : "bytes",
         signAlgorithm: { name: "Ed25519" },
         ...publicParams(options.params),
       },
@@ -696,12 +717,15 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
    *
    * The seed is wrapped into a PKCS#8 document and imported through the host
    * Subtle as a NON-extractable private key for persistence (native or
-   * byte-only, mirroring {@link generateEd25519}'s two branches). The actual
-   * public key is always re-derived from the seed (via an EXTRACTABLE re-import
-   * + JWK export, reading the base64url `x` member) so a caller-supplied
-   * `publicKey` can be validated against it rather than blindly trusted.
+   * byte-only, mirroring {@link generateEd25519}'s branches; a key imported
+   * with `extractable: true` is instead sealed as bytes so `export` can hand
+   * its material back). The actual public key is always re-derived from the
+   * seed (via an EXTRACTABLE re-import + JWK export, reading the base64url `x`
+   * member) so a caller-supplied `publicKey` can be validated against it
+   * rather than blindly trusted.
    */
   const importEd25519 = async (keyData: KeyData, id: KeyId, ctx?: Ctx): Promise<KeyId> => {
+    const extractable = keyData.extractable === true;
     const seed = keyData.privateKey;
     if (!(seed instanceof Uint8Array) || seed.byteLength !== 32) {
       throw new InvalidKeyDataError(
@@ -716,10 +740,10 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     const pkcs8 = seedToEd25519Pkcs8(seed);
     // Derive the actual public key from the seed via an EXTRACTABLE re-import +
     // JWK export, so a caller-supplied publicKey can be validated against it.
-    const extractable = await host.importKey("pkcs8", bs(pkcs8), { name: "Ed25519" }, true, [
+    const extractableKey = await host.importKey("pkcs8", bs(pkcs8), { name: "Ed25519" }, true, [
       "sign",
     ]);
-    const jwk = (await host.exportKey("jwk", extractable)) as JsonWebKey;
+    const jwk = (await host.exportKey("jwk", extractableKey)) as JsonWebKey;
     if (typeof jwk.x !== "string") {
       pkcs8.fill(0);
       throw new InvalidKeyDataError(
@@ -733,7 +757,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     }
     const publicKey = keyData.publicKey ? Uint8Array.from(keyData.publicKey) : derivedPublicKey;
 
-    if (native) {
+    if (native && !extractable) {
       const privateKey = await host.importKey("pkcs8", bs(pkcs8), { name: "Ed25519" }, false, [
         "sign",
       ]);
@@ -747,19 +771,20 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       );
       await driver.put(id, { kind: "cryptokey", privateKey, publicKey: publicCryptoKey }, ctx);
     } else {
-      // Byte-only backend: persist the private key as sealed pkcs8 bytes.
+      // Byte-only backend or an extractable key: persist the private key as
+      // sealed pkcs8 bytes.
       await putBytes(id, pkcs8, ctx);
     }
     await addMetadata({
       id,
       type: "ed25519",
       algorithm: "EdDSA",
-      extractable: false,
+      extractable,
       keyUsages: keyData.keyUsages ?? ["sign", "verify"],
       publicKey,
-      format: native ? undefined : "pkcs8",
+      format: native && !extractable ? undefined : "pkcs8",
       metadata: {
-        storage: native ? "cryptokey" : "bytes",
+        storage: native && !extractable ? "cryptokey" : "bytes",
         signAlgorithm: { name: "Ed25519" },
         ...keyData.metadata,
       },
@@ -780,7 +805,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     // inputs; the one RECORDED for later verification must not (see
     // `publicParams`).
     const signAlgorithm = { name: options.algorithm, ...publicParams(options.params) };
-    if (native) {
+    if (native && !options.extractable) {
       const result = (await host.generateKey(algorithm, false, options.keyUsages)) as
         | CryptoKey
         | CryptoKeyPair;
@@ -804,8 +829,9 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       });
       return id;
     }
-    // Byte-only backend: generate extractable, serialize and seal the private
-    // key (pkcs8 for asymmetric, raw for symmetric), keeping the public bytes.
+    // Byte-only backend or an `extractable: true` request: generate
+    // extractable, serialize and seal the private key (pkcs8 for asymmetric,
+    // raw for symmetric), keeping the public bytes.
     const result = (await host.generateKey(algorithm, true, options.keyUsages)) as
       | CryptoKey
       | CryptoKeyPair;
@@ -825,7 +851,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       id,
       type: options.type,
       algorithm: options.algorithm,
-      extractable: false,
+      extractable: options.extractable,
       keyUsages: options.keyUsages,
       publicKey,
       format,
@@ -879,7 +905,9 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
           id,
           type: "seed",
           algorithm: "raw",
-          extractable: false,
+          // A seed imported `extractable: true` releases the same bytes back
+          // through `export` (they are already sealed in the driver either way).
+          extractable: opts?.extractable === true,
           keyUsages: ["deriveBits", "deriveKey"],
           metadata: { storage: "bytes", name: opts?.name ?? "Imported Seed", ...opts?.metadata },
           version: 1,
@@ -1201,12 +1229,34 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       }
     },
 
-    async export(id: KeyId, _options?: ExportOptions, _ctx?: Ctx): Promise<KeyData> {
+    async export(id: KeyId, _options?: ExportOptions, ctx?: Ctx): Promise<KeyData> {
       await ready;
       const key = await loadMetadata(id);
-      // Only public metadata ever leaves the engine; private material is owned
-      // by the storage layer and never crosses the public surface.
-      return { ...key } as KeyData;
+      // Only a key created `extractable: true` ever releases private material;
+      // everything else exports its public metadata alone — private material is
+      // owned by the storage layer and never crosses the public surface.
+      if (!key.extractable) return { ...key } as KeyData;
+      setStatus("exporting");
+      try {
+        const privateKey = await driver.use(id, ctx, async (m) => {
+          if (m.kind !== "bytes") {
+            throw new InvalidKeyDataError(
+              `key ${id} is marked extractable but holds no exportable bytes`,
+            );
+          }
+          // Ed25519 material is sealed as its PKCS#8 document; hand back the
+          // 32-byte seed ({@link Ed25519KeyData.privateKey}'s documented shape),
+          // so an export round-trips through `import` unchanged. Everything
+          // else exports as stored (`key.format` records how to read it).
+          if (key.type === "ed25519" && key.format === "pkcs8") {
+            return ed25519Pkcs8ToSeed(m.bytes);
+          }
+          return Uint8Array.from(m.bytes);
+        });
+        return { ...key, privateKey } as KeyData;
+      } finally {
+        setStatus("idle");
+      }
     },
 
     async remove(id: KeyId, ctx?: Ctx): Promise<void> {
@@ -1395,7 +1445,10 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
             id,
             type,
             algorithm: "raw",
-            extractable: false,
+            // Honour the caller's `extractable` flag (default false): a record
+            // imported `extractable: true` releases the same bytes back through
+            // `export` (they are already sealed in the driver either way).
+            extractable: keyData.extractable === true,
             keyUsages: keyData.keyUsages ?? ["deriveBits", "deriveKey"],
             metadata: { storage: "bytes", ...keyData.metadata },
             version: 1,
