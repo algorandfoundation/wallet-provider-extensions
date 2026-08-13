@@ -1,3 +1,10 @@
+# [react-native-keystore@1.0.0-canary.18](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.17...react-native-keystore@1.0.0-canary.18) (2026-08-13)
+
+### Bug Fixes
+
+- bind to core package ([d4f1e35](https://github.com/algorandfoundation/wallet-provider-extensions/commit/d4f1e3563abb6d8eb4a5cd3aaf38982786a25419))
+- **react-native-keystore:** export core from react native ([00b8b2e](https://github.com/algorandfoundation/wallet-provider-extensions/commit/00b8b2eb9dfe6dc7c7be63b51c52d56125129a23))
+
 # [react-native-keystore@1.0.0-canary.17](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.16...react-native-keystore@1.0.0-canary.17) (2026-08-13)
 
 ### Bug Fixes
