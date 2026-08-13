@@ -8,7 +8,13 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { MaterialAccessError } from "../errors.ts";
 import { ALGO25_SEED_LENGTH, type Algo25Binding, withSubtleAlgo25 } from "./algo25.ts";
 import { type BIP39Binding, withSubtleBIP39 } from "./bip39.ts";
-import { type DP256Params, withSubtleDP256, type DP256Binding } from "./dp256.ts";
+import {
+  type DP256Params,
+  withSubtleDP256,
+  type DP256Binding,
+  genDerivedMainKeyWithSubtle,
+  withSubtleDerivedMainKey,
+} from "./dp256.ts";
 import { type FalconParams, withSubtleFalcon1024 } from "./falcon.ts";
 import { consumeKeyMaterial, createKeyHandle } from "./shim.ts";
 import { BIP32DerivationType, type XHDBinding, type XHDParams, withSubtleXHD } from "./xhd.ts";
@@ -557,6 +563,63 @@ describe("withSubtleDP256", () => {
   it("delegates unknown algorithms to the host", async () => {
     const digest = await subtle.digest("SHA-256", message);
     expect(digest.byteLength).toBe(32);
+  });
+});
+
+describe("withSubtleDerivedMainKey", () => {
+  const entropy = new Uint8Array(16).fill(4);
+  const salt = new TextEncoder().encode("liquid");
+
+  it("derives the main key through the host's PBKDF2, byte-identical to the binding", async () => {
+    const viaSubtle = await genDerivedMainKeyWithSubtle(
+      host,
+      Uint8Array.from(entropy),
+      salt,
+      32,
+      64,
+    );
+    const viaBinding = await dp256api.genDerivedMainKey(entropy, salt, 32, 64);
+    expect(viaSubtle).toEqual(viaBinding);
+  });
+
+  it("leaves the caller's entropy view untouched (the caller wipes it)", async () => {
+    const entropyCopy = Uint8Array.from(entropy);
+    await genDerivedMainKeyWithSubtle(host, entropyCopy, salt, 32, 64);
+    expect(entropyCopy).toEqual(entropy);
+  });
+
+  it("prefers the host derivation and passes every other operation through", async () => {
+    let bindingCalls = 0;
+    const decorated = withSubtleDerivedMainKey(host, {
+      ...dp256,
+      genDerivedMainKey: (e, s, iterationCount, keyLengthBytes) => {
+        bindingCalls += 1;
+        return dp256.genDerivedMainKey(e, s, iterationCount, keyLengthBytes);
+      },
+    });
+
+    const mainKey = await decorated.genDerivedMainKey(Uint8Array.from(entropy), salt, 32, 64);
+    expect(bindingCalls).toBe(0);
+    expect(mainKey).toEqual(await dp256api.genDerivedMainKey(entropy, salt, 32, 64));
+    // Only the main-key derivation is decorated; the single-step operations
+    // still go straight to the binding.
+    expect(decorated.genDomainSpecificKeyPair).toBe(dp256.genDomainSpecificKeyPair);
+    expect(decorated.signWithDomainSpecificKeyPair).toBe(dp256.signWithDomainSpecificKeyPair);
+    expect(decorated.getPurePKBytes).toBe(dp256.getPurePKBytes);
+  });
+
+  it("falls back to the binding when the host Subtle lacks PBKDF2", async () => {
+    // WebCrypto leaves per-algorithm support implementation-defined; a host
+    // without PBKDF2 rejects the base-key import.
+    const noPBKDF2 = {
+      importKey: async () => {
+        throw new Error("PBKDF2 is not supported");
+      },
+    } as unknown as SubtleCrypto;
+
+    const decorated = withSubtleDerivedMainKey(noPBKDF2, dp256);
+    const mainKey = await decorated.genDerivedMainKey(Uint8Array.from(entropy), salt, 32, 64);
+    expect(mainKey).toEqual(await dp256api.genDerivedMainKey(entropy, salt, 32, 64));
   });
 });
 

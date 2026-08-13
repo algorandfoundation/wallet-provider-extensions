@@ -41,6 +41,7 @@ import {
   type XHDBinding,
   withSubtleAlgo25,
   withSubtleBIP39,
+  withSubtleDerivedMainKey,
   withSubtleDP256,
   withSubtleFalcon1024,
   withSubtleXHD,
@@ -63,7 +64,13 @@ export interface DefaultShimBindings {
   xhd?: XHDBinding;
   /** Overrides the bundled `falcon-1024` binding (e.g. with `@joe-p/react-native-falcon`). */
   falcon?: Falcon1024Binding;
-  /** Overrides the bundled `@algorandfoundation/dp256` Deterministic-P256 binding. */
+  /**
+   * Overrides the bundled `@algorandfoundation/dp256` Deterministic-P256 binding.
+   *
+   * An override is used exactly as supplied: unlike the bundled default, its
+   * `genDerivedMainKey` is *not* rerouted through the host Subtle's PBKDF2, so
+   * a platform keeps full control over where the main key is derived.
+   */
   dp256?: DP256Binding;
   /** Overrides the bundled `@scure/bip39` binding. */
   bip39?: BIP39Binding;
@@ -221,8 +228,21 @@ export async function createDefaultShims(
   if (falconBinding) {
     shims.push(tagShim(FALCON_ALGORITHM, (host) => withSubtleFalcon1024(host, falconBinding)));
   }
+  // The bundled dp256 binding derives the passkey main key with a pure-JS
+  // PBKDF2 (210,000 iterations of `@noble/hashes`), which can block a slower
+  // JS runtime (React Native's Hermes) for minutes, while every real host
+  // Subtle (Node, browsers, `react-native-quick-crypto`) ships a native,
+  // byte-identical PBKDF2. Route that one step through the host by default,
+  // keeping the bundled derivation as the fallback for hosts without PBKDF2.
+  // An explicit override is a deliberate platform binding and is used as-is.
   const dp256 = overrides.dp256 ?? (await createDP256Binding());
-  if (dp256) shims.push(tagShim(DP256_ALGORITHM, (host) => withSubtleDP256(host, dp256)));
+  if (dp256) {
+    shims.push(
+      tagShim(DP256_ALGORITHM, (host) =>
+        withSubtleDP256(host, overrides.dp256 ? dp256 : withSubtleDerivedMainKey(host, dp256)),
+      ),
+    );
+  }
 
   // `@scure/bip39` and the built-in Algo25 codec ship with core, so their seed
   // shims are always available (still overridable by the caller).

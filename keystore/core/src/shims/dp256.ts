@@ -92,6 +92,90 @@ export interface DP256Binding {
 }
 
 /**
+ * Derives the main key through a host {@link SubtleCrypto}'s built-in PBKDF2
+ * (`importKey("raw", entropy, "PBKDF2")` + `deriveBits({ name: "PBKDF2",
+ * hash: "SHA-512" })`).
+ *
+ * This is the same PBKDF2-HMAC-SHA512 contract as
+ * {@link DP256Binding.genDerivedMainKey} — WebCrypto's PBKDF2 is fully
+ * parameterised by hash, salt and iteration count, so the output is
+ * byte-identical to the bundled `@algorandfoundation/dp256` implementation. The
+ * difference is *where* it runs: every real host Subtle (Node's
+ * `crypto.subtle`, browsers, `react-native-quick-crypto`) implements PBKDF2
+ * natively, while the bundled binding runs it in pure JS (`@noble/hashes`) —
+ * at the default 210,000 iterations that can block a slower JS runtime (React
+ * Native's Hermes) for minutes.
+ *
+ * @param subtle - A Subtle implementation with PBKDF2 + SHA-512 support.
+ * @param entropy - The entropy source (e.g. BIP39 entropy bytes).
+ * @param salt - PBKDF2 salt (see {@link DP256_DEFAULT_SALT}).
+ * @param iterationCount - PBKDF2 iterations (see {@link DP256_DEFAULT_ITERATIONS}).
+ * @param keyLengthBytes - Derived key length in bytes (see {@link DP256_DEFAULT_KEY_LENGTH_BYTES}).
+ * @returns The derived main key.
+ * @throws When `subtle` does not implement PBKDF2 with SHA-512 (WebCrypto
+ *   leaves per-algorithm support implementation-defined).
+ */
+export async function genDerivedMainKeyWithSubtle(
+  subtle: SubtleCrypto,
+  entropy: Uint8Array,
+  salt: Uint8Array,
+  iterationCount: number,
+  keyLengthBytes: number,
+): Promise<Uint8Array> {
+  // `toArrayBuffer` copies, so the caller's entropy view stays untouched (and
+  // remains the caller's to wipe); our copy is zeroed as soon as the
+  // non-extractable base key has been imported.
+  const entropyCopy = toArrayBuffer(entropy);
+  try {
+    const baseKey = await subtle.importKey("raw", entropyCopy, "PBKDF2", false, ["deriveBits"]);
+    const bits = await subtle.deriveBits(
+      { name: "PBKDF2", hash: "SHA-512", salt: toArrayBuffer(salt), iterations: iterationCount },
+      baseKey,
+      keyLengthBytes * 8,
+    );
+    return new Uint8Array(bits);
+  } finally {
+    new Uint8Array(entropyCopy).fill(0);
+  }
+}
+
+/**
+ * Returns a copy of `dp256` whose {@link DP256Binding.genDerivedMainKey} runs
+ * through the host Subtle's native PBKDF2
+ * ({@link genDerivedMainKeyWithSubtle}), falling back to the binding's own
+ * implementation when the host does not support PBKDF2 with SHA-512.
+ *
+ * All other operations (domain-key derivation, signing, public-key extraction)
+ * are single SHA-512/ECDSA steps and pass through unchanged — only the
+ * 210,000-iteration main-key derivation is worth routing to the host.
+ *
+ * @param host - The Subtle implementation whose PBKDF2 to prefer.
+ * @param dp256 - The binding to decorate (also the derivation fallback).
+ * @returns A {@link DP256Binding} with the host-preferring main-key derivation.
+ */
+export function withSubtleDerivedMainKey(host: SubtleCrypto, dp256: DP256Binding): DP256Binding {
+  return {
+    ...dp256,
+    genDerivedMainKey: async (entropy, salt, iterationCount, keyLengthBytes) => {
+      try {
+        return await genDerivedMainKeyWithSubtle(
+          host,
+          entropy,
+          salt,
+          iterationCount,
+          keyLengthBytes,
+        );
+      } catch {
+        // WebCrypto leaves per-algorithm support implementation-defined, so a
+        // host without PBKDF2/SHA-512 throws on importKey/deriveBits; the
+        // binding's own (pure JS) derivation is the universal fallback.
+        return dp256.genDerivedMainKey(entropy, salt, iterationCount, keyLengthBytes);
+      }
+    },
+  };
+}
+
+/**
  * Parameters accepted for deterministic-P256 (`Deterministic-P256`) operations.
  */
 export interface DP256Params {

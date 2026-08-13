@@ -42,6 +42,8 @@ export {
   DP256_DEFAULT_SALT,
   type DP256Binding,
   type DP256Params,
+  genDerivedMainKeyWithSubtle,
+  withSubtleDerivedMainKey,
   withSubtleDP256,
 } from "./dp256.ts";
 export {
