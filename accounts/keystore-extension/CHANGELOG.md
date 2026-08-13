@@ -1,3 +1,9 @@
+# [accounts-keystore-extension@1.0.0-canary.9](https://github.com/algorandfoundation/wallet-provider-extensions/compare/accounts-keystore-extension@1.0.0-canary.8...accounts-keystore-extension@1.0.0-canary.9) (2026-08-13)
+
+### Bug Fixes
+
+- bind to core package ([d4f1e35](https://github.com/algorandfoundation/wallet-provider-extensions/commit/d4f1e3563abb6d8eb4a5cd3aaf38982786a25419))
+
 # [accounts-keystore-extension@1.0.0-canary.8](https://github.com/algorandfoundation/wallet-provider-extensions/compare/accounts-keystore-extension@1.0.0-canary.7...accounts-keystore-extension@1.0.0-canary.8) (2026-08-13)
 
 ### Bug Fixes
