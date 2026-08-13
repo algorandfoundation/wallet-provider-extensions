@@ -1,6 +1,6 @@
 {
   "name": "@algorandfoundation/keystore",
-  "version": "1.0.0-canary.22",
+  "version": "1.0.0-canary.23",
   "description": "Meta package that resolves to the right platform keystore implementation (node/web/react-native).",
   "license": "Apache-2.0",
   "author": "Algorand Foundation",
