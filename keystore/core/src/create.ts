@@ -24,13 +24,14 @@ import type { HookCollection } from "before-after-hook";
 import { DEFAULT_HOST_ALGORITHMS } from "./constants.ts";
 import { createDefaultShims } from "./defaults.ts";
 import { InvalidKeyDataError, InvalidKeyFormatError, KeyNotFoundError } from "./errors.ts";
+import { HPKE_P256_POINT_LENGTH, hpkeOpenAuth, hpkeSealAuth } from "./hpke.ts";
 import {
   BIP32DerivationType,
   consumeKeyMaterial,
   createKeyHandle,
   type SubtleShim,
 } from "./shims/index.ts";
-import type { KeyStoreAPI } from "./types/backend.ts";
+import type { KeyDecryptionOptions, KeyEncryptionOptions, KeyStoreAPI } from "./types/backend.ts";
 import type {
   DeriveOptions,
   ExportOptions,
@@ -41,7 +42,7 @@ import type {
   KeyId,
   KeyOptions,
 } from "./types/core.ts";
-import type { KeyStoreDriver } from "./types/driver.ts";
+import type { DriverMaterial, KeyStoreDriver } from "./types/driver.ts";
 import type { KeyStoreCapability, KeyStoreState } from "./types/extension.ts";
 
 /**
@@ -235,32 +236,205 @@ function parsePath(path: string): number[] {
  */
 const PASSPHRASE_SECRET_SUFFIX = ".passphrase";
 
-/** Version byte prefixing {@link KeyStoreAPI.encryptWithKey} ciphertext. */
-const ENCRYPT_VERSION = 1;
+/**
+ * Version byte prefixing {@link KeyStoreAPI.encryptWithKey} ciphertext.
+ *
+ * Version 1 was the retired scheme that keyed the cipher off the key's
+ * **public** bytes (mirroring the original backend's hash-of-public-key
+ * secretbox): anyone holding the public key could re-derive its symmetric key,
+ * so version-1 ciphertexts are rejected rather than decrypted.
+ */
+const ENCRYPT_VERSION = 2;
 /** HKDF `info` binding the derived AES key to this keystore's encrypt scheme. */
-const ENCRYPT_INFO = new TextEncoder().encode("keystore-encrypt-v1");
+const ENCRYPT_INFO = new TextEncoder().encode("keystore-encrypt-v2");
 
 /**
- * Derives a deterministic AES-GCM key from a key's **public** bytes via the host
- * Subtle (HKDF over the public key). Because the derivation depends only on the
- * public key, `encryptWithKey`/`decryptWithKey` need no private-material unlock —
- * exactly like the original backend, which keyed a symmetric cipher off a hash
- * of the public key. Here it is standardized on Subtle HKDF + AES-GCM.
+ * Version byte prefixing **peer** (recipient-addressed) `encryptWithKey`
+ * ciphertext: an HPKE (RFC 9180) Auth-mode seal between this key's private
+ * material and the recipient's public key. Self-encrypted payloads keep
+ * {@link ENCRYPT_VERSION}; the two framings coexist and `decryptWithKey`
+ * dispatches on the byte.
  */
-async function deriveAesKeyFromPublic(
+const ENCRYPT_VERSION_PEER = 3;
+/**
+ * Suite byte inside the peer framing. `1` is the only suite so far:
+ * `DHKEM(P-256, HKDF-SHA256)` + `HKDF-SHA256` + `AES-128-GCM`.
+ */
+const ENCRYPT_PEER_SUITE = 1;
+/** HPKE `info` binding peer ciphertexts to this keystore's encrypt scheme. */
+const ENCRYPT_PEER_INFO = new TextEncoder().encode("keystore-encrypt-v3");
+/**
+ * Peer framing: `[version(1) | suite(1) | senderPub(65) | enc(65) | ct]` — the
+ * header is everything before the AEAD ciphertext.
+ */
+const ENCRYPT_PEER_HEADER_LENGTH = 2 + HPKE_P256_POINT_LENGTH * 2;
+
+/**
+ * Derives an AES-GCM key from a key's **private** bytes via the host Subtle
+ * (HKDF-SHA-256 over the sealed private material, salted with the public key so
+ * the derived key is bound to the pair). The private bytes are only ever
+ * available inside {@link KeyStoreDriver.use}, so encrypting and decrypting
+ * require the same unlock as any other material-touching operation — this is
+ * what gives `encryptWithKey`/`decryptWithKey` confidentiality against anyone
+ * who merely knows the public key.
+ */
+async function deriveAesKeyFromPrivate(
   host: SubtleCrypto,
-  publicKey: Uint8Array,
+  privateBytes: Uint8Array,
+  publicKey: Uint8Array | undefined,
 ): Promise<CryptoKey> {
-  const base = await host.importKey("raw", publicKey as unknown as BufferSource, "HKDF", false, [
+  const base = await host.importKey("raw", privateBytes as unknown as BufferSource, "HKDF", false, [
     "deriveKey",
   ]);
   return host.deriveKey(
-    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: ENCRYPT_INFO },
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: (publicKey ?? new Uint8Array(0)) as unknown as BufferSource,
+      info: ENCRYPT_INFO,
+    },
     base,
     { name: "AES-GCM", length: 256 },
     false,
     ["encrypt", "decrypt"],
   );
+}
+
+/**
+ * Resolves the AES-GCM key that seals {@link KeyStoreAPI.encryptWithKey}
+ * ciphertext from whatever material the driver unsealed:
+ *
+ * - `bytes` — HKDF-SHA-256 over the sealed private bytes
+ *   ({@link deriveAesKeyFromPrivate}), the byte-only-backend scheme.
+ * - a native `AES-GCM` {@link CryptoKey} — the stored key itself, handed
+ *   straight to the host so the material never surfaces as bytes.
+ * - a native `ECDH`/`X25519` {@link CryptoKey} — a **self-agreement** (the
+ *   private key against its own public key), a secret only the private-key
+ *   holder can compute, folded through the same HKDF. With a `deriveKey`-only
+ *   key the agreement stays entirely inside the host.
+ *
+ * The source is a fixed property of how the key is persisted, so encrypt and
+ * decrypt always resolve the same AES key for a given id. Any other native key
+ * (a signature-only Ed25519/ECDSA `CryptoKey`, whose WebCrypto usages permit
+ * neither encryption nor key agreement) throws — no secret path to an
+ * encryption key exists for it.
+ */
+async function aesKeyFromMaterial(
+  host: SubtleCrypto,
+  material: DriverMaterial,
+  publicKeyBytes: Uint8Array | undefined,
+  id: KeyId,
+): Promise<CryptoKey> {
+  if (material.kind === "bytes") {
+    return deriveAesKeyFromPrivate(host, material.bytes, publicKeyBytes);
+  }
+  const { privateKey, publicKey } = material;
+  const name = privateKey.algorithm.name;
+  // A native AES-GCM key encrypts directly; nothing to derive.
+  if (name === "AES-GCM") return privateKey;
+  if ((name === "ECDH" || name === "X25519") && publicKey) {
+    const agreement = { name, public: publicKey } as EcdhKeyDeriveParams;
+    if (privateKey.usages.includes("deriveBits")) {
+      const shared = new Uint8Array(await host.deriveBits(agreement, privateKey, 256));
+      try {
+        return await deriveAesKeyFromPrivate(host, shared, publicKeyBytes);
+      } finally {
+        shared.fill(0);
+      }
+    }
+    if (privateKey.usages.includes("deriveKey")) {
+      // `deriveKey`-only key: agree directly into an AES-GCM key so the shared
+      // secret never exists as bytes in JS.
+      return host.deriveKey(agreement, privateKey, { name: "AES-GCM", length: 256 }, false, [
+        "encrypt",
+        "decrypt",
+      ]);
+    }
+  }
+  throw new InvalidKeyDataError(
+    `key ${id} holds a non-extractable ${name} CryptoKey whose usages permit neither encryption nor key agreement`,
+  );
+}
+
+/**
+ * Normalizes an EC public key to the uncompressed P-256 point the HPKE peer
+ * scheme frames and agrees against: a 65-byte point passes through, anything
+ * else is treated as an SPKI document (the shape byte-backed EC records mirror
+ * into {@link Key.publicKey}) and re-exported raw.
+ */
+async function toRawP256Point(host: SubtleCrypto, publicKey: Uint8Array): Promise<Uint8Array> {
+  if (publicKey.byteLength === HPKE_P256_POINT_LENGTH && publicKey[0] === 4) {
+    return publicKey;
+  }
+  const imported = await host.importKey(
+    "spki",
+    bs(publicKey),
+    { name: "ECDH", namedCurve: "P-256" },
+    true,
+    [],
+  );
+  return new Uint8Array(await host.exportKey("raw", imported));
+}
+
+/**
+ * Resolves a key's material into the ECDH pair the HPKE peer scheme needs — a
+ * `deriveBits`-capable P-256 private `CryptoKey` plus the matching
+ * uncompressed public point:
+ *
+ * - a native `ECDH` `CryptoKey` is used as-is (its public half re-exported
+ *   raw), provided its usages include `deriveBits` — HPKE concatenates raw DH
+ *   outputs, which `deriveKey` alone cannot produce;
+ * - byte-backed `ECDH` material is re-imported from its sealed PKCS#8 document
+ *   just-in-time, with the public point taken from the metadata mirror.
+ *
+ * Anything else — signing keys, XHD/HD-derived keys, non-P-256 curves —
+ * throws: peer encryption deliberately requires a key generated for
+ * derivation (`keyUsages: ["deriveBits", ...]`). XHD agreements go through
+ * `deriveSharedSecret` instead.
+ */
+async function resolveEcdhPair(
+  host: SubtleCrypto,
+  material: DriverMaterial,
+  key: Key,
+  id: KeyId,
+): Promise<{ privateKey: CryptoKey; publicKey: Uint8Array }> {
+  if (material.kind === "cryptokey") {
+    const name = material.privateKey.algorithm.name;
+    if (name !== "ECDH") {
+      throw new InvalidKeyDataError(
+        `key ${id} is a ${name} key; peer encryption requires an ECDH P-256 key generated for derivation (use deriveSharedSecret for XHD keys, or generate a dedicated ECDH key)`,
+      );
+    }
+    if (!material.privateKey.usages.includes("deriveBits")) {
+      throw new InvalidKeyDataError(
+        `key ${id} lacks the "deriveBits" usage peer encryption requires; generate the key with keyUsages ["deriveBits"]`,
+      );
+    }
+    if (!material.publicKey) {
+      throw new InvalidKeyDataError(`key ${id} has no public key to run a key agreement with`);
+    }
+    return {
+      privateKey: material.privateKey,
+      publicKey: new Uint8Array(await host.exportKey("raw", material.publicKey)),
+    };
+  }
+  const namedCurve = (key.metadata?.namedCurve as string | undefined) ?? "P-256";
+  if (key.algorithm !== "ECDH" || namedCurve !== "P-256") {
+    throw new InvalidKeyDataError(
+      `key ${id} (${key.algorithm}) is not an ECDH P-256 key; peer encryption requires one generated for derivation (use deriveSharedSecret for XHD keys, or generate a dedicated ECDH key)`,
+    );
+  }
+  if (!key.publicKey) {
+    throw new InvalidKeyDataError(`key ${id} has no public key to run a key agreement with`);
+  }
+  const privateKey = await host.importKey(
+    "pkcs8",
+    bs(material.bytes),
+    { name: "ECDH", namedCurve },
+    false,
+    ["deriveBits"],
+  );
+  return { privateKey, publicKey: await toRawP256Point(host, key.publicKey) };
 }
 
 /**
@@ -809,7 +983,12 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       const result = (await host.generateKey(algorithm, false, options.keyUsages)) as
         | CryptoKey
         | CryptoKeyPair;
+      // Public halves are always extractable: mirror the SPKI bytes into the
+      // metadata (like the byte branch below) so a peer can be handed this
+      // key's public key, e.g. as an encryptWithKey recipient.
+      let publicKey: Uint8Array | undefined;
       if ("privateKey" in result) {
+        publicKey = new Uint8Array(await host.exportKey("spki", result.publicKey));
         await driver.put(
           id,
           { kind: "cryptokey", privateKey: result.privateKey, publicKey: result.publicKey },
@@ -824,7 +1003,13 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
         algorithm: options.algorithm,
         extractable: false,
         keyUsages: options.keyUsages,
-        metadata: { storage: "cryptokey", signAlgorithm, ...publicParams(options.params) },
+        publicKey,
+        metadata: {
+          storage: "cryptokey",
+          signAlgorithm,
+          spki: publicKey !== undefined,
+          ...publicParams(options.params),
+        },
         version: 1,
       });
       return id;
@@ -1293,22 +1478,52 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     async encryptWithKey(
       id: KeyId,
       data: Uint8Array,
-      _algorithm?: string,
-      _ctx?: Ctx,
+      options?: KeyEncryptionOptions,
+      ctx?: Ctx,
     ): Promise<Uint8Array> {
       await ready;
       const key = await loadMetadata(id);
-      if (!key.publicKey) {
-        throw new InvalidKeyDataError(`key ${id} has no public key to encrypt with`);
-      }
       setStatus("encrypting");
       try {
-        const aes = await deriveAesKeyFromPublic(host, key.publicKey);
+        const recipient = options?.recipientPublicKey;
+        if (recipient) {
+          // Peer path: seal to the recipient with HPKE Auth mode. The static
+          // ECDH pair is unlocked just-in-time; only the CryptoKey handle
+          // survives the callback.
+          const recipientPublicKey = await toRawP256Point(host, recipient);
+          const sender = await driver.use(id, ctx, (m) => resolveEcdhPair(host, m, key, id));
+          const { enc, ciphertext } = await hpkeSealAuth(host, {
+            recipientPublicKey,
+            senderPrivateKey: sender.privateKey,
+            senderPublicKey: sender.publicKey,
+            info: ENCRYPT_PEER_INFO,
+            aad: new Uint8Array(0),
+            plaintext: data,
+          });
+          // Peer layout: [version(1) | suite(1) | senderPub(65) | enc(65) | ct].
+          // The sender's public point rides along so the recipient's
+          // decryptWithKey is self-contained — it both keys the agreement and
+          // is authenticated by it (a swapped sender fails to open).
+          const out = new Uint8Array(ENCRYPT_PEER_HEADER_LENGTH + ciphertext.byteLength);
+          out[0] = ENCRYPT_VERSION_PEER;
+          out[1] = ENCRYPT_PEER_SUITE;
+          out.set(sender.publicKey, 2);
+          out.set(enc, 2 + HPKE_P256_POINT_LENGTH);
+          out.set(ciphertext, ENCRYPT_PEER_HEADER_LENGTH);
+          return out;
+        }
+        // Self path: unlock the material just-in-time and resolve the AES key
+        // from it — HKDF over private bytes, or the native host key/agreement
+        // when the driver holds a CryptoKey. The AES handle survives the
+        // callback; raw bytes never do.
+        const aes = await driver.use(id, ctx, (m) =>
+          aesKeyFromMaterial(host, m, key.publicKey, id),
+        );
         const iv = crypto.getRandomValues(new Uint8Array(12));
         const ciphertext = new Uint8Array(
           await host.encrypt({ name: "AES-GCM", iv: bs(iv) }, aes, bs(data)),
         );
-        // Layout: [version(1) | iv(12) | ciphertext].
+        // Self layout: [version(1) | iv(12) | ciphertext].
         const out = new Uint8Array(1 + iv.byteLength + ciphertext.byteLength);
         out[0] = ENCRYPT_VERSION;
         out.set(iv, 1);
@@ -1322,23 +1537,48 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     async decryptWithKey(
       id: KeyId,
       data: Uint8Array,
-      _algorithm?: string,
-      _ctx?: Ctx,
+      _options?: KeyDecryptionOptions,
+      ctx?: Ctx,
     ): Promise<Uint8Array> {
       await ready;
       const key = await loadMetadata(id);
-      if (!key.publicKey) {
-        throw new InvalidKeyDataError(`key ${id} has no public key to decrypt with`);
-      }
       setStatus("decrypting");
       try {
         const version = data[0];
+        if (version === ENCRYPT_VERSION_PEER) {
+          // Peer path: open an HPKE Auth-mode seal addressed to this key. The
+          // sender's public point comes from the frame and is authenticated by
+          // the agreement itself.
+          if (data[1] !== ENCRYPT_PEER_SUITE) {
+            throw new InvalidKeyFormatError(
+              `unsupported peer-encryption suite: ${String(data[1])}`,
+            );
+          }
+          if (data.byteLength <= ENCRYPT_PEER_HEADER_LENGTH) {
+            throw new InvalidKeyFormatError("truncated peer-encrypted ciphertext");
+          }
+          const senderPublicKey = data.subarray(2, 2 + HPKE_P256_POINT_LENGTH);
+          const enc = data.subarray(2 + HPKE_P256_POINT_LENGTH, ENCRYPT_PEER_HEADER_LENGTH);
+          const ciphertext = data.subarray(ENCRYPT_PEER_HEADER_LENGTH);
+          const recipient = await driver.use(id, ctx, (m) => resolveEcdhPair(host, m, key, id));
+          return await hpkeOpenAuth(host, {
+            enc,
+            recipientPrivateKey: recipient.privateKey,
+            recipientPublicKey: recipient.publicKey,
+            senderPublicKey,
+            info: ENCRYPT_PEER_INFO,
+            aad: new Uint8Array(0),
+            ciphertext,
+          });
+        }
         if (version !== ENCRYPT_VERSION) {
           throw new InvalidKeyFormatError(`unsupported ciphertext version: ${String(version)}`);
         }
         const iv = data.subarray(1, 13);
         const ciphertext = data.subarray(13);
-        const aes = await deriveAesKeyFromPublic(host, key.publicKey as Uint8Array);
+        const aes = await driver.use(id, ctx, (m) =>
+          aesKeyFromMaterial(host, m, key.publicKey, id),
+        );
         return new Uint8Array(
           await host.decrypt({ name: "AES-GCM", iv: bs(iv) }, aes, bs(ciphertext)),
         );

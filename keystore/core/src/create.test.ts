@@ -23,7 +23,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createKeyStore, type KeyStore } from "./create.ts";
 import type { DriverCapabilities, DriverMaterial, KeyStoreDriver } from "./types/driver.ts";
-import type { Key, KeyId } from "./types/core.ts";
+import type { GenerateOptions, Key, KeyId } from "./types/core.ts";
 import type { KeyStoreState } from "./types/extension.ts";
 import {
   type Algo25Binding,
@@ -594,7 +594,7 @@ describe("createKeyStore (byte-only driver)", () => {
     expect(materials.size).toBe(0);
   });
 
-  it("encrypts and decrypts round-trip with a key's public key", async () => {
+  it("encrypts and decrypts round-trip with a key's private material", async () => {
     const id = await keystore.generate({
       type: "ed25519",
       algorithm: "EdDSA",
@@ -604,7 +604,7 @@ describe("createKeyStore (byte-only driver)", () => {
     const plaintext = new TextEncoder().encode("negotiation payload");
     const ciphertext = await keystore.encryptWithKey!(id, plaintext);
     // Version byte + 12-byte IV + AES-GCM output (>= plaintext + 16-byte tag).
-    expect(ciphertext[0]).toBe(1);
+    expect(ciphertext[0]).toBe(2);
     expect(ciphertext.byteLength).toBeGreaterThan(plaintext.byteLength + 12);
     const decrypted = await keystore.decryptWithKey!(id, ciphertext);
     expect(new TextDecoder().decode(decrypted)).toBe("negotiation payload");
@@ -618,10 +618,158 @@ describe("createKeyStore (byte-only driver)", () => {
       keyUsages: ["sign", "verify"],
     });
     const garbage = crypto.getRandomValues(new Uint8Array(64));
-    garbage[0] = 2; // version 2 is unsupported
+    garbage[0] = 4; // version 4 is unsupported
     await expect(keystore.decryptWithKey!(id, garbage)).rejects.toThrow(
       /unsupported ciphertext version/,
     );
+  });
+
+  it("rejects the retired public-key-derived (version 1) ciphertext", async () => {
+    const id = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    // Version 1 keyed the cipher off the PUBLIC bytes, so anyone holding the
+    // public key could decrypt it — it must be refused, never decrypted.
+    const legacy = crypto.getRandomValues(new Uint8Array(64));
+    legacy[0] = 1;
+    await expect(keystore.decryptWithKey!(id, legacy)).rejects.toThrow(
+      /unsupported ciphertext version: 1/,
+    );
+  });
+
+  it("keeps ciphertext confidential from an attacker holding only the public key", async () => {
+    const id = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    const plaintext = new TextEncoder().encode("attack at dawn");
+    const ciphertext = await keystore.encryptWithKey!(id, plaintext);
+    const publicKey = store.state.keys.find((k) => k.id === id)!.publicKey!;
+
+    // Replay the audited attack: re-derive the AES key from the PUBLIC bytes
+    // alone — under the retired v1 scheme's parameters and the current v2 ones
+    // alike — and try to open the ciphertext. Every derivation must fail: only
+    // the sealed private material can reproduce the real key.
+    const iv = ciphertext.subarray(1, 13);
+    const payload = ciphertext.subarray(13);
+    for (const info of ["keystore-encrypt-v1", "keystore-encrypt-v2"]) {
+      for (const salt of [new Uint8Array(0), publicKey]) {
+        const base = await host.importKey(
+          "raw",
+          publicKey as unknown as BufferSource,
+          "HKDF",
+          false,
+          ["deriveKey"],
+        );
+        const aes = await host.deriveKey(
+          {
+            name: "HKDF",
+            hash: "SHA-256",
+            salt: salt as unknown as BufferSource,
+            info: new TextEncoder().encode(info),
+          },
+          base,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["decrypt"],
+        );
+        await expect(
+          host.decrypt(
+            { name: "AES-GCM", iv: iv as unknown as BufferSource },
+            aes,
+            payload as unknown as BufferSource,
+          ),
+        ).rejects.toThrow();
+      }
+    }
+  });
+
+  it("seals to a third-party public key with HPKE so only the recipient can open it", async () => {
+    const ecdhOptions: GenerateOptions = {
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      params: { namedCurve: "P-256" },
+    };
+    const aliceId = await keystore.generate(ecdhOptions);
+    const bobId = await keystore.generate(ecdhOptions);
+    // The metadata mirror carries the SPKI public bytes — exactly what a peer
+    // would be handed as the recipient key.
+    const bobPublic = store.state.keys.find((k) => k.id === bobId)!.publicKey!;
+
+    const plaintext = new TextEncoder().encode("dear bob");
+    const sealed = await keystore.encryptWithKey!(aliceId, plaintext, {
+      recipientPublicKey: bobPublic,
+    });
+    // Peer layout: [version=3 | suite=1 | senderPub(65) | enc(65) | ct].
+    expect(sealed[0]).toBe(3);
+    expect(sealed[1]).toBe(1);
+    expect(sealed.byteLength).toBeGreaterThan(2 + 65 + 65 + plaintext.byteLength);
+
+    const opened = await keystore.decryptWithKey!(bobId, sealed);
+    expect(new TextDecoder().decode(opened)).toBe("dear bob");
+
+    // Nobody but the addressed recipient can open it — not even the sender.
+    await expect(keystore.decryptWithKey!(aliceId, sealed)).rejects.toThrow();
+  });
+
+  it("authenticates the sender of a peer-sealed ciphertext", async () => {
+    const ecdhOptions: GenerateOptions = {
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      params: { namedCurve: "P-256" },
+    };
+    const aliceId = await keystore.generate(ecdhOptions);
+    const bobId = await keystore.generate(ecdhOptions);
+    const malloryId = await keystore.generate(ecdhOptions);
+    const bobPublic = store.state.keys.find((k) => k.id === bobId)!.publicKey!;
+
+    const sealed = await keystore.encryptWithKey!(aliceId, message, {
+      recipientPublicKey: bobPublic,
+    });
+
+    // Swap the framed sender for Mallory's public key: HPKE Auth mode binds
+    // the sender's static key into the agreement, so the forgery must fail.
+    const malloryPublic = store.state.keys.find((k) => k.id === malloryId)!.publicKey!;
+    const malloryKey = await host.importKey(
+      "spki",
+      malloryPublic as unknown as BufferSource,
+      { name: "ECDH", namedCurve: "P-256" },
+      true,
+      [],
+    );
+    const malloryPoint = new Uint8Array(await host.exportKey("raw", malloryKey));
+    const forged = Uint8Array.from(sealed);
+    forged.set(malloryPoint, 2);
+    await expect(keystore.decryptWithKey!(bobId, forged)).rejects.toThrow();
+  });
+
+  it("refuses peer encryption for a key that was not generated for derivation", async () => {
+    const signingId = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    const recipientId = await keystore.generate({
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      params: { namedCurve: "P-256" },
+    });
+    const recipientPublicKey = store.state.keys.find((k) => k.id === recipientId)!.publicKey!;
+    await expect(
+      keystore.encryptWithKey!(signingId, message, { recipientPublicKey }),
+    ).rejects.toThrow(/ECDH P-256/);
   });
 
   it("never records generation secrets in (plaintext) metadata", async () => {

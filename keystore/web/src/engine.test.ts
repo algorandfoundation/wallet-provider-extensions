@@ -159,6 +159,125 @@ describe("createWebKeyStore", () => {
     expect(await keystore.verify(id, message, signature)).toBe(true);
   });
 
+  it("encrypts/decrypts natively with a non-extractable AES-GCM CryptoKey", async () => {
+    const id = await keystore.generate({
+      type: "secret-key",
+      algorithm: "AES-GCM",
+      extractable: false,
+      keyUsages: ["encrypt", "decrypt"],
+      params: { length: 256 },
+    });
+    // The key persists as a native CryptoKey — no byte material ever exists.
+    const db = await openDatabase(databaseName, globalThis.indexedDB);
+    const record = await db.get<MaterialRecord>(MATERIAL_STORE, id);
+    expect(record?.kind).toBe("cryptokey");
+    if (record?.kind === "cryptokey") {
+      expect(record.privateKey.extractable).toBe(false);
+    }
+
+    const plaintext = new TextEncoder().encode("host-sealed payload");
+    const ciphertext = await keystore.encryptWithKey!(id, plaintext);
+    expect(ciphertext[0]).toBe(2);
+    const decrypted = await keystore.decryptWithKey!(id, ciphertext);
+    expect(new TextDecoder().decode(decrypted)).toBe("host-sealed payload");
+  });
+
+  it("encrypts/decrypts with a non-extractable ECDH CryptoKey via a self-agreement", async () => {
+    const id = await keystore.generate({
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      params: { namedCurve: "P-256" },
+    });
+    const db = await openDatabase(databaseName, globalThis.indexedDB);
+    const record = await db.get<MaterialRecord>(MATERIAL_STORE, id);
+    expect(record?.kind).toBe("cryptokey");
+
+    const plaintext = new TextEncoder().encode("agreement-sealed payload");
+    const ciphertext = await keystore.encryptWithKey!(id, plaintext);
+    expect(ciphertext[0]).toBe(2);
+    const decrypted = await keystore.decryptWithKey!(id, ciphertext);
+    expect(new TextDecoder().decode(decrypted)).toBe("agreement-sealed payload");
+  });
+
+  it("encrypts/decrypts with a deriveKey-only ECDH CryptoKey without surfacing bytes", async () => {
+    const id = await keystore.generate({
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveKey"],
+      params: { namedCurve: "P-256" },
+    });
+    const plaintext = new TextEncoder().encode("in-host agreement");
+    const ciphertext = await keystore.encryptWithKey!(id, plaintext);
+    const decrypted = await keystore.decryptWithKey!(id, ciphertext);
+    expect(new TextDecoder().decode(decrypted)).toBe("in-host agreement");
+  });
+
+  it("seals to a third-party public key with HPKE using native ECDH CryptoKeys", async () => {
+    const ecdhOptions = {
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      params: { namedCurve: "P-256" },
+    } as const;
+    const aliceId = await keystore.generate({ ...ecdhOptions, keyUsages: ["deriveBits"] });
+    const bobId = await keystore.generate({ ...ecdhOptions, keyUsages: ["deriveBits"] });
+    // The native branch mirrors the SPKI public bytes into the metadata so a
+    // peer can be handed this key's public key.
+    const bobPublic = store.state.keys.find((k) => k.id === bobId)!.publicKey!;
+    expect(bobPublic).toBeInstanceOf(Uint8Array);
+
+    const plaintext = new TextEncoder().encode("dear bob (native)");
+    const sealed = await keystore.encryptWithKey!(aliceId, plaintext, {
+      recipientPublicKey: bobPublic,
+    });
+    // Peer layout: [version=3 | suite=1 | senderPub(65) | enc(65) | ct].
+    expect(sealed[0]).toBe(3);
+    const opened = await keystore.decryptWithKey!(bobId, sealed);
+    expect(new TextDecoder().decode(opened)).toBe("dear bob (native)");
+    // Only the addressed recipient can open it — not even the sender.
+    await expect(keystore.decryptWithKey!(aliceId, sealed)).rejects.toThrow();
+  });
+
+  it("refuses peer encryption for a deriveKey-only native ECDH CryptoKey", async () => {
+    const senderId = await keystore.generate({
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveKey"],
+      params: { namedCurve: "P-256" },
+    });
+    const recipientId = await keystore.generate({
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveBits"],
+      params: { namedCurve: "P-256" },
+    });
+    const recipientPublicKey = store.state.keys.find((k) => k.id === recipientId)!.publicKey!;
+    // HPKE concatenates raw DH outputs, which `deriveKey` alone cannot produce.
+    await expect(
+      keystore.encryptWithKey!(senderId, message, { recipientPublicKey }),
+    ).rejects.toThrow(/deriveBits/);
+  });
+
+  it("refuses encryptWithKey for a signature-only native CryptoKey", async () => {
+    const id = await keystore.generate({
+      type: "ed25519",
+      algorithm: "EdDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    // A non-extractable Ed25519 signing key can neither encrypt nor run a key
+    // agreement — there is no secret path to an encryption key for it.
+    await expect(keystore.encryptWithKey!(id, message)).rejects.toThrow(
+      /neither encryption nor key agreement/,
+    );
+  });
+
   it("rehydrates metadata from IndexedDB on reopen and can still sign", async () => {
     const seed = new Uint8Array(32).fill(5);
     const seedId = await keystore.importSeed!(seed);
