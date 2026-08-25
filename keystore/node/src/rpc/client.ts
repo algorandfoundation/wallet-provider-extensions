@@ -22,6 +22,8 @@ import type {
   GenerateOptions,
   Key,
   KeyData,
+  KeyDecryptionOptions,
+  KeyEncryptionOptions,
   KeyFormat,
   KeyId,
   KeyOptions,
@@ -226,10 +228,10 @@ export function createRpcKeyStore(options: RpcKeyStoreOptions): RpcKeyStore {
       call<Uint8Array>("sign", [id, data, algorithm]),
     verify: (id: KeyId, data: Uint8Array, signature: Uint8Array, algorithm?: string) =>
       call<boolean>("verify", [id, data, signature, algorithm]),
-    encryptWithKey: (id: KeyId, data: Uint8Array, algorithm?: string) =>
-      call<Uint8Array>("encryptWithKey", [id, data, algorithm]),
-    decryptWithKey: (id: KeyId, data: Uint8Array, algorithm?: string) =>
-      call<Uint8Array>("decryptWithKey", [id, data, algorithm]),
+    encryptWithKey: (id: KeyId, data: Uint8Array, encryptOptions?: KeyEncryptionOptions) =>
+      call<Uint8Array>("encryptWithKey", [id, data, encryptOptions]),
+    decryptWithKey: (id: KeyId, data: Uint8Array, decryptOptions?: KeyDecryptionOptions) =>
+      call<Uint8Array>("decryptWithKey", [id, data, decryptOptions]),
     deriveSharedSecret: (id: KeyId, publicKey: Uint8Array, meFirst: boolean, algorithm?: string) =>
       call<Uint8Array>("deriveSharedSecret", [id, publicKey, meFirst, algorithm]),
     importSeed: (seed: Uint8Array, seedOptions?: KeyOptions) =>
