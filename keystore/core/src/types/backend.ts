@@ -74,6 +74,40 @@ export interface SecretStoreAPI<Ctx = unknown> {
 }
 
 /**
+ * Options for {@link KeyStoreAPI.encryptWithKey}.
+ */
+export interface KeyEncryptionOptions {
+  /**
+   * Optional override for the encryption algorithm. Reserved: the scheme is
+   * currently resolved from the key itself (see
+   * {@link KeyStoreAPI.encryptWithKey}).
+   */
+  algorithm?: string;
+  /**
+   * A third party's public key to encrypt **to**. When present, the ciphertext
+   * is sealed with HPKE (RFC 9180) Auth mode — a key agreement between this
+   * keystore's private key and the recipient's public key — so only the
+   * recipient's private key can open it, and opening proves it came from this
+   * key's holder. Accepts an uncompressed P-256 point (65 bytes) or an SPKI
+   * document (the shape {@link import("./core.ts").Key.publicKey} mirrors for
+   * byte-backed EC keys). When omitted, the data is encrypted for this
+   * keystore alone (self-encryption).
+   */
+  recipientPublicKey?: Uint8Array;
+}
+
+/**
+ * Options for {@link KeyStoreAPI.decryptWithKey}.
+ */
+export interface KeyDecryptionOptions {
+  /**
+   * Optional override for the decryption algorithm. Reserved: the scheme is
+   * resolved from the ciphertext's version byte.
+   */
+  algorithm?: string;
+}
+
+/**
  * Main interface for keystore operations. This defines what a keystore backend must do.
  * Think of it as a "key manager" that can create, store, and use cryptographic keys.
  *
@@ -183,24 +217,69 @@ export interface KeyStoreAPI<Ctx = unknown> {
   verify(id: KeyId, data: Uint8Array, signature: Uint8Array, algorithm?: string): Promise<boolean>;
 
   /**
-   * Encrypts data with a public key (asymmetric encryption).
+   * Encrypts data with the given key, resolving the best scheme from the key
+   * and the options — the private material is always unlocked just-in-time
+   * through the driver, and the ciphertext always stays confidential against
+   * anyone who merely knows a public key.
    *
-   * @param id - The {@link KeyId} to use for encryption.
+   * **Self-encryption** (no `recipientPublicKey`): a symmetric key only this
+   * keystore can reproduce —
+   *
+   * - byte-backed material — AES-GCM key via HKDF-SHA-256 over the sealed
+   *   private bytes (salted with the public key);
+   * - a native `AES-GCM` {@link CryptoKey} — used directly through the host;
+   * - a native `ECDH`/`X25519` {@link CryptoKey} — AES-GCM key derived from a
+   *   self-agreement (the private key against its own public key), a secret
+   *   only the private-key holder can compute.
+   *
+   * **Peer encryption** (`options.recipientPublicKey` set): HPKE (RFC 9180)
+   * **Auth mode** in the `DHKEM(P-256, HKDF-SHA256)` + `HKDF-SHA256` +
+   * `AES-128-GCM` suite — a key agreement between this key's private material
+   * and the recipient's public key, so the recipient (and only the recipient)
+   * can both decrypt the data and verify it came from this key's holder. This
+   * requires an ECDH P-256 key with the `deriveBits` usage; a signing-only or
+   * XHD key throws (run XHD agreements through
+   * {@link deriveSharedSecret} instead, or generate a dedicated ECDH key).
+   *
+   * A signature-only native `CryptoKey` (e.g. a non-extractable Ed25519
+   * signing key) can neither encrypt nor run a key agreement, so it throws in
+   * both modes.
+   *
+   * @param id - The {@link KeyId} whose private material keys the cipher.
    * @param data - The data to encrypt.
-   * @param algorithm - Optional override for the encryption algorithm.
+   * @param options - Optional {@link KeyEncryptionOptions} (recipient, algorithm).
+   * @param ctx - Optional backend-specific context (unlock/authorization).
    * @returns The encrypted data.
    */
-  encryptWithKey?(id: KeyId, data: Uint8Array, algorithm?: string, ctx?: Ctx): Promise<Uint8Array>;
+  encryptWithKey?(
+    id: KeyId,
+    data: Uint8Array,
+    options?: KeyEncryptionOptions,
+    ctx?: Ctx,
+  ): Promise<Uint8Array>;
 
   /**
-   * Decrypts data with a private key.
+   * Decrypts an {@link encryptWithKey} ciphertext, resolving the scheme from
+   * the ciphertext's version byte: a self-encrypted payload re-derives the
+   * symmetric key from this key's **private** material (HKDF over sealed
+   * bytes, the native `AES-GCM` key itself, or an `ECDH`/`X25519`
+   * self-agreement); an HPKE-sealed payload is opened with this key as the
+   * recipient, authenticating the embedded sender public key. Version-1
+   * ciphertexts (the retired public-key-derived scheme, which anyone holding
+   * the public key could decrypt) are rejected.
    *
-   * @param id - The {@link KeyId} to use for decryption.
+   * @param id - The {@link KeyId} whose private material keys the cipher.
    * @param data - The data to decrypt.
-   * @param algorithm - Optional override for the decryption algorithm.
+   * @param options - Optional {@link KeyDecryptionOptions}.
+   * @param ctx - Optional backend-specific context (unlock/authorization).
    * @returns The decrypted data.
    */
-  decryptWithKey?(id: KeyId, data: Uint8Array, algorithm?: string, ctx?: Ctx): Promise<Uint8Array>;
+  decryptWithKey?(
+    id: KeyId,
+    data: Uint8Array,
+    options?: KeyDecryptionOptions,
+    ctx?: Ctx,
+  ): Promise<Uint8Array>;
 
   /**
    * Derives a shared secret for key agreement (e.g., ECDH).
