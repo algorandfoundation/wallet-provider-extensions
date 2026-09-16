@@ -84,7 +84,23 @@ supply platform-native bindings.
 
 The engine is the single source of the `KeyStoreAPI`. Beyond the core
 sign/verify/generate/derive flow it also provides `encryptWithKey`/
-`decryptWithKey` (host Subtle AES-GCM keyed off a key's public bytes),
+`decryptWithKey`, which resolve the best scheme from the key and the options:
+
+- **Self-encryption** (the default): host Subtle AES-GCM keyed off the key's
+  **private** material, unlocked just-in-time through the driver — never off
+  the public bytes, which anyone could re-derive: HKDF over sealed private
+  bytes on byte-only backends, and on native-`CryptoKey` backends the host key
+  itself for AES-GCM keys or an ECDH/X25519 self-agreement for EC keys.
+- **Peer encryption** (`options.recipientPublicKey` set): an HPKE (RFC 9180)
+  **Auth-mode** seal in the `DHKEM(P-256, HKDF-SHA256)` + `HKDF-SHA256` +
+  `AES-128-GCM` suite, run entirely through the injected host Subtle — a key
+  agreement between this key's private material and the third party's public
+  key, so only the recipient can decrypt and opening also authenticates the
+  sender (whose public key rides in the frame). This requires an ECDH P-256
+  key generated with the `deriveBits` usage; XHD agreements go through
+  `deriveSharedSecret` instead.
+
+It further provides
 `deriveSharedSecret` (the Diffie-Hellman/ECDH negotiation path — routed through
 the XHD shim for HD-derived keys and host ECDH otherwise), and `clear` (when the
 driver supports a bulk clear). When an optional `hooks` collection is supplied,
