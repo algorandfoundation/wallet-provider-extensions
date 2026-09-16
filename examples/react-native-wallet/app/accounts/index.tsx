@@ -17,13 +17,33 @@ import {
   useKeystoreStatus,
   useKeys,
   useRootColors,
+  useShims,
 } from "@/hooks/useProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { isKeystoreAccount } from "@algorandfoundation/accounts-keystore-extension";
-import { isAlgorandAccount } from "@algorandfoundation/algorand-accounts-extension";
 import { isWatchedAccount } from "@/extensions/example";
 import { HeaderCard } from "@/components";
-import { encodeAddress } from "@algorandfoundation/keystore";
+import {
+  deriveAccountKey,
+  generateFalconKey,
+  nextAccountIndex,
+  FALCON_ALGORITHM,
+} from "@/stores/keystore";
+
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+
+/**
+ * Display kind per keystore account, keyed by the backing key's type
+ * (`metadata.keyType`, recorded by the accounts-keystore bridge): an HD
+ * account (BIP32-Ed25519 derived), a standalone Ed25519 key account, or a
+ * post-quantum Falcon account (addressed per go-algorand v5's native
+ * Falcon accounts).
+ */
+const KEYSTORE_ACCOUNT_KINDS: Record<string, { label: string; icon: IconName }> = {
+  "hd-derived-ed25519": { label: "HD Account", icon: "shield-key" },
+  ed25519: { label: "Ed25519 Account", icon: "key-outline" },
+  "falcon-1024": { label: "Falcon Account", icon: "atom-variant" },
+};
 
 export default function Accounts() {
   const { account, key } = useProvider();
@@ -31,6 +51,11 @@ export default function Accounts() {
   const keys = useKeys();
   const status = useKeystoreStatus();
   const { colorFor } = useRootColors();
+
+  // The keystore's active capabilities: Falcon account generation is only
+  // offered when the Falcon-1024 add-on actually resolved on this device.
+  const capabilities = useShims();
+  const canGenerateFalcon = capabilities.some((c) => c.algorithm === FALCON_ALGORITHM);
 
   const handleRemoveAccount = async (address: string) => {
     try {
@@ -48,82 +73,32 @@ export default function Accounts() {
         return;
       }
 
-      const activeSeed = rootKeys[0].id;
-      // Find next index for context 0 (Accounts)
-      const context0Keys = keys.filter(
-        (k) => k.metadata?.context === 0 && k.metadata?.parentKeyId === activeSeed,
-      );
-      const nextIndex = context0Keys.length;
-
-      await key.store.generate({
-        type: "hd-derived-ed25519",
-        algorithm: "EdDSA",
-        extractable: true,
-        keyUsages: ["sign", "verify"],
-        params: {
-          parentKeyId: activeSeed,
-          context: 0,
-          account: 0,
-          index: nextIndex,
-          derivation: 9,
-        },
+      // Derive the next account key from the first root, delegating the derivation
+      // details to the keystore domain module.
+      const rootKeyId = rootKeys[0].id;
+      await deriveAccountKey(key.store, {
+        rootKeyId,
+        index: nextAccountIndex(keys, rootKeyId),
       });
     } catch (error: any) {
       Alert.alert("Failed to generate account key", error.message);
     }
   };
 
-  const handleGenerateAlgorandAccount = async () => {
+  // Generate a post-quantum Falcon-1024 key from the wallet seed — the
+  // accounts-keystore bridge auto-populates a Falcon account for it, keyed
+  // by its public key. Only offered when the Falcon-1024 add-on resolved
+  // on this device.
+  const handleGenerateFalconAccount = async () => {
     try {
-      const rootKeys = keys.filter((k) => k.type === "hd-root-key");
-      if (rootKeys.length === 0) {
-        Alert.alert("No Root Key", "Please generate a seed first on the Keystore page.");
+      const seed = keys.find((k) => k.type === "seed" || k.type === "hd-seed");
+      if (!seed) {
+        Alert.alert("No Seed", "Please generate a seed first on the Keystore page.");
         return;
       }
-
-      const activeSeed = rootKeys[0].id;
-      const context0Keys = keys.filter(
-        (k) => k.metadata?.context === 0 && k.metadata?.parentKeyId === activeSeed,
-      );
-      const nextIndex = context0Keys.length;
-
-      const keyId = await key.store.generate({
-        type: "hd-derived-ed25519",
-        algorithm: "EdDSA",
-        extractable: true,
-        keyUsages: ["sign", "verify"],
-        params: {
-          parentKeyId: activeSeed,
-          context: 0,
-          account: 0,
-          index: nextIndex,
-          derivation: 9,
-        },
-      });
-
-      const generated = await key.store.export(keyId);
-      if (!generated.publicKey) {
-        throw new Error("Generated key has no public key.");
-      }
-
-      const algorandAddress = encodeAddress(generated.publicKey);
-      await account.store.addAccount({
-        type: "algorand-account",
-        address: algorandAddress,
-        balance: 0n,
-        assets: [],
-        metadata: { keyId, parentKeyId: activeSeed },
-        sign: async (txns: Uint8Array[]) => {
-          const signedTxns: Uint8Array[] = [];
-          for (const txn of txns) {
-            const signed = await key.store.sign(keyId, txn);
-            signedTxns.push(signed);
-          }
-          return signedTxns;
-        },
-      });
+      await generateFalconKey(key.store, seed.id);
     } catch (error: any) {
-      Alert.alert("Failed to generate Algorand account", error.message);
+      Alert.alert("Failed to generate Falcon account", error.message);
     }
   };
 
@@ -138,16 +113,16 @@ export default function Accounts() {
           accentColor="#34C759"
           actions={[
             {
-              label: "Generate",
+              label: "HD",
               icon: "account-plus-outline",
               onPress: handleGenerateAccount,
               disabled: status !== "idle",
             },
             {
-              label: "Algorand",
-              icon: "alpha-a-circle-outline",
-              onPress: handleGenerateAlgorandAccount,
-              disabled: status !== "idle",
+              label: "Falcon",
+              icon: "atom-variant",
+              onPress: handleGenerateFalconAccount,
+              disabled: status !== "idle" || !canGenerateFalcon,
             },
             {
               label: "Clear All",
@@ -168,15 +143,20 @@ export default function Accounts() {
             // Color-code the account by the seed/root its underlying key descends from.
             const keyId = item.metadata?.keyId as string | undefined;
             const rootColor = colorFor(keyId);
-            let iconName: React.ComponentProps<typeof MaterialCommunityIcons>["name"] = "account";
+            let iconName: IconName = "account";
             let typeLabel: string | null = null;
             let subtitle: string | null = null;
             if (isKeystoreAccount(item)) {
-              iconName = "shield-key";
-              typeLabel = "Keystore Account";
-            } else if (isAlgorandAccount(item)) {
-              iconName = "alpha-a-circle-outline";
-              typeLabel = "Algorand Account";
+              // Label the account by the kind of key backing it (HD vs
+              // Ed25519 vs Falcon) — `keyType` travels in the metadata the
+              // bridge records (and the wallet transmits on connect).
+              const keyType = item.metadata?.keyType as string | undefined;
+              const kind = (keyType && KEYSTORE_ACCOUNT_KINDS[keyType]) || {
+                label: "Keystore Account",
+                icon: "shield-key" as IconName,
+              };
+              iconName = kind.icon;
+              typeLabel = kind.label;
             } else if (isWatchedAccount(item)) {
               iconName = "eye-outline";
               typeLabel = "Watched Account";

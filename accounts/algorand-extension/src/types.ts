@@ -2,12 +2,13 @@ import type {
   Account,
   AccountStoreOptions,
   AccountStoreState,
-} from "@algorandfoundation/accounts-store";
+  WalletKey,
+} from "@algorandfoundation/accounts-core";
+import type { AlgorandClient } from "@algorandfoundation/algokit-utils";
 import type { AlgoClientConfig } from "@algorandfoundation/algokit-utils/types/network-client";
-import type { KeyStoreOptions } from "@algorandfoundation/keystore";
-import type { Extension, ExtensionOptions } from "@algorandfoundation/wallet-provider";
-import { Store } from "@tanstack/store";
-import type algosdk from "algosdk";
+import type { KeyStoreOptions } from "@algorandfoundation/keystore-core";
+import type { ExtensionOptions } from "@algorandfoundation/wallet-provider";
+import type { Store } from "@tanstack/store";
 import type { HookCollection } from "before-after-hook";
 
 /**
@@ -35,26 +36,67 @@ export interface AlgorandProviderOptions {
  * (hooks, screens) don't have to re-resolve env config.
  */
 export interface AlgorandProviderClients {
-  algod: algosdk.Algodv2;
-  indexer: algosdk.Indexer | null;
+  algod: AlgorandClient["client"]["algod"];
+  indexer: NonNullable<AlgorandClient["client"]["indexerIfPresent"]> | null;
 }
 
+/**
+ * Options for the AlgorandAccounts extension.
+ */
 export interface AlgorandAccountsExtensionOptions
   extends ExtensionOptions, KeyStoreOptions, AccountStoreOptions<Account> {
   algorand: AlgorandProviderOptions;
-  accounts: {
+  accounts: NonNullable<AccountStoreOptions<Account>["accounts"]> & {
+    /**
+     * The TanStack store instance backing the account state.
+     * Required — the extension populates it from the keystore.
+     */
     store: Store<AccountStoreState<Account>>;
-    hooks: HookCollection<any>;
+    /**
+     * The wallet key the extension reads and writes under.
+     * Defaults to the provider's `id`.
+     */
+    walletKey?: WalletKey;
   };
 }
 
-export type AlgorandAccountsExtension = Extension;
+/**
+ * The surface `WithAlgorandAccounts` mounts on the provider: shared,
+ * typed algod / indexer clients under `provider.algorand`.
+ */
+export interface AlgorandAccountsExtension {
+  algorand: AlgorandProviderClients;
+}
 
 /**
  * Represents an Algorand Account
  */
 export interface AlgorandAccount extends Account {
   type: "algorand-account";
+  /**
+   * Account metadata. Includes the originating key id (and its type) and
+   * an optional parent key id.
+   */
+  metadata?: {
+    keyId: string;
+    /**
+     * The backing key's type (e.g. `"hd-derived-ed25519"`) — lets
+     * consumers label the account kind.
+     */
+    keyType?: string;
+    parentKeyId?: string;
+    /**
+     * The post-quantum address scheme identifier (e.g. `"f1"` for
+     * Falcon-1024) when the address is a canonical PQ digest.
+     */
+    pqScheme?: string;
+    /**
+     * The canonical salt baked into the PQ address preimage, present
+     * alongside {@link pqScheme}.
+     */
+    pqSalt?: number;
+    [key: string]: unknown;
+  };
   /**
    * A method to sign a transaction or a set of transactions.
    *
