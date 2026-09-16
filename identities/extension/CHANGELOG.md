@@ -1,3 +1,9 @@
+# [identities-extension@1.0.0-canary.6](https://github.com/algorandfoundation/wallet-provider-extensions/compare/identities-extension@1.0.0-canary.5...identities-extension@1.0.0-canary.6) (2026-09-16)
+
+### Bug Fixes
+
+- add configurable options for different encryption operations. Allow private key encryption as the default ([15d915e](https://github.com/algorandfoundation/wallet-provider-extensions/commit/15d915e4eee1a343ae7aeff90dfe00b9d66fdb28))
+
 # [identities-extension@1.0.0-canary.5](https://github.com/algorandfoundation/wallet-provider-extensions/compare/identities-extension@1.0.0-canary.4...identities-extension@1.0.0-canary.5) (2026-08-13)
 
 ### Features
