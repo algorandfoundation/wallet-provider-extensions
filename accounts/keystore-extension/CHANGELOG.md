@@ -1,3 +1,9 @@
+# [accounts-keystore-extension@1.0.0-canary.11](https://github.com/algorandfoundation/wallet-provider-extensions/compare/accounts-keystore-extension@1.0.0-canary.10...accounts-keystore-extension@1.0.0-canary.11) (2026-09-16)
+
+### Bug Fixes
+
+- add configurable options for different encryption operations. Allow private key encryption as the default ([15d915e](https://github.com/algorandfoundation/wallet-provider-extensions/commit/15d915e4eee1a343ae7aeff90dfe00b9d66fdb28))
+
 # [accounts-keystore-extension@1.0.0-canary.10](https://github.com/algorandfoundation/wallet-provider-extensions/compare/accounts-keystore-extension@1.0.0-canary.9...accounts-keystore-extension@1.0.0-canary.10) (2026-08-13)
 
 ### Features
