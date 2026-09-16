@@ -1,3 +1,9 @@
+# [react-native-keystore@1.0.0-canary.20](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.19...react-native-keystore@1.0.0-canary.20) (2026-09-16)
+
+### Bug Fixes
+
+- add configurable options for different encryption operations. Allow private key encryption as the default ([15d915e](https://github.com/algorandfoundation/wallet-provider-extensions/commit/15d915e4eee1a343ae7aeff90dfe00b9d66fdb28))
+
 # [react-native-keystore@1.0.0-canary.19](https://github.com/algorandfoundation/wallet-provider-extensions/compare/react-native-keystore@1.0.0-canary.18...react-native-keystore@1.0.0-canary.19) (2026-08-13)
 
 ### Features
