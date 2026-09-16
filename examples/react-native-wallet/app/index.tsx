@@ -1,7 +1,29 @@
-import { Text, View, StyleSheet, SafeAreaView, ScrollView, StatusBar } from "react-native";
-import { useKeys, useAccounts, useIdentities, useProvider } from "@/hooks/useProvider";
-import { HeaderCard, ExtensionCard } from "@/components";
+import {
+  Alert,
+  Text,
+  View,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  ActivityIndicator,
+} from "react-native";
+import { useCallback, useState } from "react";
+import { useRouter } from "expo-router";
+import * as Linking from "expo-linking";
+import {
+  useKeys,
+  useAccounts,
+  useIdentities,
+  useConnections,
+  useCredentials,
+  usePasskeys,
+  useProvider,
+} from "@/hooks/useProvider";
+import { useMigrations } from "@/hooks/useMigrations";
+import { HeaderCard, ExtensionCard, QrScannerModal } from "@/components";
 import type { ExtensionCardProps } from "@/components";
+import { classifyScannedPayload } from "@/lib/scan";
 import { isAlgorandAccount } from "@algorandfoundation/algorand-accounts-extension";
 
 type IconName = ExtensionCardProps["icon"];
@@ -20,10 +42,71 @@ interface Domain {
 }
 
 export default function Index() {
+  const { pending: migrationsPending, error: migrationsError } = useMigrations();
+  const router = useRouter();
   const provider = useProvider();
   const keys = useKeys();
   const accounts = useAccounts();
   const identities = useIdentities();
+  const credentials = useCredentials();
+  const connections = useConnections();
+  const passkeys = usePasskeys();
+  const [scanning, setScanning] = useState(false);
+
+  // Generic scanner: recognize the payload while the viewfinder is open so
+  // unknown QR codes are rejected in place instead of failing after dismiss.
+  const validateScan = useCallback(
+    (data: string) =>
+      classifyScannedPayload(data) ? null : "Not a FIDO passkey or liquid:// connection QR code.",
+    [],
+  );
+
+  const handleScanned = useCallback(
+    (data: string) => {
+      setScanning(false);
+      const payload = classifyScannedPayload(data);
+      if (!payload) return;
+      if (payload.kind === "fido") {
+        // Hand the hybrid (caBLE) QR to the OS: Google Play services runs the
+        // tunnel + BLE proximity check and serves the assertion through
+        // Credential Manager — this wallet's provider, when it is enabled.
+        Linking.openURL(payload.data).catch(() => {
+          Alert.alert(
+            "Cross-device sign-in unavailable",
+            "No system handler for FIDO QR codes was found on this device (Google Play services is required).",
+          );
+        });
+        return;
+      }
+      // liquid:// — hand off to the Connections screen, which auto-accepts.
+      router.push({ pathname: "/connections", params: { uri: payload.data } });
+    },
+    [router],
+  );
+
+  if (migrationsPending) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  if (migrationsError) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <Text style={{ fontWeight: "bold", marginBottom: 8 }}>Migration failed</Text>
+        <Text>{migrationsError.message}</Text>
+      </View>
+    );
+  }
 
   const domains: Domain[] = [
     {
@@ -67,7 +150,8 @@ export default function Index() {
           color: "#34C759",
           href: "/accounts",
           packages: [
-            "@algorandfoundation/accounts-store",
+            "@algorandfoundation/accounts",
+            "@algorandfoundation/accounts-core",
             "@algorandfoundation/accounts-keystore-extension",
             "@algorandfoundation/algorand-accounts-extension",
           ],
@@ -80,7 +164,20 @@ export default function Index() {
               label: "Algorand",
               count: accounts.filter((a) => isAlgorandAccount(a)).length,
             },
-            { label: "Watched", count: accounts.filter((a) => a.type === "watched").length },
+            {
+              // Post-quantum Falcon accounts (keystore accounts whose
+              // backing key is a falcon-1024 key).
+              label: "Falcon",
+              count: accounts.filter(
+                (a) =>
+                  a.type === "keystore-account" &&
+                  (a.metadata as { keyType?: string } | undefined)?.keyType === "falcon-1024",
+              ).length,
+            },
+            {
+              label: "Watched",
+              count: accounts.filter((a) => a.type === "watched").length,
+            },
           ],
         },
       ],
@@ -98,14 +195,97 @@ export default function Index() {
           icon: "shield-account",
           color: "#5856D6",
           href: "/identities",
-          packages: [
-            "@algorandfoundation/identities-store",
-            "@algorandfoundation/identities-keystore-extension",
-            "@algorandfoundation/identities-extension",
-          ],
+          packages: ["@algorandfoundation/identities", "@algorandfoundation/identities-core"],
           substats: [
             { label: "Active", count: identities.length },
-            { label: "DIDs", count: identities.filter((i) => i.didDocument).length },
+            {
+              label: "DIDs",
+              count: identities.filter((i) => i.didDocument).length,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      key: "credentials",
+      title: "Credentials",
+      icon: "card-account-details",
+      color: "#FF9500",
+      description: "Verifiable Credentials and the Digital Credentials API seam.",
+      extensions: [
+        {
+          title: "Credentials",
+          count: credentials.length,
+          icon: "card-account-details",
+          color: "#FF9500",
+          href: "/credentials",
+          packages: [
+            "@algorandfoundation/credentials",
+            "@algorandfoundation/react-native-credentials",
+            "@algorandfoundation/credentials-core",
+          ],
+          substats: [
+            {
+              label: "SD-JWT",
+              count: credentials.filter((c) => c.format === "vc+sd-jwt").length,
+            },
+            { label: "Held", count: credentials.length },
+          ],
+        },
+      ],
+    },
+    {
+      key: "connections",
+      title: "Connections",
+      icon: "connection",
+      color: "#2CD3E1",
+      description: "Remote dapp connections over the Liquid Auth protocol.",
+      extensions: [
+        {
+          title: "Connections",
+          count: connections.length,
+          icon: "connection",
+          color: "#2CD3E1",
+          href: "/connections",
+          packages: [
+            "@algorandfoundation/connections",
+            "@algorandfoundation/react-native-connections",
+            "@algorandfoundation/connections-liquid-auth",
+          ],
+          substats: [
+            {
+              label: "Connected",
+              count: connections.filter((s) => s.status === "connected").length,
+            },
+            { label: "Sessions", count: connections.length },
+          ],
+        },
+      ],
+    },
+    {
+      key: "passkeys",
+      title: "Passkeys",
+      icon: "key-chain",
+      color: "#AF52DE",
+      description: "Passkeys served by this wallet's credential provider.",
+      extensions: [
+        {
+          title: "Passkeys",
+          count: passkeys.length,
+          icon: "key-chain",
+          color: "#AF52DE",
+          href: "/passkeys",
+          packages: [
+            "@algorandfoundation/react-native-passkeys",
+            "@algorandfoundation/passkeys-core",
+            "@algorandfoundation/react-native-passkey-autofill",
+          ],
+          substats: [
+            {
+              label: "Server-known",
+              count: passkeys.filter((p) => p.serverStatus === "known").length,
+            },
+            { label: "Stored", count: passkeys.length },
           ],
         },
       ],
@@ -121,7 +301,14 @@ export default function Index() {
           title={provider.name}
           icon="shield-lock"
           accentColor="#5856D6"
-          description="Modular wallet runtime showcasing keystore, account, and identity extensions working together."
+          description="Modular wallet runtime showcasing keystore, account, identity, and credential extensions working together."
+          actions={[
+            {
+              label: "Scan QR",
+              icon: "qrcode-scan",
+              onPress: () => setScanning(true),
+            },
+          ]}
         />
 
         <Text style={styles.sectionTitle}>Available Extensions</Text>
@@ -172,6 +359,15 @@ export default function Index() {
           </View>
         ))}
       </ScrollView>
+
+      <QrScannerModal
+        visible={scanning}
+        title="Scan a QR code"
+        hint="Works with a browser's FIDO passkey QR (cross-device sign-in) and liquid:// connection QR codes."
+        validate={validateScan}
+        onScanned={handleScanned}
+        onClose={() => setScanning(false)}
+      />
     </SafeAreaView>
   );
 }

@@ -1,10 +1,20 @@
 import { createContext, type ReactNode } from "react";
 import { Provider } from "@algorandfoundation/wallet-provider";
 
-import { WithKeyStore } from "@algorandfoundation/react-native-keystore";
-import { Account, AccountStoreApi, WithAccountStore } from "@algorandfoundation/accounts-store";
-import type { KeyStoreAPI, Key } from "@algorandfoundation/keystore";
-import { type LogMessage, WithLogStore, type LogStoreApi } from "@algorandfoundation/log-store";
+import { WithMigrations, type MigrationsApi } from "@algorandfoundation/provider-migrations";
+import {
+  WithKeyStore,
+  type Key,
+  type KeyStoreAPI,
+  type KeyStoreCapability,
+} from "@algorandfoundation/keystore";
+import {
+  Account,
+  AccountStoreApi,
+  RemoteAccountsMirror,
+  WithAccounts,
+} from "@algorandfoundation/accounts";
+import { type LogMessage, WithLogStore, type LogStoreApi } from "@algorandfoundation/logs";
 import { keyStoreHooks } from "@/stores/before-after";
 import {
   KeystoreAccount,
@@ -14,7 +24,22 @@ import {
   AlgorandAccount,
   WithAlgorandAccounts,
 } from "@algorandfoundation/algorand-accounts-extension";
-import { WithIdentities, type IdentitiesExtension } from "@algorandfoundation/identities-extension";
+import { WithIdentities, type IdentitiesExtension } from "@algorandfoundation/identities";
+import {
+  WithCredentials,
+  type Credential,
+  type ReactNativeCredentialsExtension,
+} from "@algorandfoundation/credentials";
+import {
+  WithConnections,
+  type ConnectionSession,
+  type ReactNativeConnectionsExtension,
+} from "@algorandfoundation/connections";
+import {
+  WithPasskeys,
+  type ReactNativePasskeysExtension,
+} from "@algorandfoundation/react-native-passkeys";
+import type { Passkey } from "@algorandfoundation/passkeys-core";
 import { WithWatchedAccount, WatchedAccount } from "@/extensions/example";
 
 export type AppAccount = WatchedAccount | AlgorandAccount | KeystoreAccount | Account;
@@ -30,15 +55,21 @@ export type AppAccount = WatchedAccount | AlgorandAccount | KeystoreAccount | Ac
  */
 export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXTENSIONS> {
   static EXTENSIONS = [
+    WithMigrations,
     WithLogStore,
     WithKeyStore,
-    WithAccountStore<AppAccount>,
+    WithAccounts<AppAccount>,
     WithAccountsKeystore,
     WithAlgorandAccounts,
     WithIdentities,
+    WithCredentials,
+    WithConnections,
+    WithPasskeys,
     WithWatchedAccount,
   ] as const;
 
+  /** Data migration registry and run control */
+  migrations!: MigrationsApi;
   /** Reactive array of keys in the keystore */
   keys!: Key[];
   /** Reactive array of accounts in the account store */
@@ -47,12 +78,21 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
   logs!: LogMessage[];
   /** Reactive array of identities */
   identities!: IdentitiesExtension["identities"];
+  /** Reactive array of Verifiable Credentials held by the wallet */
+  credentials!: Credential[];
+  /** Reactive array of remote dapp connection sessions */
+  connections!: ConnectionSession[];
+  /** Reactive array of the credential provider's stored passkeys */
+  passkeys!: Passkey[];
   /** Current status of the keystore (e.g., 'idle', 'generating') */
   status!: string;
+  /** Reactive list of active keystore capabilities (host + shim), tagged by source */
+  algorithms!: KeyStoreCapability[];
 
-  /** API for account operations */
+  /** API for account operations (store + the session-scoped remote mirror) */
   account!: {
     store: AccountStoreApi<AppAccount>;
+    remote: RemoteAccountsMirror<AppAccount>;
   };
   /**
    * API for cryptographic key operations.
@@ -65,6 +105,12 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
   log!: LogStoreApi;
   /** API for identity operations */
   identity!: IdentitiesExtension["identity"];
+  /** API for credential operations (store + Digital Credentials platform seam) */
+  credential!: ReactNativeCredentialsExtension["credential"];
+  /** API for remote dapp connections (accept / resume / disconnect) */
+  connection!: ReactNativeConnectionsExtension["connection"];
+  /** API for passkey operations (refresh / remove / reconcile / provider status) */
+  passkey!: ReactNativePasskeysExtension["passkey"];
 }
 
 export const AlgorandContext = createContext<null | ReactNativeProvider>(null);

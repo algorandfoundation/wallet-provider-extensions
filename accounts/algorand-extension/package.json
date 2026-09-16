@@ -1,13 +1,13 @@
 {
   "name": "@algorandfoundation/algorand-accounts-extension",
-  "version": "1.0.0-canary.0",
-  "description": "Accounts Algorand extension for wallet extensions.",
+  "version": "0.0.0",
+  "description": "Algorand accounts extension for wallet extensions.",
   "license": "Apache-2.0",
   "author": "Algorand Foundation",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
-    "directory": "accounts/algorand"
+    "directory": "accounts/algorand-extension"
   },
   "type": "module",
   "sideEffects": false,
@@ -35,26 +35,30 @@
     "release:dry-run": "package-releaser --dry-run"
   },
   "dependencies": {
-    "@algorandfoundation/accounts-store": "workspace:*",
-    "@algorandfoundation/algokit-subscriber": "^3.2.0",
-    "@algorandfoundation/algokit-utils": "^9.2.0",
-    "@algorandfoundation/keystore": "workspace:*",
+    "@algorandfoundation/accounts-core": "workspace:*",
+    "@algorandfoundation/algokit-subscriber": "^4.0.0-beta.3",
+    "@algorandfoundation/algokit-utils": "catalog:",
+    "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
-    "@scure/base": "catalog:",
-    "algosdk": "^3.0.0"
+    "@noble/curves": "catalog:",
+    "@noble/hashes": "catalog:",
+    "algosdk": "catalog:"
   },
   "devDependencies": {
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@algorandfoundation/package-releaser": "workspace:*",
+    "@algorandfoundation/xhd-wallet-api": "catalog:",
+    "@scure/base": "catalog:",
+    "falcon-1024": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
   },
   "peerDependenciesMeta": {
-    "@algorandfoundation/log-store": {
+    "@algorandfoundation/logs": {
       "optional": true
     }
   }

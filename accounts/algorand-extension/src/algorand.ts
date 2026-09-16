@@ -1,4 +1,4 @@
-import type { AccountAsset } from "@algorandfoundation/accounts-store";
+import type { AccountAsset } from "@algorandfoundation/accounts-core";
 import { AlgorandSubscriber } from "@algorandfoundation/algokit-subscriber";
 import { AlgorandClient } from "@algorandfoundation/algokit-utils";
 
