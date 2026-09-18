@@ -35,14 +35,14 @@
   "dependencies": {
     "@algorandfoundation/credentials-core": "workspace:*",
     "@algorandfoundation/credentials-intermezzo-extension": "workspace:*",
-    "@algorandfoundation/identities-extension": "workspace:*",
-    "@algorandfoundation/identities-store": "workspace:*",
+    "@algorandfoundation/identities": "workspace:*",
+    "@algorandfoundation/identities-core": "workspace:*",
     "@algorandfoundation/intermezzo-client": "catalog:",
     "@algorandfoundation/wallet-provider": "catalog:"
   },
   "devDependencies": {
     "@algorandfoundation/algokit-utils": "catalog:",
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@algorandfoundation/package-releaser": "workspace:*",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:",
@@ -51,12 +51,12 @@
   },
   "peerDependencies": {
     "@algorandfoundation/algokit-utils": "catalog:",
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
   },
   "peerDependenciesMeta": {
-    "@algorandfoundation/log-store": {
+    "@algorandfoundation/logs": {
       "optional": true
     }
   }

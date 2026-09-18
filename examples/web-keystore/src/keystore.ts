@@ -6,13 +6,13 @@ import type {
   KeyId,
   KeyStoreAPI,
   KeyStoreCapability,
-} from "@algorandfoundation/keystore-web";
+} from "@algorandfoundation/keystore";
 
 /**
  * Keystore domain operations for the web example.
  *
  * These are pure, dependency-injected functions over the provider's `key.store`
- * API — no component/DOM state is captured here — mirroring the project's
+ * API (no component/DOM state is captured here), mirroring the project's
  * "store operations" convention. `src/main.ts` is left to do only the DOM
  * wiring and reactive rendering.
  */
@@ -40,7 +40,7 @@ export interface CreateWalletSeedResult {
 /**
  * Creates a new wallet seed: generates a 24-word BIP39 mnemonic, imports its
  * seed bytes into the keystore, and derives an XHD (BIP32-Ed25519) root key from
- * it. The mnemonic is returned so the caller can present it once — it is never
+ * it. The mnemonic is returned so the caller can present it once; it is never
  * persisted.
  *
  * @param key - The keystore API (`provider.key.store`).
@@ -73,8 +73,8 @@ const ALGORAND_COIN_TYPE = 283;
  * root key. The `index` should be the next free slot for account context 0 (see
  * {@link nextAccountIndex}).
  *
- * HD children are produced through the keystore's `deriveFromSeed` — which runs
- * the BIP32-Ed25519 shim over the unlocked root — rather than `generate`, which
+ * HD children are produced through the keystore's `deriveFromSeed` (which runs
+ * the BIP32-Ed25519 shim over the unlocked root) rather than `generate`, which
  * only mints fresh (non-derived) keys.
  *
  * @param key - The keystore API (`provider.key.store`).

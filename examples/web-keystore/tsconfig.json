@@ -8,6 +8,7 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
+    "customConditions": ["browser"],
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,

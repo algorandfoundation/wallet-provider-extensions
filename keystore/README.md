@@ -1,9 +1,9 @@
-# The Keystore, Explained
+# Keys
 
-Welcome! This is a friendly, plain-language tour of the Keystore. If you have
-never seen this codebase before, start here. By the end you should understand
-what the Keystore is, why it is split into several packages, and how the pieces
-click together.
+Welcome! This is a friendly, plain-language tour of keys and the Keystore that
+guards them. If you have never seen this codebase before, start here. By the
+end you should understand what the Keystore is, why it is split into several
+packages, and how the pieces click together.
 
 There are no assumptions about deep cryptography knowledge. Where a crypto term
 shows up, it is explained in everyday words first.
@@ -195,6 +195,25 @@ const ok = await store.verify(accountId, message, signature); // true
 You do not need to memorize the exact arguments. The point is the shape: you ask
 `key.store` to do things by key id, and secrets stay inside.
 
+Ed25519 is not the only kind of key that grows from a seed. The keystore treats
+**post-quantum Falcon-1024** keys as a first-class peer: the same seed backs
+them, and the same `sign` / `verify` calls use them.
+
+```typescript
+// The same seed can also grow a post-quantum Falcon-1024 key.
+const falconId = await store.generate({
+  type: "falcon-1024",
+  algorithm: "Falcon-1024",
+  extractable: false,
+  keyUsages: ["sign", "verify"],
+  params: { parentKeyId: seedId },
+});
+const pqSignature = await store.sign(falconId, message);
+```
+
+One recovery phrase therefore restores your classical accounts and your
+post-quantum keys alike.
+
 ## Shims: how algorithms are added
 
 Browsers and Node already know some cryptography through a built-in tool called
@@ -279,13 +298,15 @@ pnpm exec keystore --help
 Some things you can do:
 
 ```sh
-keystore list                 # show the keys you have
-keystore generate seed        # make a new seed
-keystore generate account     # derive an account
-keystore sign <id> <message>  # sign something
-keystore verify ...           # verify a signature
-keystore algorithms           # show active capabilities
-keystore serve                # run the RPC service (see below)
+keystore list                           # show the keys you have
+keystore generate seed                  # make a new seed
+keystore generate account --root <id>   # derive an account
+keystore generate falcon --seed <id>    # derive a post-quantum Falcon-1024 key
+keystore generate ed25519               # generate a standalone Ed25519 key
+keystore sign <id> --message "hi"       # sign something
+keystore verify <id> --message "hi" --signature <hex>
+keystore algorithms                     # show active capabilities
+keystore serve                          # run the RPC service (see below)
 ```
 
 Run `keystore --help` at any time to see the full list.

@@ -8,7 +8,7 @@ An extension is a function that receives the `provider` and `options` and return
 
 ### Example: `WithWatchedAccount`
 
-In `extensions/example.ts`, we have an example of a local extension that adds "Watched Accounts" to the provider. These are accounts that only have a public address and are not backed by a secret key in the keystore. This extension leverages the `@algorandfoundation/accounts-store` to manage its data.
+In `extensions/example.ts`, we have an example of a local extension that adds "Watched Accounts" to the provider. These are accounts that only have a public address and are not backed by a secret key in the keystore. This extension leverages the `@algorandfoundation/accounts` to manage its data.
 
 ```typescript
 import { type Provider } from "@algorandfoundation/wallet-provider";
@@ -18,7 +18,7 @@ import {
   type AccountStoreOptions,
   addAccount,
   removeAccount,
-} from "@algorandfoundation/accounts-store";
+} from "@algorandfoundation/accounts";
 
 /**
  * Represents a watched account that only has a public address.

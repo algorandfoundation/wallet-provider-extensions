@@ -7,6 +7,12 @@ change alters the shape of _persisted_ data, this engine lets the package ship a
 versioned migration alongside it, so consuming applications converge instead of
 losing data.
 
+The engine itself is a pure function: `applyMigrations` runs a registry of
+migration modules against a ledger, with no Provider involved. First-class
+Provider support ships alongside it as the `WithMigrations` extension, which
+wires the same engine into the extension lifecycle. Both usage modes are equal
+citizens of the API.
+
 ## Using it in an application
 
 `WithMigrations` must be **first** in the extensions array, so later extensions
@@ -38,8 +44,41 @@ If `WithMigrations` is absent, `provider.migrations` is `undefined` and every
 `register` call is a no-op. That is the opt-in mechanism.
 
 Pass `migrations: { autoRun: false }` to defer the run, then call
-`provider.migrations.run()` yourself — useful when migrations must wait behind a
+`provider.migrations.run()` yourself; this is useful when migrations must wait behind a
 splash screen or an unlock.
+
+## Standalone: running the engine directly
+
+Nothing requires a Provider. `applyMigrations` takes a registry (an array of
+`{ module, context, migrations }` entries) and a ledger, runs every pending
+revision, and resolves with a report of what was applied, what failed, and
+which modules are ahead of the code.
+
+```typescript
+import { applyMigrations, keyValueLedger } from "@algorandfoundation/provider-migrations";
+import { migrations } from "./migrations/index.ts";
+
+const report = await applyMigrations({
+  registry: [
+    {
+      module: "com.mycompany.wallet/watched-accounts",
+      context: () => storage,
+      migrations,
+    },
+  ],
+  ledger: keyValueLedger({
+    get: (k) => localStorage.getItem(k),
+    set: (k, v) => localStorage.setItem(k, v),
+  }),
+});
+
+console.log(report.applied, report.failed, report.ahead);
+```
+
+`memoryLedger()` is an in-memory ledger, handy in tests or wherever persistence
+is not needed. Everything below about writing, registering, and baselining
+migrations applies to both modes; the Provider path simply builds the registry
+from `register` calls and runs this same function.
 
 ## Adding a migration to a package
 
@@ -89,7 +128,7 @@ runtime dependency.
 ## Migrations in your own application extensions
 
 Nothing about the engine is specific to packages in this repository. An
-application that writes its own extensions registers them exactly the same way —
+application that writes its own extensions registers them exactly the same way:
 `register` accepts any module id and any context type.
 
 ```typescript
@@ -121,14 +160,14 @@ Three requirements:
   string or your package name works; just do not reuse an id a library already
   claims.
 - Applications take this package as a normal **dependency**, not the
-  devDependency + optional peer arrangement libraries use — an application
+  devDependency + optional peer arrangement libraries use, as an application
   imports `WithMigrations` and a ledger as values, not just types.
 
 ### Ordering is positional
 
 Modules run sequentially in registration order, which is extension order. There
 is no declared dependency between modules. If one of your migrations must run
-after a library's — say it reads records the keystore migration reshapes — place
+after a library's, such as when it reads records the keystore migration reshapes, place
 your extension after that library's in the array. Getting this wrong produces no
 error, so it is worth a comment next to the array.
 
@@ -139,7 +178,7 @@ If you already migrate data with your own mechanism, read this before adopting.
 An absent ledger entry means revision zero, so the engine runs **every** revision
 a module declares. Port your existing migrations and the first launch re-applies
 all of them to data they have already been applied to. That is safe if each is
-idempotent — which the engine requires anyway — but hand-rolled migrations often
+idempotent, which the engine requires anyway, but hand-rolled migrations often
 are not, so do not assume it.
 
 The ledger is yours, and `write` is public, so stamp it before constructing the
@@ -178,7 +217,7 @@ re-run.
 1. **Idempotent.** Running twice must converge to the same state. Assert it with
    `assertIdempotent` from `@algorandfoundation/provider-migrations/testing`.
 2. **A no-op on empty data.** A fresh install runs every revision from zero.
-3. **Copy, verify, delete — never move.** Write the new location, verify it reads
+3. **Copy, verify, delete; never move.** Write the new location, verify it reads
    back, and only then delete the old one. A crash then leaves both copies and
    re-running converges.
 4. **Never put key material in an error message.** Failures are recorded verbatim

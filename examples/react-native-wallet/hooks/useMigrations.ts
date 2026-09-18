@@ -13,7 +13,7 @@ export interface MigrationsState {
  * Awaits the provider's migration run.
  *
  * Gate anything that reads persisted data on `pending` being false, and surface
- * `error` rather than swallowing it — a failed migration means the data on disk
+ * `error` rather than swallowing it: a failed migration means the data on disk
  * is not in the shape this build expects.
  *
  * @returns The current {@link MigrationsState}.

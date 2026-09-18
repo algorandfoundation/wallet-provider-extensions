@@ -1,0 +1,65 @@
+{
+  "name": "@algorandfoundation/react-native-passkeys",
+  "version": "0.0.0",
+  "description": "React Native passkeys implementation (react-native-passkey-autofill source binding for the passkeys store) for Wallet Provider.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "passkeys/react-native"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules docs",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/passkeys-core": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:"
+  },
+  "devDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@algorandfoundation/package-releaser": "workspace:^",
+    "@algorandfoundation/passkeys-connections-extension": "workspace:*",
+    "@tanstack/store": "catalog:",
+    "typedoc": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@algorandfoundation/passkeys-connections-extension": "workspace:*",
+    "@algorandfoundation/passkeys-core": "workspace:*",
+    "@algorandfoundation/react-native-passkey-autofill": "*",
+    "@tanstack/store": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/logs": {
+      "optional": true
+    },
+    "@algorandfoundation/passkeys-connections-extension": {
+      "optional": true
+    },
+    "@algorandfoundation/react-native-passkey-autofill": {
+      "optional": true
+    }
+  }
+}

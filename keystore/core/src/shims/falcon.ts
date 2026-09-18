@@ -70,7 +70,7 @@ export interface Falcon1024Binding {
  * a keypair and returns handles that *transiently* carry the fresh material so
  * the calling storage engine can consume it once (via `consumeKeyMaterial`) and
  * persist it encrypted at rest. `importKey` and `exportKey` still throw
- * {@link MaterialAccessError} — material never moves *through* the public
+ * {@link MaterialAccessError}: material never moves *through* the public
  * surface after birth. The `key` argument is an opaque metadata handle (see
  * `createKeyHandle`).
  *

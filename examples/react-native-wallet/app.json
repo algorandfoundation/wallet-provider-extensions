@@ -30,6 +30,19 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to scan connection and credential QR codes."
+        }
+      ],
+      [
+        "@algorandfoundation/react-native-passkey-autofill",
+        {
+          "site": "https://debug.liquidauth.com",
+          "label": "React Native Wallet"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",

@@ -9,15 +9,28 @@
  * `@algorandfoundation/credentials-core` and is re-exported here.
  *
  * @remarks
- * This package additionally ships the browser seam for the W3C Digital
- * Credentials API: {@link webDigitalCredentials} (currently an explicit
- * `unsupported` stub) and a browser `WithCredentials` extension that attaches
- * it at `provider.credential.digital`. When
- * `navigator.credentials.get({ digital })` support lands, only the stub is
- * replaced — the application-facing surface stays the same.
+ * This package additionally ships the browser implementation of the W3C
+ * Digital Credentials API: {@link webDigitalCredentials} feature-detects
+ * `navigator.credentials.get({ digital })` and forwards presentation
+ * (and, where enabled, issuance) requests to the user agent, rejecting
+ * with a typed `DigitalCredentialsUnsupportedError` on browsers without the
+ * API. The browser `WithCredentials` extension attaches it at
+ * `provider.credential.digital`, persists through
+ * {@link localStorageCredentialDriver} by default, and reads its configuration
+ * from the shared `options.credentials` namespace owned by the core.
  */
 
 export * from "@algorandfoundation/credentials-core";
 export { localStorageCredentialDriver } from "./driver.ts";
 export { webDigitalCredentials } from "./platform.ts";
-export { WithCredentials, type WebCredentialsExtension } from "./extension.ts";
+export {
+  WithCredentials,
+  type WebCredentialsExtension,
+  type WebCredentialsOptions,
+} from "./extension.ts";
+export type {
+  CredentialRecord,
+  CredentialsConnectionsExtension,
+  CredentialsConnectionsOptions,
+  RemoteCredentialsMirror,
+} from "@algorandfoundation/credentials-connections-extension";

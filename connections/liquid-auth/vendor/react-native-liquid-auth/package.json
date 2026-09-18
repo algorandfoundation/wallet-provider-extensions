@@ -1,0 +1,23 @@
+{
+  "name": "react-native-liquid-auth",
+  "version": "0.0.1",
+  "private": true,
+  "description": "VENDORED snapshot of the react-native-liquid-auth expo module (native Liquid Auth signaling/WebRTC background service). Replace with the published npm package once it is released.",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "keywords": [
+    "react-native",
+    "expo",
+    "react-native-liquid-auth",
+    "LiquidAuthNative"
+  ],
+  "repository": "https://github.com/algorandfoundation/react-native-liquid-auth",
+  "author": "Algorand Foundation <contact@algorand.foundation> (AlgorandFoundation)",
+  "license": "Apache 2.0",
+  "homepage": "https://github.com/algorandfoundation/react-native-liquid-auth#readme",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

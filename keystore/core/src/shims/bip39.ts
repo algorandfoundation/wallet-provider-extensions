@@ -24,10 +24,10 @@ export const BIP39_DEFAULT_STRENGTH = 256;
  *
  * There are two reversible encodings and one one-way derivation:
  *
- * - `entropy ⟷ mnemonic` — a reversible wordlist encoding
+ * - `entropy ⟷ mnemonic`: a reversible wordlist encoding
  *   ({@link entropyToMnemonic} / {@link mnemonicToEntropy}). Persisting the
  *   entropy therefore keeps the phrase fully recoverable/displayable.
- * - `mnemonic (+passphrase) → seed` — a one-way PBKDF2-HMAC-SHA512 derivation
+ * - `mnemonic (+passphrase) → seed`: a one-way PBKDF2-HMAC-SHA512 derivation
  *   ({@link mnemonicToSeed}) producing the 64-byte seed downstream key
  *   derivation consumes.
  */
@@ -95,11 +95,11 @@ export interface BIP39Params {
  * `generateKey` mints a fresh mnemonic and returns a handle that *transiently*
  * carries its **entropy** (not the derived seed), so the calling storage engine
  * can consume it once (via `consumeKeyMaterial`) and persist it encrypted at
- * rest. Persisting the entropy — rather than the one-way PBKDF2 seed — keeps the
+ * rest. Persisting the entropy (rather than the one-way PBKDF2 seed) keeps the
  * mnemonic phrase fully recoverable for backup/restore. `deriveBits` converts a
  * just-in-time-injected `entropy` into the 64-byte seed and wipes the injected
  * entropy when the operation completes. `importKey`/`exportKey` throw
- * {@link MaterialAccessError} — material never moves *through* the public
+ * {@link MaterialAccessError}: material never moves *through* the public
  * surface after birth.
  *
  * @param host - The Subtle implementation to extend (e.g. `crypto.subtle`).

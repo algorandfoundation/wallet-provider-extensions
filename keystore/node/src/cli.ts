@@ -2,7 +2,7 @@
 /**
  * @module cli
  *
- * `keystore` — a small command-line interface for the Node.js keystore.
+ * `keystore`: a small command-line interface for the Node.js keystore.
  *
  * It is a thin driver over the shared {@link createNodeKeyStore} engine: secret
  * material lives in the OS keychain and all UI-safe metadata in a single sealed
@@ -427,7 +427,7 @@ async function runServe(
 
 /**
  * True when this module is the process entry point (`node cli.js`, or the
- * `keystore` bin — usually a symlink in `node_modules/.bin`).
+ * `keystore` bin, usually a symlink in `node_modules/.bin`).
  *
  * Comparing `import.meta.url` to `` `file://${process.argv[1]}` `` does not
  * work: Node resolves the main module through its real path while `argv[1]`

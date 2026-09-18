@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+
+    /* Bundler mode — resolve the `browser` export condition so the
+       meta packages (@algorandfoundation/connections, /credentials,
+       /keystore, /identities) typecheck against the same platform
+       entries Vite bundles. */
+    "moduleResolution": "bundler",
+    "customConditions": ["browser"],
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}

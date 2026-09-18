@@ -42,7 +42,7 @@ export interface SealedBytes {
  * of each keeping the one it minted.
  *
  * @param db - The keystore database handle.
- * @param subtle - The host {@link SubtleCrypto} (never a shim decorator — this
+ * @param subtle - The host {@link SubtleCrypto} (never a shim decorator; this
  *   is a standard AES-GCM key).
  * @returns The master {@link CryptoKey}.
  */

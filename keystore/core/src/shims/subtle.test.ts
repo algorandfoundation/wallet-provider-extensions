@@ -234,7 +234,7 @@ describe("withSubtleFalcon1024", () => {
     expect(publicKey.usages).toEqual(["verify"]);
 
     // The fresh material is reachable only through the privileged channel a
-    // storage engine uses, not the public CryptoKey shape — and only once. The
+    // storage engine uses, not the public CryptoKey shape, and only once. The
     // buffer handed to `use` is wiped and its reference dropped the instant the
     // consumer returns, so the plaintext does not linger in memory.
     let privRef: Uint8Array | undefined;
@@ -493,7 +493,7 @@ describe("withSubtleDP256", () => {
     expect(algorithm.origin).toBe(descriptor.origin);
     expect(algorithm.userHandle).toBe(descriptor.userHandle);
     expect(algorithm.counter).toBe(0);
-    // The derived handle carries no material — it is re-derived at sign time.
+    // The derived handle carries no material; it is re-derived at sign time.
     expect(() => consumeKeyMaterial(derived, (m) => m)).toThrow(MaterialAccessError);
   });
 

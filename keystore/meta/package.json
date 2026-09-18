@@ -53,18 +53,18 @@
     "@algorandfoundation/react-native-keystore": "workspace:*"
   },
   "devDependencies": {
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@algorandfoundation/package-releaser": "workspace:^",
     "typedoc": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
   },
   "peerDependenciesMeta": {
-    "@algorandfoundation/log-store": {
+    "@algorandfoundation/logs": {
       "optional": true
     }
   }

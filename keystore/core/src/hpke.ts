@@ -8,7 +8,7 @@
  * Every primitive runs through the **injected host {@link SubtleCrypto}**
  * (ECDH `deriveBits`, `HMAC` sign for HKDF-Extract/Expand, `AES-GCM`), never
  * through `globalThis.crypto`, so the module honours the keystore's
- * injected-host seam — the reason an off-the-shelf HPKE package (which
+ * injected-host seam, the reason an off-the-shelf HPKE package (which
  * discovers the runtime WebCrypto itself) is not used here. Conformance is
  * pinned by the RFC 9180 Appendix A.3.3 test vectors in `hpke.test.ts`.
  */
@@ -51,7 +51,7 @@ export const HPKE_P256_POINT_LENGTH = 65;
 const P256: EcKeyImportParams = { name: "ECDH", namedCurve: "P-256" };
 
 /**
- * `HMAC-SHA-256(key, data)` through the host Subtle — the primitive both
+ * `HMAC-SHA-256(key, data)` through the host Subtle, the primitive both
  * HKDF-Extract and HKDF-Expand reduce to. An empty `key` is replaced by
  * `HashLen` zero bytes exactly as RFC 5869 defines for an absent salt (and as
  * WebCrypto's own HKDF does internally).
@@ -84,7 +84,7 @@ async function labeledExtract(
 
 /**
  * RFC 9180 `LabeledExpand(prk, label, info, L)` for `L <= HashLen`, which is
- * all this suite ever needs — a single HKDF-Expand block:
+ * all this suite ever needs, a single HKDF-Expand block:
  * `T(1) = HMAC(prk, labeled_info || 0x01)`.
  */
 async function labeledExpand(

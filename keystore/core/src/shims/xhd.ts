@@ -1,3 +1,5 @@
+import { x25519 } from "@noble/curves/ed25519.js";
+
 import { InvalidKeyDataError, InvalidKeyFormatError, MaterialAccessError } from "../errors.ts";
 import {
   algorithmName,
@@ -14,8 +16,8 @@ import {
 /**
  * BIP32 derivation variants understood by the XHD binding.
  *
- * - `Khovratovich` (32) — the original BIP32-Ed25519 amendment.
- * - `Peikert` (9) — Peikert's amendment, the keystore default.
+ * - `Khovratovich` (32): the original BIP32-Ed25519 amendment.
+ * - `Peikert` (9): Peikert's amendment, the keystore default.
  */
 export const BIP32DerivationType = {
   Khovratovich: 32,
@@ -137,6 +139,15 @@ export interface XHDParams {
   otherPartyPub?: BufferSource;
   /** ECDH key ordering; defaults to `true` (local key first). */
   meFirst?: boolean;
+  /**
+   * For ECDH `deriveBits`: compute the RAW 32-byte X25519 agreement instead of
+   * the hashed ARC-52 one. `otherPartyPub` is then a raw 32-byte X25519 public
+   * key (NOT Ed25519; no conversion, no hashing, `meFirst` irrelevant): plain
+   * montgomery scalar multiplication of the child scalar with the remote key,
+   * the shape a peer running WebCrypto X25519 `deriveBits` against the did:key
+   * X25519 twin of the child's Ed25519 public key expects.
+   */
+  x25519?: boolean;
 }
 
 function derivationOf(algo: AlgorithmIdentifier): number {
@@ -174,7 +185,7 @@ function pathOf(algo: AlgorithmIdentifier): number[] {
  * `deriveBits` the root is injected just-in-time via the `rootKey` parameter,
  * and `verify` reads only the (non-secret) `publicKey` parameter, so decrypted
  * material lives only inside the operation call frame. `importKey`/`exportKey`
- * throw {@link MaterialAccessError} — material never moves *through* the public
+ * throw {@link MaterialAccessError}: material never moves *through* the public
  * surface after birth. The `key` argument is an opaque metadata handle (see
  * `createKeyHandle`).
  *
@@ -282,12 +293,30 @@ export function withSubtleXHD(host: SubtleCrypto, xhd: XHDBinding): SubtleCrypto
     if (algorithmName(algo) !== XHD_ALGORITHM) {
       return host.deriveBits(algo as AlgorithmIdentifier, baseKey, length as number);
     }
-    // When a remote public key is present the caller is requesting an ECDH
-    // shared secret (the Diffie-Hellman negotiation path) rather than a child
-    // key derivation.
+    // When a remote public key is present the caller is requesting a shared
+    // secret (the Diffie-Hellman negotiation path) rather than a child key
+    // derivation.
     const otherPartyPub =
       typeof algo === "string" ? undefined : (algo as Partial<XHDParams>).otherPartyPub;
     if (otherPartyPub !== undefined) {
+      // The RAW X25519 mode bypasses the binding's (ARC-52 hashed) ECDH: the
+      // child extended private key is derived along the path and its scalar
+      // half multiplied straight into the remote X25519 public key. Noble's
+      // scalar clamping is a no-op for XHD child scalars, the same assumption
+      // ARC-52's own ECDH makes via libsodium's `crypto_scalarmult`. The
+      // injected root is wiped as soon as the child is derived, and the child
+      // as soon as the secret is computed.
+      const rawX25519 =
+        typeof algo === "string" ? false : Boolean((algo as Partial<XHDParams>).x25519);
+      if (rawX25519) {
+        const child = await consumeParamMaterial(algo, "rootKey", (rootKey) =>
+          xhd.deriveKey(rootKey, pathOf(algo), true, derivationOf(algo)),
+        );
+        const secret = await consumeMaterial(child, (extended) =>
+          x25519.getSharedSecret(extended.subarray(0, 32), toBytes(otherPartyPub)),
+        );
+        return toArrayBuffer(secret);
+      }
       const meFirst =
         typeof algo === "string" ? true : ((algo as Partial<XHDParams>).meFirst ?? true);
       // The injected root key is wiped as soon as the shared secret is derived.

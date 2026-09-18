@@ -1,5 +1,5 @@
 import type { KeyStoreExtension } from "@algorandfoundation/keystore-core";
-import type { LogStoreExtension } from "@algorandfoundation/log-store";
+import type { LogStoreExtension } from "@algorandfoundation/logs";
 import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
 
 import { createReactNativeKeyStore } from "./engine.ts";
@@ -41,7 +41,7 @@ import type { KeystoreMigrationContext, ReactKeystoreOptions } from "./types.ts"
  *
  * @remarks
  * Migration registration (`migrationsApi?.register(...)`) always runs,
- * regardless of which code path above supplies the keystore API — but the
+ * regardless of which code path above supplies the keystore API, but the
  * `before` gate (which sequences `createReactNativeKeyStore`'s hydration
  * behind `provider.migrations?.ready`) only exists on the engine-building
  * path. When `options.api.keystore` is injected, `createReactNativeKeyStore`
@@ -78,7 +78,7 @@ export const WithKeyStore: Extension<KeyStoreExtension> = (
 
   // Opt-in: a no-op unless the provider carries a migrations extension. That
   // is silent by design (see `register`'s no-op contract), but silent opt-in
-  // for a whole feature is easy to misconfigure — `WithMigrations` must be
+  // for a whole feature is easy to misconfigure: `WithMigrations` must be
   // installed *first* in the extensions array, and getting that wrong yields
   // no registration, no gate and no error. This can't be detected from inside
   // `WithMigrations` itself (it runs before every other extension), so the

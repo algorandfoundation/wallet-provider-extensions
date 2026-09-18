@@ -1,0 +1,35 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'co.algorand.liquid'
+version = '0.1.0'
+
+android {
+  namespace "co.algorand.liquid"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // Signaling transport
+  implementation "io.socket:socket.io-client:2.1.0"
+  // Native WebRTC
+  implementation "io.getstream:stream-webrtc-android:1.1.3"
+  // HTTP client shared with the signaling socket
+  implementation "com.squareup.okhttp3:okhttp:4.12.0"
+  // Coroutines used by the signaling client
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1"
+  // QR Code generation (offer/link handshake)
+  implementation "io.github.g0dkar:qrcode-kotlin:4.1.1"
+  // Time-based UUID request ids
+  implementation "com.fasterxml.uuid:java-uuid-generator:5.1.0"
+  // Foreground service + notifications helpers
+  implementation "androidx.core:core-ktx:1.12.0"
+}

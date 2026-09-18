@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { isKeystoreAccount, WithAccountsKeystore } from "./extension.ts";
 import { base64 } from "@scure/base";
-import type { Account, AccountStoreState } from "@algorandfoundation/accounts-store";
+import * as falcon from "falcon-1024";
+import type { Account, AccountStoreState } from "@algorandfoundation/accounts-core";
 import { Store } from "@tanstack/store";
 import type { Key, KeyStoreState } from "@algorandfoundation/keystore-core";
 import {
@@ -12,6 +13,7 @@ import {
   type KeyStore,
   type KeyStoreDriver,
   type XHDBinding,
+  withSubtleFalcon1024,
   withSubtleXHD,
 } from "@algorandfoundation/keystore-core";
 import { fromSeed, harden, KeyContext, XHDWalletAPI } from "@algorandfoundation/xhd-wallet-api";
@@ -19,6 +21,12 @@ import type { KeystoreAccount } from "./types.ts";
 
 const FIXED_SEED = new Uint8Array(64).fill(1);
 const host = globalThis.crypto.subtle;
+
+// Accounts are scoped under the provider's wallet key in the shared,
+// use-wallet-shaped store.
+const WALLET_KEY = "test-provider";
+const accountsOf = (store: Store<AccountStoreState<KeystoreAccount>>): KeystoreAccount[] =>
+  store.state.wallets[WALLET_KEY]?.accounts ?? [];
 
 // Same adapter shape `keystore-core`'s own tests use: exposes the (otherwise
 // private) rawSign of XHDWalletAPI so the shim can drive derivation.
@@ -102,7 +110,7 @@ describe("WithAccountsKeystore", () => {
       driver: createFixtureDriver(),
       store: new Store<KeyStoreState>({ keys: [], status: "idle" }),
       subtle: host,
-      shims: [(h) => withSubtleXHD(h, xhd)],
+      shims: [(h) => withSubtleXHD(h, xhd), (h) => withSubtleFalcon1024(h, falcon)],
     });
     await keystoreEngine.ready;
 
@@ -136,6 +144,18 @@ describe("WithAccountsKeystore", () => {
     return seed;
   }
 
+  /** Generates a real seed-derived Falcon-1024 key, linked to `parentKeyId` metadata. */
+  async function getMockFalconKey(id: string, parentKeyId = "seed-1"): Promise<Key> {
+    const keyId = await keystoreEngine.generate({
+      type: "falcon-1024",
+      algorithm: "Falcon-1024",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+      params: { seed: ed25519SeedFor(id), parentKeyId },
+    });
+    return (await keystoreEngine.export(keyId)) as unknown as Key;
+  }
+
   /** Imports a real standalone ed25519 key, linked to `parentKeyId` metadata. */
   async function getMockEd25519Key(id: string, parentKeyId = "seed-1"): Promise<Key> {
     const keyId = await keystoreEngine.import({
@@ -154,7 +174,8 @@ describe("WithAccountsKeystore", () => {
     const mockKey = await getMockKey("key-1");
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [],
+      wallets: {},
+      activeWallet: null,
     });
     const spySetState = vi.spyOn(accountStore, "setState");
 
@@ -164,6 +185,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [mockKey],
       status: "idle",
       account: {
@@ -193,12 +215,16 @@ describe("WithAccountsKeystore", () => {
     WithAccountsKeystore(provider as any, options as any);
 
     expect(spySetState).toHaveBeenCalled();
-    expect(accountStore.state.accounts.length).toBe(1);
-    const addedAccount: Account = accountStore.state.accounts[0];
+    expect(accountsOf(accountStore).length).toBe(1);
+    expect(accountStore.state.activeWallet).toBe(WALLET_KEY);
+    const addedAccount: Account = accountsOf(accountStore)[0];
     expect(isKeystoreAccount(addedAccount)).toBe(true);
     if (isKeystoreAccount(addedAccount)) {
-      expect(addedAccount.address).toBe(base64.encode(mockKey.publicKey!));
+      const address = base64.encode(mockKey.publicKey!);
+      expect(addedAccount.address).toBe(address);
       expect(addedAccount.metadata?.keyId).toBe(mockKey.id);
+      // Synthesized display name (truncated address)
+      expect(addedAccount.name).toBe(`${address.slice(0, 6)}…${address.slice(-4)}`);
     }
   });
 
@@ -207,7 +233,8 @@ describe("WithAccountsKeystore", () => {
     const mockSign = vi.fn().mockResolvedValue(new Uint8Array([4, 5, 6]));
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [],
+      wallets: {},
+      activeWallet: null,
     });
 
     const keyStore = new Store<KeyStoreState>({
@@ -216,6 +243,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [mockKey],
       status: "idle",
       account: {
@@ -245,7 +273,7 @@ describe("WithAccountsKeystore", () => {
 
     WithAccountsKeystore(provider as any, options as any);
 
-    const addedAccount: Account = accountStore.state.accounts[0];
+    const addedAccount: Account = accountsOf(accountStore)[0];
     if (!isKeystoreAccount(addedAccount)) {
       throw new Error("Expected account to be a KeystoreAccount");
     }
@@ -262,7 +290,13 @@ describe("WithAccountsKeystore", () => {
     const address = base64.encode(mockKey.publicKey!);
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [{ address, metadata: { keyId: mockKey.id } } as any],
+      wallets: {
+        [WALLET_KEY]: {
+          accounts: [{ address, metadata: { keyId: mockKey.id } } as any],
+          activeAccount: null,
+        },
+      },
+      activeWallet: null,
     });
     const spySetState = vi.spyOn(accountStore, "setState");
 
@@ -272,6 +306,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [mockKey],
       status: "idle",
       account: {
@@ -309,9 +344,18 @@ describe("WithAccountsKeystore", () => {
     const mockKey2 = await getMockKey("key-2");
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [
-        { address: base64.encode(mockKey1.publicKey!), metadata: { keyId: mockKey1.id } } as any,
-      ],
+      wallets: {
+        [WALLET_KEY]: {
+          accounts: [
+            {
+              address: base64.encode(mockKey1.publicKey!),
+              metadata: { keyId: mockKey1.id },
+            } as any,
+          ],
+          activeAccount: null,
+        },
+      },
+      activeWallet: null,
     });
     const spySetState = vi.spyOn(accountStore, "setState");
 
@@ -321,6 +365,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [mockKey1],
       status: "idle",
       account: {
@@ -363,9 +408,9 @@ describe("WithAccountsKeystore", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(spySetState).toHaveBeenCalledTimes(1);
-    expect(accountStore.state.accounts.length).toBe(2);
+    expect(accountsOf(accountStore).length).toBe(2);
 
-    const addedAccount = accountStore.state.accounts.find(
+    const addedAccount = accountsOf(accountStore).find(
       (a) => a.address === base64.encode(mockKey2.publicKey!),
     );
     expect(addedAccount).toBeDefined();
@@ -379,7 +424,8 @@ describe("WithAccountsKeystore", () => {
     const mockKey = await getMockEd25519Key("ed-1");
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [],
+      wallets: {},
+      activeWallet: null,
     });
 
     const keyStore = new Store<KeyStoreState>({
@@ -388,6 +434,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [mockKey],
       status: "idle",
       account: { store: { addAccount: vi.fn() } },
@@ -401,8 +448,8 @@ describe("WithAccountsKeystore", () => {
 
     WithAccountsKeystore(provider as any, options as any);
 
-    expect(accountStore.state.accounts.length).toBe(1);
-    const addedAccount: Account = accountStore.state.accounts[0];
+    expect(accountsOf(accountStore).length).toBe(1);
+    const addedAccount: Account = accountsOf(accountStore)[0];
     expect(isKeystoreAccount(addedAccount)).toBe(true);
     if (isKeystoreAccount(addedAccount)) {
       expect(addedAccount.address).toBe(base64.encode(mockKey.publicKey!));
@@ -416,7 +463,8 @@ describe("WithAccountsKeystore", () => {
     const address = base64.encode(mockKey.publicKey!);
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [],
+      wallets: {},
+      activeWallet: null,
     });
 
     const keyStore = new Store<KeyStoreState>({
@@ -425,6 +473,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [mockKey],
       status: "idle",
       account: { store: { addAccount: vi.fn() } },
@@ -437,12 +486,121 @@ describe("WithAccountsKeystore", () => {
     };
 
     WithAccountsKeystore(provider as any, options as any);
-    expect(accountStore.state.accounts.length).toBe(1);
+    expect(accountsOf(accountStore).length).toBe(1);
 
     keyStore.setState((s) => ({ ...s, status: "ready", keys: [] }));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(accountStore.state.accounts.find((a) => a.address === address)).toBeUndefined();
+    expect(accountsOf(accountStore).find((a) => a.address === address)).toBeUndefined();
+  });
+
+  it("should record the backing key's type as metadata.keyType", async () => {
+    const hdKey = await getMockKey("key-1");
+    const edKey = await getMockEd25519Key("ed-1");
+
+    const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
+      wallets: {},
+      activeWallet: null,
+    });
+    const keyStore = new Store<KeyStoreState>({
+      keys: [hdKey, edKey],
+      status: "idle",
+    });
+
+    const provider = {
+      id: WALLET_KEY,
+      keys: [hdKey, edKey],
+      status: "idle",
+      account: { store: { addAccount: vi.fn() } },
+      key: { store: { hooks: { after: vi.fn() } } },
+    };
+    const options = {
+      accounts: { store: accountStore, keystore: { autoPopulate: true } },
+      keystore: { store: keyStore },
+    };
+
+    WithAccountsKeystore(provider as any, options as any);
+
+    const hdAccount = accountsOf(accountStore).find((a) => a.metadata?.keyId === hdKey.id);
+    const edAccount = accountsOf(accountStore).find((a) => a.metadata?.keyId === edKey.id);
+    expect(hdAccount?.metadata?.keyType).toBe("hd-derived-ed25519");
+    expect(edAccount?.metadata?.keyType).toBe("ed25519");
+  });
+
+  it("should populate a Falcon account keyed by its public key", async () => {
+    const falconKey = await getMockFalconKey("falcon-1");
+
+    const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
+      wallets: {},
+      activeWallet: null,
+    });
+    const keyStore = new Store<KeyStoreState>({
+      keys: [falconKey],
+      status: "idle",
+    });
+
+    const provider = {
+      id: WALLET_KEY,
+      keys: [falconKey],
+      status: "idle",
+      account: { store: { addAccount: vi.fn() } },
+      key: { store: { hooks: { after: vi.fn() } } },
+    };
+    const options = {
+      accounts: { store: accountStore, keystore: { autoPopulate: true } },
+      keystore: { store: keyStore },
+    };
+
+    WithAccountsKeystore(provider as any, options as any);
+
+    expect(accountsOf(accountStore).length).toBe(1);
+    const added = accountsOf(accountStore)[0];
+    expect(isKeystoreAccount(added)).toBe(true);
+    if (isKeystoreAccount(added)) {
+      // The address is the base64 of the Falcon public key, exactly like
+      // ed25519 keys. Concrete chain addressing (canonical PQ digests) lives
+      // in chain-specific extensions, not in this reference example.
+      expect(added.address).toBe(base64.encode(falconKey.publicKey!));
+      expect(added.metadata?.keyId).toBe(falconKey.id);
+      expect(added.metadata?.keyType).toBe("falcon-1024");
+      expect(added.metadata?.pqScheme).toBeUndefined();
+      expect(added.metadata?.pqSalt).toBeUndefined();
+      expect(added.metadata?.parentKeyId).toBe("seed-1");
+    }
+  });
+
+  it("should remove the account when a Falcon key is removed", async () => {
+    const falconKey = await getMockFalconKey("falcon-2");
+    const address = base64.encode(falconKey.publicKey!);
+
+    const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
+      wallets: {},
+      activeWallet: null,
+    });
+    const keyStore = new Store<KeyStoreState>({
+      keys: [falconKey],
+      status: "idle",
+    });
+
+    const provider = {
+      id: WALLET_KEY,
+      keys: [falconKey],
+      status: "idle",
+      account: { store: { addAccount: vi.fn() } },
+      key: { store: { hooks: { after: vi.fn() } } },
+    };
+    const options = {
+      accounts: { store: accountStore, keystore: { autoPopulate: true } },
+      keystore: { store: keyStore },
+    };
+
+    WithAccountsKeystore(provider as any, options as any);
+    expect(accountsOf(accountStore).find((a) => a.address === address)).toBeDefined();
+
+    keyStore.setState((s) => ({ ...s, status: "ready", keys: [] }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(accountsOf(accountStore).find((a) => a.address === address)).toBeUndefined();
   });
 
   it("should propagate the seed's scheme onto a standalone ed25519 account", async () => {
@@ -457,7 +615,8 @@ describe("WithAccountsKeystore", () => {
     const mockKey = await getMockEd25519Key("ed-1");
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [],
+      wallets: {},
+      activeWallet: null,
     });
     const keyStore = new Store<KeyStoreState>({
       keys: [seedKey, mockKey],
@@ -465,6 +624,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [seedKey, mockKey],
       status: "idle",
       account: { store: { addAccount: vi.fn() } },
@@ -477,7 +637,7 @@ describe("WithAccountsKeystore", () => {
 
     WithAccountsKeystore(provider as any, options as any);
 
-    const added = accountStore.state.accounts[0];
+    const added = accountsOf(accountStore)[0];
     expect(isKeystoreAccount(added)).toBe(true);
     if (isKeystoreAccount(added)) {
       expect(added.metadata?.seedScheme).toBe("bip39");
@@ -506,7 +666,8 @@ describe("WithAccountsKeystore", () => {
     };
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [],
+      wallets: {},
+      activeWallet: null,
     });
     const keyStore = new Store<KeyStoreState>({
       keys: [seedKey, rootKey, child],
@@ -514,6 +675,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [seedKey, rootKey, child],
       status: "idle",
       account: { store: { addAccount: vi.fn() } },
@@ -526,7 +688,7 @@ describe("WithAccountsKeystore", () => {
 
     WithAccountsKeystore(provider as any, options as any);
 
-    const added = accountStore.state.accounts.find((a) => a.metadata?.keyId === "key-1");
+    const added = accountsOf(accountStore).find((a) => a.metadata?.keyId === "key-1");
     expect(added).toBeDefined();
     if (added && isKeystoreAccount(added)) {
       expect(added.metadata?.seedScheme).toBe("algo25");
@@ -538,7 +700,8 @@ describe("WithAccountsKeystore", () => {
     // No seed key in the store → resolver returns undefined.
 
     const accountStore = new Store<AccountStoreState<KeystoreAccount>>({
-      accounts: [],
+      wallets: {},
+      activeWallet: null,
     });
     const keyStore = new Store<KeyStoreState>({
       keys: [mockKey],
@@ -546,6 +709,7 @@ describe("WithAccountsKeystore", () => {
     });
 
     const provider = {
+      id: WALLET_KEY,
       keys: [mockKey],
       status: "idle",
       account: { store: { addAccount: vi.fn() } },
@@ -558,7 +722,7 @@ describe("WithAccountsKeystore", () => {
 
     WithAccountsKeystore(provider as any, options as any);
 
-    const added = accountStore.state.accounts[0];
+    const added = accountsOf(accountStore)[0];
     expect(isKeystoreAccount(added)).toBe(true);
     if (isKeystoreAccount(added)) {
       expect(added.metadata?.seedScheme).toBeUndefined();

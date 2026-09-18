@@ -7,7 +7,7 @@ This package is the production Algorand accounts implementation: it turns keysto
 ## ✨ Features
 
 - **Concrete Addressing**: `hd-derived-ed25519` and standalone `ed25519` keys become standard Algorand addresses (`encodeAddress(publicKey)`); `falcon-1024` keys become go-algorand v5 canonical post-quantum addresses (`encodeAddress(canonicalPQAddress(publicKey).address)`) with `pqScheme` / `pqSalt` recorded in account metadata.
-- **Extensible Encoder Seam**: address derivation is a per-key-type encoder map — future account kinds (Falcon LSIG, the upcoming HybridLsig combining Ed25519 and Falcon-1024) plug in as new encoders without changing the account shape.
+- **Extensible Encoder Seam**: address derivation is a per-key-type encoder map; future account kinds (Falcon LSIG, the upcoming HybridLsig combining Ed25519 and Falcon-1024) plug in as new encoders without changing the account shape.
 - **Live Balances**: accounts are seeded with their ALGO balance and ASA holdings from algod, then kept current by a polling watchlist subscriber that starts and stops itself with the account set.
 - **Integrated Signing**: every account carries a `sign` method that delegates to the keystore backend (hookable via `before-after-hook`).
 - **Shared Clients**: mounts typed algod / indexer clients on `provider.algorand` so hooks and screens reuse a single client pair.
@@ -26,13 +26,13 @@ This package is the production Algorand accounts implementation: it turns keysto
 pnpm add @algorandfoundation/algorand-accounts-extension @tanstack/store before-after-hook
 ```
 
-`@algorandfoundation/logs` is an optional peer — when a log extension is mounted on the provider, the extension reports its sync activity through it.
+`@algorandfoundation/logs` is an optional peer. When a log extension is mounted on the provider, the extension reports its sync activity through it.
 
 ## 🚀 Quick Start
 
 ### Standalone: Addressing Helpers
 
-The address derivation is pure functions — no Provider, store, or keystore required:
+The address derivation is pure functions, requiring no Provider, store, or keystore:
 
 ```typescript
 import {
@@ -54,7 +54,7 @@ const { address, salt } = canonicalPQAddress(falconPublicKey, PQ_SCHEME_FALCON10
 console.log(encodeAddress(address));
 ```
 
-The balance helpers are equally standalone — pass your own `AlgorandClient`:
+The balance helpers are equally standalone, so you can pass your own `AlgorandClient`:
 
 ```typescript
 import {
@@ -79,7 +79,7 @@ The `WithAlgorandAccounts` extension requires both `WithAccounts` and `WithKeySt
 ```typescript
 import { Provider } from "@algorandfoundation/wallet-provider";
 import { WithAccounts } from "@algorandfoundation/accounts";
-import { WithKeyStore } from "@algorandfoundation/keystore-react-native"; // or any keystore implementation
+import { WithKeyStore } from "@algorandfoundation/react-native-keystore"; // or any keystore implementation
 import { WithAlgorandAccounts } from "@algorandfoundation/algorand-accounts-extension";
 
 const MyProvider = Provider.withExtensions([WithAccounts, WithKeyStore, WithAlgorandAccounts]);
@@ -114,12 +114,29 @@ const info = await provider.algorand.algod.accountInformation(account.address).d
 
 Accounts are written under a wallet key (defaults to the provider's `id`), mirroring use-wallet's per-wallet partitioning.
 
+## ⚙️ Configuration
+
+This package **owns** the `options.algorand` namespace on the shared `ExtensionOptions` registry (`AlgorandNamespace`); other Algorand-aware extensions read the same block and augment the interface for extras. It also reads the core `options.accounts` namespace and the keystore's `options.keystore`:
+
+| Field                    | Type                        | Required | Default             | Provided by                                       |
+| ------------------------ | --------------------------- | -------- | ------------------- | ------------------------------------------------- |
+| `algorand.network`       | `string` (genesis id)       | yes      | —                   | `@algorandfoundation/algorand-accounts-extension` |
+| `algorand.algodConfig`   | `AlgoClientConfig`          | yes      | —                   | `@algorandfoundation/algorand-accounts-extension` |
+| `algorand.indexerConfig` | `AlgoClientConfig`          | no       | no indexer (`null`) | `@algorandfoundation/algorand-accounts-extension` |
+| `algorand.hooks`         | `HookCollection` (`"sign"`) | no       | new collection      | `@algorandfoundation/algorand-accounts-extension` |
+| `accounts.store`         | `Store<AccountStoreState>`  | yes      | —                   | `@algorandfoundation/accounts-core`               |
+| `accounts.hooks`         | `HookCollection`            | no       | —                   | `@algorandfoundation/accounts-core`               |
+| `accounts.walletKey`     | `WalletKey`                 | no       | `provider.id`       | `@algorandfoundation/accounts-core`               |
+| `keystore.store`         | `Store<KeyStoreState>`      | yes      | —                   | `@algorandfoundation/keystore-core`               |
+
+The bridge additions to `options.accounts` (`keystore` from the keystore bridge, `remote` from the connections bridge) pass through untouched. When a `WithLogs` extension (`@algorandfoundation/logs`) is mounted, the extension reports its sync activity through `provider.log`.
+
 ## 🔑 Address Derivation
 
 | Key type             | Address                                                | Metadata             |
 | -------------------- | ------------------------------------------------------ | -------------------- |
-| `hd-derived-ed25519` | `encodeAddress(publicKey)` (address context only)      | —                    |
-| `ed25519`            | `encodeAddress(publicKey)`                             | —                    |
+| `hd-derived-ed25519` | `encodeAddress(publicKey)` (address context only)      | none                 |
+| `ed25519`            | `encodeAddress(publicKey)`                             | none                 |
 | `falcon-1024`        | `encodeAddress(canonicalPQAddress(publicKey).address)` | `pqScheme`, `pqSalt` |
 
 A Falcon-1024 public key (1793 bytes) is far too large to be the address the way an ed25519 public key is, so the address is a domain-separated digest instead: `sha512_256("PQA" || scheme || salt || publicKey)`, where the canonical salt is the lowest value whose resulting address does not decode as an Edwards25519 curve point. This is go-algorand v5's native PQ address scheme (`data/basics/pq_address.go`), and the implementation is verified against its known-answer vectors.

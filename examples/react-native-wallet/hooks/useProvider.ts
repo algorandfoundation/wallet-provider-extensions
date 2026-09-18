@@ -3,9 +3,11 @@ import { useStore } from "@tanstack/react-store";
 
 import { AlgorandContext } from "@/providers/ReactNativeProvider";
 import { keyStore } from "@/stores/keystore";
-import { accountsStore } from "@/stores/accounts";
+import { accountsOf, accountsStore } from "@/stores/accounts";
 import { identitiesStore } from "@/stores/identities";
-import { selectionStore } from "@/stores/selection";
+import { credentialsStore } from "@/stores/credentials";
+import { connectionsStore } from "@/stores/connections";
+import { passkeysStore } from "@/stores/passkeys";
 import { buildKeyColorMap, colorForKeyId, FALLBACK_COLOR } from "@/utils/rootColors";
 
 /**
@@ -65,7 +67,7 @@ export function useKeyByID(id: string | null) {
  * Hook to access all accounts.
  */
 export function useAccounts() {
-  return useStore(accountsStore, (state) => state.accounts);
+  return useStore(accountsStore, (state) => accountsOf(state));
 }
 
 /**
@@ -73,7 +75,7 @@ export function useAccounts() {
  */
 export function useAccountByAddress(address: string | null) {
   return useStore(accountsStore, (state) =>
-    address ? state.accounts.find((a) => a.address === address) : undefined,
+    address ? accountsOf(state).find((a) => a.address === address) : undefined,
   );
 }
 
@@ -94,24 +96,33 @@ export function useIdentityByAddress(address: string | null) {
 }
 
 /**
- * Hook to access the full UI selection state (selected seed/root key).
+ * Hook to access all Verifiable Credentials held by the wallet.
  */
-export function useSelection() {
-  return useStore(selectionStore, (state) => state);
+export function useCredentials() {
+  return useStore(credentialsStore, (state) => state.credentials);
 }
 
 /**
- * Hook to access the currently selected seed ID.
+ * Hook to access all remote dapp connection sessions.
  */
-export function useSelectedSeedId() {
-  return useStore(selectionStore, (state) => state.selectedSeedId);
+export function useConnections() {
+  return useStore(connectionsStore, (state) => state.sessions);
 }
 
 /**
- * Hook to access the currently selected root key ID.
+ * Hook to access the passkeys held by the device's credential provider.
  */
-export function useSelectedRootKeyId() {
-  return useStore(selectionStore, (state) => state.selectedRootKeyId);
+export function usePasskeys() {
+  return useStore(passkeysStore, (state) => state.passkeys);
+}
+
+/**
+ * Hook to access a specific credential by its id.
+ */
+export function useCredentialById(id: string | null) {
+  return useStore(credentialsStore, (state) =>
+    id ? state.credentials.find((c) => c.id === id) : undefined,
+  );
 }
 
 /**

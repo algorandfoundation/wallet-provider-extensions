@@ -1,5 +1,5 @@
 /**
- * The default composable {@link SubtleShim} set — every algorithm add-on the
+ * The default composable {@link SubtleShim} set: every algorithm add-on the
  * keystore supports, wired to its concrete primitive binding, enabled out of
  * the box.
  *
@@ -53,7 +53,7 @@ import {
  * A platform package supplies a binding here to inject its own (typically
  * native) implementation into the default shim stack instead of the bundled,
  * lazily-imported peer-dependency library. This is how React Native swaps the
- * WASM `falcon-1024` — which older React Native runtimes cannot load — for the
+ * WASM `falcon-1024` (which older React Native runtimes cannot load) for the
  * native `@joe-p/react-native-falcon` module: it passes `{ falcon: nativeBinding }`.
  *
  * Any field left unset falls back to the bundled default binding (loaded
@@ -188,14 +188,14 @@ export function createBIP39Binding(): BIP39Binding {
 }
 
 /**
- * Builds the default composable shim stack — one decorator per supported
+ * Builds the default composable shim stack: one decorator per supported
  * algorithm, each with its concrete binding applied.
  *
  * The order is irrelevant: each decorator handles only its own algorithm and
  * passes everything else through to the host.
  *
  * A platform can pass {@link DefaultShimBindings} to substitute its own
- * (typically native) binding for one or more algorithms — e.g. React Native
+ * (typically native) binding for one or more algorithms; e.g. React Native
  * injects `@joe-p/react-native-falcon` as `{ falcon }` because it cannot load the WASM
  * `falcon-1024`. Any algorithm left unset falls back to the bundled default
  * binding (lazily imported, and skipped when its optional peer dependency is

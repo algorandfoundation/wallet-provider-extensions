@@ -1,0 +1,25 @@
+{
+  "name": "wallet-provider-documentation",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.10",
+    "astro": "^7.1.6",
+    "astro-mermaid": "^2.1.0",
+    "mermaid": "^11.12.1",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "starlight-typedoc": "^0.23.1",
+    "typedoc": "^0.28.14",
+    "typedoc-plugin-markdown": "^4.13.0"
+  }
+}

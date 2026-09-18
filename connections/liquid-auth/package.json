@@ -1,0 +1,64 @@
+{
+  "name": "@algorandfoundation/connections-liquid-auth",
+  "version": "0.0.0",
+  "description": "Liquid Auth connection protocol (liquid:// QR requests, WebRTC signaling and transport, seamless session resume) for Wallet Provider Extensions.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "connections/liquid-auth"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "react-native": {
+        "types": "./dist/index.native.d.ts",
+        "default": "./dist/index.native.js"
+      },
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules docs",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/connections-core": "workspace:*",
+    "@algorandfoundation/liquid-client": "catalog:",
+    "@noble/hashes": "catalog:",
+    "@scure/base": "catalog:"
+  },
+  "devDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@algorandfoundation/package-releaser": "workspace:*",
+    "@tanstack/store": "catalog:",
+    "react-native-liquid-auth": "workspace:*",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "react-native-liquid-auth": "*"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/logs": {
+      "optional": true
+    },
+    "react-native-liquid-auth": {
+      "optional": true
+    }
+  }
+}

@@ -63,7 +63,7 @@ index 2be22861c76ab0064040660bc91933ae4706330f..c7ca01cb9d9252b87b11af300a2f6b2e
    // endregion
  }
 diff --git a/android/src/main/java/com/oblador/keychain/cipherStorage/CipherStorageBase.kt b/android/src/main/java/com/oblador/keychain/cipherStorage/CipherStorageBase.kt
-index adc9c007c602481c5a202639294a34975e97f39b..69157a2b84d4babe8391955cc4b3e5aad83bfb9e 100644
+index adc9c007c602481c5a202639294a34975e97f39b..c5219cc5beab87297d6b046244f889f47d3b3f8a 100644
 --- a/android/src/main/java/com/oblador/keychain/cipherStorage/CipherStorageBase.kt
 +++ b/android/src/main/java/com/oblador/keychain/cipherStorage/CipherStorageBase.kt
 @@ -50,6 +50,13 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
@@ -106,6 +106,64 @@ index adc9c007c602481c5a202639294a34975e97f39b..69157a2b84d4babe8391955cc4b3e5aa
    // region Overrides
  
    /** Hardware supports keystore operations. */
+@@ -295,6 +321,31 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
+     return decryptBytes(key, bytes, Defaults.decrypt)
+   }
+ 
++  /**
++   * Remaps the [NullPointerException] Android's lazy Cipher provider selection produces for
++   * auth-bound AndroidKeyStore keys whose user-authentication validity window has expired.
++   *
++   * `Cipher.init` resolves its provider lazily on first use: when the AndroidKeyStore provider
++   * rejects the init with [UserNotAuthenticatedException] (an `InvalidKeyException`),
++   * `Cipher.tryCombinations` swallows it and falls through to the next provider - BouncyCastle -
++   * whose `BaseBlockCipher.engineInit` calls `key.getEncoded()` (always `null` for a Keystore
++   * key) and dies with `NullPointerException("Attempt to get length of null array")`, masking
++   * the real cause. This only happens on the FIRST init of a fresh `Cipher` instance (i.e. the
++   * first keychain operation of a new process); once a provider is locked onto the instance,
++   * the expected [UserNotAuthenticatedException] surfaces directly.
++   *
++   * Treat that NPE as "user not authenticated" so the interactive biometric flow kicks in
++   * instead of failing hard with a wrapped NPE.
++   */
++  private fun remapProviderFallThrough(key: Key, error: NullPointerException): Throwable {
++    if (!isAuthSupported()) return error
++    // Only AndroidKeyStore keys hide their material; a null encoding confirms the fall-through.
++    val encoded = try { key.encoded } catch (ignored: Throwable) { null }
++    if (encoded != null) return error
++    Log.d(LOG_TAG, "Remapping Cipher provider fall-through NPE to UserNotAuthenticatedException", error)
++    return UserNotAuthenticatedException()
++  }
++
+   /** Encrypt provided string value. */
+   @Throws(IOException::class, GeneralSecurityException::class)
+   protected fun encryptString(
+@@ -306,7 +357,11 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
+     try {
+       ByteArrayOutputStream().use { output ->
+         if (handler != null) {
+-          handler.initialize(cipher, key, output)
++          try {
++            handler.initialize(cipher, key, output)
++          } catch (e: NullPointerException) {
++            throw remapProviderFallThrough(key, e)
++          }
+           output.flush()
+         }
+ 
+@@ -338,7 +393,11 @@ abstract class CipherStorageBase(protected val applicationContext: Context) : Ci
+     try {
+       ByteArrayInputStream(bytes).use { input ->
+         ByteArrayOutputStream().use { output ->
+-          handler?.initialize(cipher, key, input)
++          try {
++            handler?.initialize(cipher, key, input)
++          } catch (e: NullPointerException) {
++            throw remapProviderFallThrough(key, e)
++          }
+ 
+           try {
+             val decrypted = cipher.doFinal(input.readBytes())
 diff --git a/android/src/main/java/com/oblador/keychain/cipherStorage/CipherStorageKeystoreAesGcm.kt b/android/src/main/java/com/oblador/keychain/cipherStorage/CipherStorageKeystoreAesGcm.kt
 index 6b6e626161945d21d2cf1392a5d16d41d1675b57..141063f485f1ecc04186adb0b8bce536998edf18 100644
 --- a/android/src/main/java/com/oblador/keychain/cipherStorage/CipherStorageKeystoreAesGcm.kt

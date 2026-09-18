@@ -2,35 +2,42 @@ import type { Key, KeyId, KeyStoreOptions } from "@algorandfoundation/keystore-c
 
 import type { KeychainStorage } from "./storage/driver.ts";
 
+declare module "@algorandfoundation/keystore-core" {
+  /**
+   * React Native additions to the shared `options.keystore` namespace: the
+   * mobile-specific `authentication` policy and optional MMKV `storage` the
+   * {@link createReactNativeKeyStore} engine needs. The reactive state store,
+   * hooks, host `subtle` and composable `shims` come from the base
+   * {@link KeyStoreNamespace}.
+   */
+  interface KeyStoreNamespace {
+    /** Default authentication policy applied to every material-touching op. */
+    authentication?: AuthenticationOptions;
+    /** MMKV-style store for sealed material + metadata; defaults to the shared instance. */
+    storage?: KeychainStorage;
+  }
+}
+
 /**
  * React Native keystore extension options.
  *
- * Extends the base {@link KeyStoreOptions} `keystore` block with the pieces the
- * {@link createReactNativeKeyStore} engine needs, following the
- * Provider/Extensions pattern: the reactive state store, hooks, host `subtle`
- * and composable `shims` come from the base options, while the mobile-specific
- * `authentication` policy and optional MMKV `storage` instance are injected
- * here.
+ * The same {@link KeyStoreOptions} shape; this package augments the shared
+ * {@link KeyStoreNamespace} with the mobile `authentication` policy and MMKV
+ * `storage` seam, so `options.keystore` accepts them alongside the base
+ * `store`/`hooks`/`subtle`/`shims`.
  *
  * On React Native there is no reliable global Subtle, so pass
  * `react-native-quick-crypto`'s `subtle` via `keystore.subtle`. When `shims`
  * are omitted the engine enables the full default set.
  */
-export interface ReactKeystoreOptions extends KeyStoreOptions {
-  keystore: KeyStoreOptions["keystore"] & {
-    /** Default authentication policy applied to every material-touching op. */
-    authentication?: AuthenticationOptions;
-    /** MMKV-style store for sealed material + metadata; defaults to the shared instance. */
-    storage?: KeychainStorage;
-  };
-}
+export type ReactKeystoreOptions = KeyStoreOptions;
 
 /**
  * The context this package's data migrations run against (see `./migrations`).
  *
  * Built by `WithKeyStore` when it registers the module with a provider's
- * `migrations` extension, and resolved by the runner **lazily** — only when at
- * least one revision is actually pending — so constructing it must stay cheap
+ * `migrations` extension, and resolved by the runner **lazily** (only when at
+ * least one revision is actually pending), so constructing it must stay cheap
  * and side-effect-free. Revision `0001` only touches `storage`; revision
  * `0002` additionally opens and re-seals material, which is why the host
  * `subtle` and the master-key read are part of the context rather than being
@@ -42,7 +49,7 @@ export interface KeystoreMigrationContext {
   /** Host Subtle implementation used to open/re-seal material. */
   subtle: SubtleCrypto;
   /**
-   * Resolves the existing master key for a **read**. Must not create one — a
+   * Resolves the existing master key for a **read**. Must not create one; a
    * missing master key is how a fresh install (nothing to migrate) looks.
    */
   masterKeyForRead: (options?: AuthenticationOptions) => Promise<Uint8Array>;
@@ -105,7 +112,7 @@ export type AuthenticationOptions = {
    * With `BIOMETRY_ANY`, anyone who can enrol a new fingerprint/face on an
    * unlocked device can then unlock the vault. With
    * `BIOMETRY_CURRENT_SET` the stored item is bound to the biometric set that
-   * existed when it was created, which closes that hole — at a price:
+   * existed when it was created, which closes that hole, at a price:
    *
    * **Enabling this makes any legitimate biometric change (adding a finger,
    * re-enrolling Face ID) permanently destroy the master key.** Every sealed

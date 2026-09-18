@@ -12,8 +12,16 @@ import type { JwsSigner, JsonWebKey } from "./signer.ts";
  *
  *   openid-credential-offer://?credential_offer_uri=<URL>
  *
- * (offer-by-reference — the wallet must GET the URI to retrieve the
+ * (offer-by-reference: the wallet must GET the URI to retrieve the
  * JSON body).
+ *
+ * @example
+ * ```typescript
+ * const offer: CredentialOffer = {
+ *   credential_issuer: "https://issuer.example.com",
+ *   credential_configuration_ids: ["device-attestation"],
+ * };
+ * ```
  */
 export interface CredentialOffer {
   credential_issuer: string;
@@ -36,21 +44,32 @@ export interface CredentialOffer {
 }
 
 /**
- * Result of parsing a credential offer URL — either an inlined offer
+ * Result of parsing a credential offer URL: either an inlined offer
  * payload, or a reference URI that must be fetched.
+ *
+ * @example
+ * ```typescript
+ * const parsed: ParsedCredentialOffer = parseCredentialOfferUrl(offerUri);
+ * if (parsed.kind === "reference") await resolveCredentialOfferReference(parsed.uri);
+ * ```
  */
 export type ParsedCredentialOffer =
   | { kind: "value"; offer: CredentialOffer }
   | { kind: "reference"; uri: string };
 
 /**
- * Parses a credential offer URL (any scheme — `openid-credential-offer://`,
+ * Parses a credential offer URL (any scheme: `openid-credential-offer://`,
  * `haip://`, custom deep link) into either an inlined offer or a URI
  * the wallet must dereference.
+ *
+ * @example
+ * ```typescript
+ * const parsed = parseCredentialOfferUrl("openid-credential-offer://?credential_offer_uri=...");
+ * ```
  */
 export function parseCredentialOfferUrl(url: string): ParsedCredentialOffer {
   // URL parser is tolerant of custom schemes but doesn't expose query for
-  // non-special schemes consistently — fall back to manual parsing.
+  // non-special schemes consistently, so fall back to manual parsing.
   const queryStart = url.indexOf("?");
   if (queryStart === -1) {
     throw new Error("Credential offer URL has no query string");
@@ -73,6 +92,11 @@ export function parseCredentialOfferUrl(url: string): ParsedCredentialOffer {
  *
  * The issuer (Credo) validates that the embedded `jwk` matches the
  * `holderDidKey` pinned into the offer.
+ *
+ * @example
+ * ```typescript
+ * const proof = await buildCredentialProofJwt({ signer, audience: offer.credential_issuer, nonce: token.c_nonce! });
+ * ```
  */
 export async function buildCredentialProofJwt(params: {
   signer: JwsSigner;
@@ -80,11 +104,11 @@ export async function buildCredentialProofJwt(params: {
   audience: string;
   /** Nonce returned by the token endpoint (`c_nonce`). */
   nonce: string;
-  /** Optional override for the embedded JWK — only used when no `kid` is available. */
+  /** Optional override for the embedded JWK; only used when no `kid` is available. */
   jwk?: JsonWebKey;
-  /** Optional override for the embedded `kid` — defaults to `signer.kid`. */
+  /** Optional override for the embedded `kid`; defaults to `signer.kid`. */
   kid?: string;
-  /** Issuer (`iss`) claim — typically the holder did:key. Defaults to the `kid`'s DID part. */
+  /** Issuer (`iss`) claim, typically the holder did:key. Defaults to the `kid`'s DID part. */
   issuer?: string;
   issuedAt?: number;
 }): Promise<{ proof_type: "jwt"; jwt: string }> {
@@ -122,15 +146,25 @@ export async function buildCredentialProofJwt(params: {
   return { proof_type: "jwt", jwt };
 }
 
-/** Pre-authorized-code grant URI per OID4VCI / RFC 8628. */
+/** Pre-authorized-code grant URI per OID4VCI / RFC 8628. *
+ * @example
+ * ```typescript
+ * const code = offer.grants?.[PRE_AUTHORIZED_CODE_GRANT]?.["pre-authorized_code"];
+ * ```
+ */
 export const PRE_AUTHORIZED_CODE_GRANT =
   "urn:ietf:params:oauth:grant-type:pre-authorized_code" as const;
 
 /**
  * Minimal slice of the
  * `/.well-known/openid-credential-issuer` metadata used by the
- * holder. Servers (Credo) emit far more — we only declare what the
+ * holder. Servers (Credo) emit far more; we only declare what the
  * redemption flow consumes.
+ *
+ * @example
+ * ```typescript
+ * const metadata: CredentialIssuerMetadata = await fetchIssuerMetadata(offer.credential_issuer);
+ * ```
  */
 export interface CredentialIssuerMetadata {
   credential_issuer: string;
@@ -140,7 +174,12 @@ export interface CredentialIssuerMetadata {
   [key: string]: unknown;
 }
 
-/** Response of the OID4VCI token endpoint (pre-authorized-code grant). */
+/** Response of the OID4VCI token endpoint (pre-authorized-code grant). *
+ * @example
+ * ```typescript
+ * const token: OidcTokenResponse = await exchangePreAuthorizedCode({ tokenEndpoint, preAuthorizedCode });
+ * ```
+ */
 export interface OidcTokenResponse {
   access_token: string;
   token_type?: string;
@@ -155,6 +194,12 @@ export interface OidcTokenResponse {
  * single `credential` (string) or an array of `credentials` (each
  * either a compact string or `{ credential: string }`). Holders
  * should normalise via {@link extractIssuedCredential}.
+ *
+ * @example
+ * ```typescript
+ * const response: CredentialEndpointResponse = await requestCredential({ ...params, proof });
+ * const raw = extractIssuedCredential(response);
+ * ```
  */
 export interface CredentialEndpointResponse {
   credential?: string;
@@ -164,7 +209,13 @@ export interface CredentialEndpointResponse {
   [key: string]: unknown;
 }
 
-/** Optional dependency injection for tests / non-fetch environments. */
+/** Optional dependency injection for tests / non-fetch environments. *
+ * @example
+ * ```typescript
+ * const options: OidcFetcher = { fetch: customFetch };
+ * await fetchIssuerMetadata(issuer, options);
+ * ```
+ */
 export interface OidcFetcher {
   fetch?: typeof fetch;
 }
@@ -173,11 +224,16 @@ const defaultFetch = (impl?: typeof fetch): typeof fetch =>
   impl ?? globalThis.fetch.bind(globalThis);
 
 /**
- * `GET {credential_issuer}/.well-known/openid-credential-issuer` —
+ * `GET {credential_issuer}/.well-known/openid-credential-issuer`:
  * discovers the issuer's `token_endpoint` / `credential_endpoint`.
  *
  * If the metadata omits `token_endpoint` (some Credo builds), this
  * helper falls back to `<authorization_servers[0] ?? credential_issuer>/token`.
+ *
+ * @example
+ * ```typescript
+ * const metadata = await fetchIssuerMetadata("https://issuer.example.com");
+ * ```
  */
 export async function fetchIssuerMetadata(
   credentialIssuer: string,
@@ -206,6 +262,14 @@ export async function fetchIssuerMetadata(
 /**
  * Exchanges a pre-authorized code for an access token + `c_nonce` at
  * the issuer's `token_endpoint`.
+ *
+ * @example
+ * ```typescript
+ * const token = await exchangePreAuthorizedCode({
+ *   tokenEndpoint: metadata.token_endpoint!,
+ *   preAuthorizedCode,
+ * });
+ * ```
  */
 export async function exchangePreAuthorizedCode(params: {
   tokenEndpoint: string;
@@ -237,6 +301,17 @@ export async function exchangePreAuthorizedCode(params: {
 /**
  * Posts the holder proof JWT to the issuer's `credential_endpoint`
  * and returns the issued credential payload.
+ *
+ * @example
+ * ```typescript
+ * const response = await requestCredential({
+ *   credentialEndpoint: metadata.credential_endpoint,
+ *   accessToken: token.access_token,
+ *   format: "vc+sd-jwt",
+ *   vct: "device-attestation",
+ *   proof,
+ * });
+ * ```
  */
 export async function requestCredential(params: {
   credentialEndpoint: string;
@@ -277,6 +352,11 @@ export async function requestCredential(params: {
  * Normalises Credo's response shapes (`credential` vs `credentials[]`,
  * each entry either a compact string or an object wrapping one) into
  * a single compact credential string.
+ *
+ * @example
+ * ```typescript
+ * const raw = extractIssuedCredential(response);
+ * ```
  */
 export function extractIssuedCredential(response: CredentialEndpointResponse): string {
   if (typeof response.credential === "string") return response.credential;
@@ -292,6 +372,11 @@ export function extractIssuedCredential(response: CredentialEndpointResponse): s
  * Dereferences an offer-by-reference (`credential_offer_uri`) into
  * the full {@link CredentialOffer} JSON. Inline offers should be
  * read directly from {@link parseCredentialOfferUrl}.
+ *
+ * @example
+ * ```typescript
+ * const offer = await resolveCredentialOfferReference("https://issuer.example.com/offers/123");
+ * ```
  */
 export async function resolveCredentialOfferReference(
   uri: string,
@@ -311,6 +396,11 @@ export async function resolveCredentialOfferReference(
 /**
  * High-level convenience: fetches the credential offer (by-value or
  * by-reference) for an `openid-credential-offer://...` URL.
+ *
+ * @example
+ * ```typescript
+ * const offer = await fetchCredentialOffer("openid-credential-offer://?credential_offer_uri=...");
+ * ```
  */
 export async function fetchCredentialOffer(
   offerUrl: string,

@@ -9,7 +9,6 @@ import type {
   KeyId,
   KeyOptions,
 } from "./core.ts";
-import type { KeyStoreState } from "./extension.ts";
 
 /**
  * Options for storing a secret via {@link SecretStoreAPI.put}.
@@ -30,7 +29,7 @@ export interface SecretOptions {
  * the same {@link import("./driver.ts").KeyStoreDriver} as key material, and
  * only their non-secret metadata is mirrored into the reactive store.
  *
- * Unlike private key material — which never crosses the public surface —
+ * Unlike private key material, which never crosses the public surface,
  * secrets are meant to be read back: {@link get} returns the decrypted
  * plaintext value. This deliberate exception is what makes secrets useful as a
  * general-purpose, application-controlled store ("save them however we want").
@@ -85,8 +84,8 @@ export interface KeyEncryptionOptions {
   algorithm?: string;
   /**
    * A third party's public key to encrypt **to**. When present, the ciphertext
-   * is sealed with HPKE (RFC 9180) Auth mode — a key agreement between this
-   * keystore's private key and the recipient's public key — so only the
+   * is sealed with HPKE (RFC 9180) Auth mode (a key agreement between this
+   * keystore's private key and the recipient's public key), so only the
    * recipient's private key can open it, and opening proves it came from this
    * key's holder. Accepts an uncompressed P-256 point (65 bytes) or an SPKI
    * document (the shape {@link import("./core.ts").Key.publicKey} mirrors for
@@ -123,7 +122,7 @@ export interface KeyDecryptionOptions {
  *   cancellation signal for an interactive, biometric-gated backend). It is
  *   threaded verbatim through every material-touching method and is opaque to
  *   portable callers, which leave it `undefined`. `verify` is intentionally
- *   context-free — it only touches the public key and never unlocks.
+ *   context-free: it only touches the public key and never unlocks.
  */
 export interface KeyStoreAPI<Ctx = unknown> {
   /**
@@ -139,7 +138,7 @@ export interface KeyStoreAPI<Ctx = unknown> {
    * Imports an existing key into the keystore.
    *
    * `data.id`, when supplied, is used as-is instead of minting a random
-   * {@link KeyId} — useful for migrating a key that must keep a caller-known
+   * {@link KeyId}, useful for migrating a key that must keep a caller-known
    * id (e.g. re-importing a standalone Ed25519 private key under the id it
    * was previously known by). If an entry already exists under that id, it is
    * replaced: this is the desired behaviour for migrations, not a merge.
@@ -162,7 +161,7 @@ export interface KeyStoreAPI<Ctx = unknown> {
    *
    * By default only public metadata (type, algorithm, `publicKey`, …) leaves
    * the store. A key created or imported with `extractable: true` additionally
-   * releases its private material as {@link KeyData.privateKey} — for
+   * releases its private material as {@link KeyData.privateKey}: for
    * `ed25519` keys the 32-byte seed, and for `seed`/`hd-root-key` records the
    * raw bytes as imported, so the result round-trips through {@link import}
    * (or {@link importSeed}) unchanged. Releasing material unlocks it through
@@ -186,7 +185,7 @@ export interface KeyStoreAPI<Ctx = unknown> {
 
   /**
    * Removes **every** key from the keystore (both persisted material and the
-   * reactive metadata). Optional — only available when the backing
+   * reactive metadata). Optional: only available when the backing
    * {@link import("./driver.ts").KeyStoreDriver} supports a bulk clear.
    *
    * @param ctx - Optional backend-specific context (unlock/authorization).
@@ -218,23 +217,23 @@ export interface KeyStoreAPI<Ctx = unknown> {
 
   /**
    * Encrypts data with the given key, resolving the best scheme from the key
-   * and the options — the private material is always unlocked just-in-time
+   * and the options; the private material is always unlocked just-in-time
    * through the driver, and the ciphertext always stays confidential against
    * anyone who merely knows a public key.
    *
    * **Self-encryption** (no `recipientPublicKey`): a symmetric key only this
-   * keystore can reproduce —
+   * keystore can reproduce:
    *
-   * - byte-backed material — AES-GCM key via HKDF-SHA-256 over the sealed
+   * - byte-backed material: AES-GCM key via HKDF-SHA-256 over the sealed
    *   private bytes (salted with the public key);
-   * - a native `AES-GCM` {@link CryptoKey} — used directly through the host;
-   * - a native `ECDH`/`X25519` {@link CryptoKey} — AES-GCM key derived from a
+   * - a native `AES-GCM` {@link CryptoKey}: used directly through the host;
+   * - a native `ECDH`/`X25519` {@link CryptoKey}: AES-GCM key derived from a
    *   self-agreement (the private key against its own public key), a secret
    *   only the private-key holder can compute.
    *
    * **Peer encryption** (`options.recipientPublicKey` set): HPKE (RFC 9180)
    * **Auth mode** in the `DHKEM(P-256, HKDF-SHA256)` + `HKDF-SHA256` +
-   * `AES-128-GCM` suite — a key agreement between this key's private material
+   * `AES-128-GCM` suite: a key agreement between this key's private material
    * and the recipient's public key, so the recipient (and only the recipient)
    * can both decrypt the data and verify it came from this key's holder. This
    * requires an ECDH P-256 key with the `deriveBits` usage; a signing-only or
@@ -284,10 +283,27 @@ export interface KeyStoreAPI<Ctx = unknown> {
   /**
    * Derives a shared secret for key agreement (e.g., ECDH).
    *
+   * Works with NON-extractable native keys: WebCrypto's `deriveBits` only
+   * needs the *use* of the private key, never its bytes. An `X25519` key
+   * agrees through the host's X25519 algorithm (remote key raw or SPKI),
+   * an XHD (`hd-derived-ed25519`) key through the BIP32-Ed25519 shim, and
+   * any other EC key through host `ECDH` on its recorded curve.
+   *
+   * An XHD key runs the ARC-52 **hashed** agreement by default (the remote
+   * key is Ed25519 and the secret is blake2b over point and keys). Passing
+   * `algorithm: "x25519"` requests the **RAW** 32-byte X25519 agreement
+   * instead: plain montgomery scalar multiplication of the child scalar with
+   * a raw 32-byte X25519 remote key (no conversion, no hashing, `meFirst`
+   * irrelevant), the mode that interoperates with a peer running plain
+   * X25519 `deriveBits` against the did:key X25519 twin of this key's
+   * Ed25519 public key (the birational map `u = (1 + y) / (1 - y)`).
+   *
    * @param id - The local {@link KeyId} to use.
    * @param publicKey - The remote public key.
-   * @param meFirst - Order of keys in derivation.
-   * @param algorithm - Optional override for the derivation algorithm.
+   * @param meFirst - Order of keys in derivation (hashed XHD only; plain ECDH
+   *   is symmetric and ignores it).
+   * @param algorithm - Optional override for the derivation algorithm;
+   *   `"x25519"` selects the raw X25519 agreement on an XHD key.
    * @returns The derived shared secret.
    */
   deriveSharedSecret?(
@@ -303,7 +319,7 @@ export interface KeyStoreAPI<Ctx = unknown> {
    *
    * Accepts seed **bytes only**. A BIP39 mnemonic must be converted to seed
    * bytes at the call site (e.g. `bip39.mnemonicToSeed`) so the mnemonic
-   * string never crosses into the keystore — an immutable JS string can't be
+   * string never crosses into the keystore; an immutable JS string can't be
    * wiped and would linger in the heap until GC.
    *
    * A seed imported with `options.extractable: true` can later release the
@@ -389,9 +405,9 @@ export interface KeyStoreAPI<Ctx = unknown> {
   batchSign?(ids: KeyId[], data: Uint8Array[], ctx?: Ctx): Promise<Uint8Array[]>;
 
   /**
-   * A key/value store for **secrets** — arbitrary, application-controlled values
+   * A key/value store for **secrets**: arbitrary, application-controlled values
    * (API tokens, opaque blobs) with no cryptographic role. Sealed at rest via
-   * the same driver as key material, but — unlike key material — readable back
+   * the same driver as key material, but, unlike key material, readable back
    * in plaintext via {@link SecretStoreAPI.get}. See {@link SecretStoreAPI}.
    */
   secrets?: SecretStoreAPI<Ctx>;

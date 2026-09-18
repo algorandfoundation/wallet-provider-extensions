@@ -69,7 +69,7 @@ export default function Index() {
       if (payload.kind === "fido") {
         // Hand the hybrid (caBLE) QR to the OS: Google Play services runs the
         // tunnel + BLE proximity check and serves the assertion through
-        // Credential Manager — this wallet's provider, when it is enabled.
+        // Credential Manager: this wallet's provider, when it is enabled.
         Linking.openURL(payload.data).catch(() => {
           Alert.alert(
             "Cross-device sign-in unavailable",
@@ -78,7 +78,7 @@ export default function Index() {
         });
         return;
       }
-      // liquid:// — hand off to the Connections screen, which auto-accepts.
+      // liquid:// is handed off to the Connections screen, which auto-accepts.
       router.push({ pathname: "/connections", params: { uri: payload.data } });
     },
     [router],

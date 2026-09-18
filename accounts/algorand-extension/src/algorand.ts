@@ -12,6 +12,12 @@ const POLLING_INTERVAL_MS = 4_000;
  * @param address - The Algorand account address to query.
  * @returns An object containing the account balance in microAlgos and an optional list of assets.
  * @throws Will throw an error if the account information cannot be retrieved from Algod.
+ *
+ * @example
+ * ```typescript
+ * const algorand = AlgorandClient.testNet();
+ * const { balance, assets } = await getAlgorandBalances(algorand, address);
+ * ```
  */
 export const getAlgorandBalances = async (
   algorand: AlgorandClient,
@@ -48,9 +54,17 @@ export const getAlgorandBalances = async (
  * account addresses. Polling is driven by `pollOnce` and a `setTimeout` loop so it works
  * in environments (e.g. React Native) where `AbortController` / `DOMException` may be
  * unavailable.
+ *
+ * @example
+ * ```typescript
+ * const subscriber: ContainedSubscriber = createSubscriberWithWatchlist(algorand, [address], onChange);
+ * subscriber.start();
+ * // ... later
+ * subscriber.stop("done");
+ * ```
  */
-interface ContainedSubscriber {
-  /** Begin periodic polling. Safe to call multiple times — subsequent calls are no-ops while already running. */
+export interface ContainedSubscriber {
+  /** Begin periodic polling. Safe to call multiple times: subsequent calls are no-ops while already running. */
   start(): void;
   /** Stop periodic polling. The reason parameter is accepted for API symmetry but is not used internally. */
   stop(reason: string): void;
@@ -69,6 +83,14 @@ interface ContainedSubscriber {
  * @param onBalanceChange - callback invoked whenever a balance change is detected for a watched address
  * @param onError - optional callback that receives errors after internal retries are exhausted
  * @returns A ContainedSubscriber whose `start` / `stop` control the polling loop
+ *
+ * @example
+ * ```typescript
+ * const subscriber = createSubscriberWithWatchlist(algorand, [address], (addr, assetId, amount) => {
+ *   console.log(`balance change on ${addr}: asset ${assetId} ${amount}`);
+ * });
+ * subscriber.start();
+ * ```
  */
 export const createSubscriberWithWatchlist = (
   algorand: AlgorandClient,

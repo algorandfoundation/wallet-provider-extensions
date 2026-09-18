@@ -9,7 +9,7 @@ import type {
   SignedTransaction,
   TransactionSigner,
 } from "@algorandfoundation/algokit-utils/transact";
-import type { Identity } from "@algorandfoundation/identities-store";
+import type { Identity } from "@algorandfoundation/identities-core";
 import { parseDidKey } from "@algorandfoundation/credentials-core";
 import type { UnsignedAlgorandGroup } from "@algorandfoundation/intermezzo-client";
 
@@ -29,7 +29,7 @@ import type { UnsignedAlgorandGroup } from "@algorandfoundation/intermezzo-clien
  * @example
  * ```ts
  * const { sendingAddress, signer } = createIdentityAlgorandSigner(identity);
- * // signer: TransactionSigner — pass to AtomicTransactionComposer.addTransaction()
+ * // signer: TransactionSigner, pass to AtomicTransactionComposer.addTransaction()
  * ```
  *
  * @throws if `identity.sign` is not present (e.g. for non-keystore identities)
@@ -76,7 +76,7 @@ export type { AddressWithSigners, TransactionSigner };
  * positions before broadcast).
  *
  * Canonical Ed25519 over the msgpack-encoded transaction bytes via
- * `encodeTransaction` — exactly the bytes algod expects to verify
+ * `encodeTransaction`: exactly the bytes algod expects to verify
  * (and what intermezzo rebuilds for byte-for-byte validation before
  * counter-signing).
  *

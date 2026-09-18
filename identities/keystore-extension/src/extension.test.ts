@@ -3,7 +3,7 @@ import { Store } from "@tanstack/store";
 import { base58 } from "@scure/base";
 import { WithIdentitiesKeystore } from "./extension.ts";
 import type { KeyStoreState } from "@algorandfoundation/keystore-core";
-import type { DIDDocument, IdentityStoreState } from "@algorandfoundation/identities-store";
+import type { DIDDocument, IdentityStoreState } from "@algorandfoundation/identities-core";
 
 describe("WithIdentitiesKeystore Extension", () => {
   let keyStore: Store<KeyStoreState>;
@@ -133,6 +133,22 @@ describe("WithIdentitiesKeystore Extension", () => {
   it("should provide restoreFromDidDocument in the extension shape", () => {
     const extension = WithIdentitiesKeystore(mockProvider, mockOptions);
     expect(extension.identity.store.restoreFromDidDocument).toBeDefined();
+  });
+
+  it("returns only the identity namespace, preserving its existing members", () => {
+    const remote = { expose: () => [] };
+    mockProvider.identity.remote = remote;
+    mockProvider.identities = ["not-copied"];
+
+    const extension = WithIdentitiesKeystore(mockProvider, mockOptions) as any;
+
+    // The store API object is extended in place, not replaced.
+    expect(extension.identity.store).toBe(mockProvider.identity.store);
+    // Sibling namespace members survive the Provider's wholesale replacement.
+    expect(extension.identity.remote).toBe(remote);
+    // Nothing from the provider itself is spread onto the surface.
+    expect(Object.keys(extension)).toEqual(["identity"]);
+    expect(Object.getOwnPropertyDescriptor(extension, "identities")).toBeUndefined();
   });
 
   describe("restoreFromDidDocument", () => {

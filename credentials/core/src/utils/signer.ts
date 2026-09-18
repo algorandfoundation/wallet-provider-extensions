@@ -34,6 +34,11 @@ export interface JwsSigner {
  * Minimal JSON Web Key shape covering the curves used by `did:key`
  * (Ed25519 and P-256). Re-declared here to avoid a `lib.dom` dependency
  * in non-DOM call sites.
+ *
+ * @example
+ * ```typescript
+ * const jwk: JsonWebKey = { kty: "OKP", crv: "Ed25519", x: base64UrlEncode(publicKey) };
+ * ```
  */
 export interface JsonWebKey {
   kty: "OKP" | "EC" | "RSA" | (string & {});

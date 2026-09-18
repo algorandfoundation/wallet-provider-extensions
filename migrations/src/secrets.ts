@@ -17,7 +17,7 @@ export interface SecretScratchHandle {
 /**
  * Creates a run-scoped, in-memory scratch for secret material.
  *
- * Material is held as raw `Uint8Array` — never strings, which are immutable,
+ * Material is held as raw `Uint8Array`, never strings, which are immutable,
  * cannot be zeroed, and leak into logs. Nothing is ever written to durable
  * storage. The runner creates one scratch per revision and wipes it in a
  * `finally`, so buffers are zeroed whether the revision succeeds or throws.

@@ -7,7 +7,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@algorandfoundation/keystore-web": "workspace:*",
+    "@algorandfoundation/keystore": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
     "@scure/bip39": "catalog:",
     "@tanstack/store": "catalog:",

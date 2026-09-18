@@ -5,7 +5,7 @@ import type { Migration, MigrationUtils } from "./types.ts";
 export interface AssertIdempotentOptions<Ctx> {
   /** The revision under test. */
   migration: Migration<Ctx>;
-  /** Builds the context. Called once — both runs share it, as in production. */
+  /** Builds the context. Called once; both runs share it, as in production. */
   context: () => Ctx | Promise<Ctx>;
   /** Captures the observable state after a run, for comparison. */
   snapshot: (context: Ctx) => unknown | Promise<unknown>;
@@ -18,7 +18,7 @@ export interface AssertIdempotentOptions<Ctx> {
  * must leave identical state.
  *
  * Every revision must satisfy this. The runner records the ledger after each
- * revision, so a re-run only happens when something else went wrong — a failed
+ * revision, so a re-run only happens when something else went wrong: a failed
  * ledger write, storage cleared underneath the application, a partially applied
  * revision resumed. Those are exactly the cases where a non-idempotent
  * migration corrupts data.
@@ -30,9 +30,9 @@ export interface AssertIdempotentOptions<Ctx> {
  * @param options - {@link AssertIdempotentOptions}.
  * @throws {Error} When the two runs produce different snapshots.
  * @throws {Error} When `snapshot` returns `undefined` (almost always a missing
- *   `return`) — an undefined snapshot always compares equal to itself, which
+ *   `return`); an undefined snapshot always compares equal to itself, which
  *   would otherwise let a non-idempotent migration pass unnoticed.
- * @throws {Error} When the snapshot contains a `Map` or `Set` — neither
+ * @throws {Error} When the snapshot contains a `Map` or `Set`; neither
  *   survives structural comparison (both normalise to `{}` regardless of
  *   content); convert to an array or plain object first.
  *
@@ -91,7 +91,7 @@ export async function assertIdempotent<Ctx>(options: AssertIdempotentOptions<Ctx
  *
  * `Map` and `Set` are rejected outright rather than silently normalised: both
  * would fall through to the plain-object branch, whose `Object.keys()` sees
- * none of their entries, so every `Map`/`Set` — regardless of content —
+ * none of their entries, so every `Map`/`Set`, regardless of content,
  * collapses to the same `{}` and a migration that corrupts one on every run
  * would pass `assertIdempotent` vacuously.
  */

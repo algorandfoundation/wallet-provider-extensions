@@ -17,7 +17,7 @@
  * @remarks
  * React Native apps that want to avoid the meta package's dependency tree
  * (which includes the wasm-backed `@algorandfoundation/keystore-web`) can
- * depend on `@algorandfoundation/react-native-keystore` directly — it exposes
+ * depend on `@algorandfoundation/react-native-keystore` directly; it exposes
  * the same surface this package resolves to under the `react-native`
  * condition.
  */

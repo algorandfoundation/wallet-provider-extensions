@@ -5,7 +5,7 @@ import {
   addAccount,
   AccountStoreOptions,
   removeAccount,
-} from "@algorandfoundation/accounts-store";
+} from "@algorandfoundation/accounts";
 
 /**
  * Represents a watched account that only has a public address.
@@ -73,7 +73,7 @@ export const HARDCODED_WATCHED_ADDRESS =
  *
  * @example
  * ```typescript
- * const MyProvider = Provider.withExtensions([WithAccountStore, WithWatchedAccount]);
+ * const MyProvider = Provider.withExtensions([WithAccounts, WithWatchedAccount]);
  * const provider = new MyProvider();
  * await provider.watchedAccount.addWatchedAccount({ address: "...", name: "My Account", balance: 0n, assets: [] });
  * ```
@@ -94,6 +94,9 @@ export const WithWatchedAccount = (
 
   const hooks = options.accounts.hooks;
   const store = options.accounts.store;
+  // Accounts live under a wallet key in the (use-wallet-shaped) store;
+  // default to the provider's id, the same key WithAccounts scopes to.
+  const walletKey = options.accounts.walletKey ?? provider.id;
 
   return {
     get watchedAccounts() {
@@ -102,10 +105,10 @@ export const WithWatchedAccount = (
     watchedAccount: {
       addWatchedAccount: async (account: Omit<WatchedAccount, "type">) => {
         const watched: WatchedAccount = { ...account, type: "watched" };
-        return hooks("add", addAccount, { store, account: watched });
+        return hooks("add", addAccount, { store, walletKey, account: watched });
       },
       removeWatchedAccount: async (address: string) => {
-        return hooks("remove", removeAccount, { store, address });
+        return hooks("remove", removeAccount, { store, walletKey, address });
       },
     },
   };

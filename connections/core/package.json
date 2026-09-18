@@ -1,0 +1,60 @@
+{
+  "name": "@algorandfoundation/connections-core",
+  "version": "0.0.0",
+  "description": "Remote dapp-to-wallet connection primitives (sessions, transport contract, wallet RPC) for Wallet Provider Extensions.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "connections/core"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules docs",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@noble/ciphers": "catalog:",
+    "@noble/curves": "catalog:",
+    "@noble/hashes": "catalog:",
+    "@scure/base": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "devDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@algorandfoundation/package-releaser": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@tanstack/store": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/logs": {
+      "optional": true
+    }
+  }
+}

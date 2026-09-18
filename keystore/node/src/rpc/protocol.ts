@@ -1,7 +1,7 @@
 /**
  * @module rpc/protocol
  *
- * The shared JSON-RPC 2.0 wire protocol used by the Node keystore RPC surface —
+ * The shared JSON-RPC 2.0 wire protocol used by the Node keystore RPC surface;
  * both the {@link import("./server.ts").createKeyStoreRpcServer service} and the
  * drop-in {@link import("./client.ts").createRpcKeyStore client engine} depend
  * on this module so the two stay in lockstep.

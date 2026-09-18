@@ -62,12 +62,12 @@ export function toAuthenticationPrompt(
  * Resolves the prompt shown for one operation.
  *
  * Precedence, highest first:
- *  1. `context.prompt` — a prompt passed for *this* call; the caller asked for
+ *  1. `context.prompt`: a prompt passed for *this* call; the caller asked for
  *     exactly this wording, so nothing may override it.
- *  2. `resolvePrompt(target)` — the host's formatter, which can name the key
+ *  2. `resolvePrompt(target)`: the host's formatter, which can name the key
  *     ("Sign with your Algorand account"). Returning `undefined` falls through.
- *  3. `prompts[operation]` — the host's per-operation map.
- *  4. `defaults.prompt` — the app-wide catch-all.
+ *  3. `prompts[operation]`: the host's per-operation map.
+ *  4. `defaults.prompt`: the app-wide catch-all.
  *  5. A short built-in sentence for `operation`.
  *
  * The per-call `context` and the app-wide `defaults` are taken separately on
@@ -77,7 +77,7 @@ export function toAuthenticationPrompt(
  * @param context - The per-call authentication context, if the caller passed one.
  * @param defaults - The app-wide authentication policy from the engine options.
  * @param target - What is being unlocked: the operation, and the key it targets
- *   when there is one. `key` carries metadata only — never decrypt anything to
+ *   when there is one. `key` carries metadata only; never decrypt anything to
  *   build a prompt.
  * @returns The prompt object to pass to the Keychain call.
  */

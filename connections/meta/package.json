@@ -1,0 +1,69 @@
+{
+  "name": "@algorandfoundation/connections",
+  "version": "0.0.0",
+  "description": "Meta package for the connections domain (platform WithConnections engine + bundled default protocols like Liquid Auth) with conditional platform exports.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "connections/meta"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "react-native": {
+        "types": "./dist/index.native.d.ts",
+        "default": "./dist/index.native.js"
+      },
+      "browser": {
+        "types": "./dist/index.web.d.ts",
+        "default": "./dist/index.web.js"
+      },
+      "node": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules docs",
+    "docs": "typedoc",
+    "test": "vitest run --passWithNoTests",
+    "test:cov": "vitest run --coverage --passWithNoTests",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/connections-core": "workspace:*",
+    "@algorandfoundation/connections-liquid-auth": "workspace:*",
+    "@algorandfoundation/connections-web": "workspace:*",
+    "@algorandfoundation/react-native-connections": "workspace:*"
+  },
+  "devDependencies": {
+    "@algorandfoundation/package-releaser": "workspace:^",
+    "typedoc": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/logs": {
+      "optional": true
+    }
+  }
+}

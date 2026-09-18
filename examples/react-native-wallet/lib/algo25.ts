@@ -4,7 +4,7 @@
  * Encodes a 32-byte seed as 24 words of 11 bits each, plus a 25th
  * checksum word derived from `sha512_256(seed)[:2]` (first 11 bits).
  *
- * The wordlist is intentionally the BIP39 English 2048-word list — the
+ * The wordlist is intentionally the BIP39 English 2048-word list, the
  * same list Algorand's `algosdk` mnemonic uses. This module is a small
  * demonstration of an alternative seed-phrase scheme alongside BIP39
  * and is NOT a drop-in replacement for `algosdk.mnemonic`.

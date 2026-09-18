@@ -5,11 +5,18 @@ import type { CredentialKeyValueStore } from "@algorandfoundation/credentials-co
  * (or any other `Storage` implementation, e.g. `sessionStorage`).
  *
  * This is the default persistence driver the browser `WithCredentials`
- * extension hands to the core `createCredentialStore` engine — the
+ * extension hands to the core `createCredentialStore` engine; it is the
  * IndexedDB analogue of how `keystore-web` supplies its storage driver.
  *
  * @param storage - The backing `Storage`; defaults to `globalThis.localStorage`.
  * @returns A {@link CredentialKeyValueStore} over the given storage.
+ *
+ * @example
+ * ```typescript
+ * const { api, ready } = createCredentialStore({
+ *   driver: localStorageCredentialDriver(sessionStorage),
+ * });
+ * ```
  */
 export function localStorageCredentialDriver(
   storage: Storage = globalThis.localStorage,

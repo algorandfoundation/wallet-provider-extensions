@@ -6,14 +6,14 @@
  *
  * A driver is a **material custodian**: it owns encrypted-at-rest persistence of
  * secret material plus the platform-specific unlock flow, and it stores the
- * UI-safe metadata for each key. The orchestrator stays crypto-only — it never
+ * UI-safe metadata for each key. The orchestrator stays crypto-only: it never
  * touches storage directly, only this contract.
  *
  * @remarks
  * The two axes along which real backends genuinely diverge are captured
  * first-class here so they can evolve without forking the contract:
  *
- * - {@link DriverCapabilities.nativeCryptoKey} — whether the backend can hold a
+ * - {@link DriverCapabilities.nativeCryptoKey}: whether the backend can hold a
  *   non-extractable {@link CryptoKey} natively (IndexedDB can structured-clone
  *   one; a Keychain/MMKV byte store cannot and must serialize to sealed bytes).
  * - The generic **context** `Ctx` threaded through every material-touching
@@ -29,11 +29,11 @@ import type { Key, KeyId } from "./core.ts";
 /**
  * A secret to persist for a single key.
  *
- * - `cryptokey` — a genuine (typically non-extractable) {@link CryptoKey}. Only
+ * - `cryptokey`: a genuine (typically non-extractable) {@link CryptoKey}. Only
  *   backends whose {@link DriverCapabilities.nativeCryptoKey} is `true` may be
  *   handed this variant, since the key must be persisted without ever becoming
  *   raw bytes in JS.
- * - `bytes` — plaintext secret bytes the driver must encrypt at rest before
+ * - `bytes`: plaintext secret bytes the driver must encrypt at rest before
  *   persisting (shim key material such as BIP32-Ed25519 roots and Falcon
  *   private keys, raw seeds, or serialized standard keys on byte-only
  *   backends). The orchestrator hands these to {@link KeyStoreDriver.put} and
@@ -52,7 +52,7 @@ export interface DriverCapabilities {
   /**
    * `true` when the backend can persist a non-extractable {@link CryptoKey}
    * natively (e.g. IndexedDB structured-clone). When `false`, standard-algorithm
-   * keys must be serialized to sealed bytes — a slight downgrade the orchestrator
+   * keys must be serialized to sealed bytes, a slight downgrade the orchestrator
    * handles transparently.
    */
   readonly nativeCryptoKey: boolean;

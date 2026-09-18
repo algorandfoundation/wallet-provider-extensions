@@ -3,6 +3,11 @@ import type { JwsSigner } from "./signer.ts";
 
 /**
  * Decoded representation of a compact JWS / JWT.
+ *
+ * @example
+ * ```typescript
+ * const { header, payload }: DecodedJwt<{ nonce: string }> = decodeJwt(jwt);
+ * ```
  */
 export interface DecodedJwt<P = Record<string, unknown>> {
   header: Record<string, unknown>;
@@ -16,6 +21,12 @@ export interface DecodedJwt<P = Record<string, unknown>> {
  * without verifying its signature. Verification is delegated to the
  * relying party (Credo on the server side); the holder wallet only
  * needs to inspect claims for display / disclosure-selection.
+ *
+ * @example
+ * ```typescript
+ * const { payload } = decodeJwt<{ vct?: string }>(compactJwt);
+ * console.log(payload.vct);
+ * ```
  */
 export function decodeJwt<P = Record<string, unknown>>(jwt: string): DecodedJwt<P> {
   const parts = jwt.split(".");
@@ -42,6 +53,15 @@ export function decodeJwt<P = Record<string, unknown>>(jwt: string): DecodedJwt<
  *  - OID4VCI holder proof-of-possession JWTs (`jwt` proof_type)
  *  - SD-JWT key-binding JWTs (`typ: kb+jwt`)
  *  - OID4VP VP token JWTs
+ *
+ * @example
+ * ```typescript
+ * const jwt = await signCompactJwt({
+ *   signer,
+ *   header: { typ: "openid4vci-proof+jwt" },
+ *   payload: { aud: issuer, nonce, iat: Math.floor(Date.now() / 1000) },
+ * });
+ * ```
  */
 export async function signCompactJwt(
   header: Record<string, unknown>,

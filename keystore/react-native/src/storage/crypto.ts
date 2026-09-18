@@ -73,7 +73,7 @@ export async function createMasterKey(options?: AuthenticationOptions): Promise<
   const biometricOptions = options?.biometrics
     ? {
         // BIOMETRY_CURRENT_SET binds the item to the biometric set enrolled
-        // right now, so enrolling a new finger/face invalidates it — strictly
+        // right now, so enrolling a new finger/face invalidates it: strictly
         // safer, but destructive for legitimate re-enrolment, hence opt-in.
         accessControl: options.invalidateOnEnrollment
           ? Keychain.ACCESS_CONTROL.BIOMETRY_CURRENT_SET
@@ -96,7 +96,11 @@ export async function createMasterKey(options?: AuthenticationOptions): Promise<
     setOptions.authenticationValidityDuration = options.authenticationValidityDuration;
   }
 
-  const newKey = Buffer.from(randomBytes(32)); // TODO: harden entropy
+  // Entropy: `randomBytes` from react-native-quick-crypto is backed by the
+  // platform CSPRNG, which is sufficient for a 256-bit master key. Deferred
+  // (post-1.0.0): optionally mixing in additional entropy sources (e.g.
+  // hardware-backed keystore entropy), tracked as a hardening follow-up.
+  const newKey = Buffer.from(randomBytes(32));
   const result = await Keychain.setGenericPassword("master", newKey.toString("hex"), setOptions);
   if (!result) {
     throw new UnlockingError("Failed to store master key");

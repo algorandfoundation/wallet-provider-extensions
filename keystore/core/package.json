@@ -46,6 +46,7 @@
     "release:dry-run": "package-releaser --dry-run"
   },
   "dependencies": {
+    "@noble/curves": "catalog:",
     "@noble/hashes": "catalog:",
     "@scure/bip39": "catalog:"
   },

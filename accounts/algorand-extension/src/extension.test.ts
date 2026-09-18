@@ -642,14 +642,14 @@ describe("AlgorandSubscriber behavior", () => {
 
     WithAlgorandAccounts(provider as any, makeOptions(accountsStore, keyStore) as any);
 
-    // First key — first subscriber created
+    // First key: first subscriber created
     keyStore.setState((s) => ({ ...s, keys: [mockKey1], status: "idle" }));
     await flushAsync();
 
     expect(subscribers).toHaveLength(1);
     expect(subscribers[0].start).toHaveBeenCalledTimes(1);
 
-    // Second key added — first subscriber stopped, new one started
+    // Second key added: first subscriber stopped, new one started
     keyStore.setState((s) => ({ ...s, keys: [mockKey1, mockKey2], status: "idle" }));
     await flushAsync();
 

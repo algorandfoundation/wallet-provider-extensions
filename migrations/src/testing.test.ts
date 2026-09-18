@@ -97,11 +97,11 @@ describe("assertIdempotent", () => {
 
   it("renders Uint8Array snapshots via Array.from, not the generic object branch", async () => {
     // Non-idempotent by construction: every run shifts every byte up by one,
-    // so the two runs are guaranteed to differ and `assertIdempotent` throws —
+    // so the two runs are guaranteed to differ and `assertIdempotent` throws,
     // which lets us inspect exactly how it rendered the two snapshots.
     //
     // This is deliberately not just "does assertIdempotent report a
-    // difference" — plain equality of two Uint8Arrays with different content
+    // difference": plain equality of two Uint8Arrays with different content
     // is detected identically whether or not `normalise` special-cases
     // `Uint8Array` (both a JSON array and a JSON object rendering of the same
     // byte sequence differ from each other as strings). What only the
@@ -188,7 +188,7 @@ describe("assertIdempotent", () => {
         migration,
         context: () => ({ records: { a: 1 } }),
         snapshot: () => {
-          // Deliberately missing `return` — the bug under test.
+          // Deliberately missing `return`: the bug under test.
         },
       }),
     ).rejects.toThrow(/snapshot.*undefined|undefined.*return/is);
@@ -234,6 +234,6 @@ describe("assertIdempotent", () => {
         context: () => ({ map: new Map([["a", 1]]) }),
         snapshot: (ctx) => ctx.map,
       }),
-    ).rejects.toThrow(); // no longer resolves — the Map is rejected outright, not silently treated as `{}`
+    ).rejects.toThrow(); // no longer resolves: the Map is rejected outright, not silently treated as `{}`
   });
 });

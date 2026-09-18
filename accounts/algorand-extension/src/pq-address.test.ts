@@ -11,7 +11,7 @@ import {
 
 /**
  * Canonical Algorand string of 32 address bytes (base32 of address ||
- * 4-byte sha512_256 checksum, unpadded) — how go-algorand's
+ * 4-byte sha512_256 checksum, unpadded), which is how go-algorand's
  * `Address.String()` renders the known-answer vectors below.
  */
 function encodeAlgorandAddress(address: Uint8Array): string {

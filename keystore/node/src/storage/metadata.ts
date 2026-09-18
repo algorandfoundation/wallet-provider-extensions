@@ -7,8 +7,8 @@
  * driver keeps **all** UI-safe {@link import("@algorandfoundation/keystore-core").Key}
  * records together in a single file that is sealed (AES-GCM, keyed by a small
  * master key held in the OS keychain) and unsealed as a whole. This removes the
- * per-entry size limit for metadata while keeping the sensitive bits — the
- * secret material and the sealing key — inside the keychain.
+ * per-entry size limit for metadata while keeping the sensitive bits (the
+ * secret material and the sealing key) inside the keychain.
  *
  * The file store is a tiny, injectable byte read/write/remove surface so the
  * default filesystem implementation can be swapped (e.g. for a test in-memory
@@ -21,7 +21,7 @@ import { dirname, join } from "node:path";
 
 /**
  * A minimal byte blob store for the single sealed metadata file. The bytes are
- * already AES-GCM sealed by the driver, so this surface is deliberately dumb —
+ * already AES-GCM sealed by the driver, so this surface is deliberately dumb:
  * it neither encrypts nor interprets what it stores.
  */
 export interface MetadataFile {

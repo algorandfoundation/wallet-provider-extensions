@@ -19,7 +19,7 @@ export const ALGO25_SEED_LENGTH = 32;
  *
  * Algo25 is the Algorand-style 25-word mnemonic: a **reversible** encoding of a
  * 32-byte seed (24 words of 11 bits + a checksum word). Unlike BIP39, there is
- * no PBKDF2 step — the mnemonic *is* the seed — so the stored 32-byte value is
+ * no PBKDF2 step (the mnemonic *is* the seed), so the stored 32-byte value is
  * simultaneously the recoverable "entropy" and the derivation seed.
  *
  * Mirrors a small mnemonic-codec surface so a platform can supply an
@@ -74,10 +74,10 @@ export interface Algo25Params {
  *
  * `generateKey` mints a fresh mnemonic and returns a handle that *transiently*
  * carries the 32-byte seed, so the calling storage engine can consume it once
- * (via `consumeKeyMaterial`) and persist it encrypted at rest — the mnemonic
+ * (via `consumeKeyMaterial`) and persist it encrypted at rest; the mnemonic
  * stays fully recoverable via the binding. `deriveBits` returns the injected
  * 32-byte seed and wipes the injected copy when the operation completes.
- * `importKey`/`exportKey`/`deriveKey` throw {@link MaterialAccessError} —
+ * `importKey`/`exportKey`/`deriveKey` throw {@link MaterialAccessError}:
  * material never moves *through* the public surface after birth.
  *
  * @param host - The Subtle implementation to extend (e.g. `crypto.subtle`).

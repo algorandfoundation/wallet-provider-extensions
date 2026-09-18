@@ -1,11 +1,11 @@
 import { base58 } from "@scure/base";
 import type { Key, KeyStoreState } from "@algorandfoundation/keystore-core";
-import { generateDidKey, generateDidDocument } from "@algorandfoundation/identities-store";
+import { generateDidKey, generateDidDocument } from "@algorandfoundation/identities-core";
 import type {
   Identity,
   IdentityStoreState,
   DIDDocument,
-} from "@algorandfoundation/identities-store";
+} from "@algorandfoundation/identities-core";
 import type { Extension } from "@algorandfoundation/wallet-provider";
 import type { Store } from "@tanstack/store";
 import { decodeAddress, toBase64URL } from "./utils.ts";
@@ -58,8 +58,8 @@ const getBip44Path = (context: number | undefined, account = 0, index = 0): stri
 
 /**
  * Maps the `derivation` value carried by a DID document onto the keystore's
- * derivation `mode`: `32` is Khovratovich (`"standard"`), everything else —
- * including the `9` these documents normally carry — is Peikert.
+ * derivation `mode`: `32` is Khovratovich (`"standard"`); everything else,
+ * including the `9` these documents normally carry, is Peikert.
  */
 const getDerivationMode = (derivation: unknown): "standard" | "peikert" =>
   derivation === 32 ? "standard" : "peikert";
@@ -67,8 +67,8 @@ const getDerivationMode = (derivation: unknown): "standard" | "peikert" =>
 /**
  * Metadata fields the keystore engine owns on a derived key record. They are
  * recomputed by `deriveFromSeed`/`deriveDomainKey` for the keystore we restore
- * INTO — e.g. `parentKeyId` must point at this device's root key, not at the
- * root key of the wallet the backup was taken from — so the values carried by
+ * INTO (e.g. `parentKeyId` must point at this device's root key, not at the
+ * root key of the wallet the backup was taken from), so the values carried by
  * the DID document must never be forwarded.
  *
  * `type`/`keyType` are dropped as well: the record's real `type` is decided by
@@ -91,10 +91,10 @@ const engineOwnedMetadata = [
  * derivation coordinates it just computed.
  */
 const toRestoredMetadata = (
-  metadata: Record<string, any>,
+  metadata: Record<string, unknown>,
   omit: string[] = [],
-): Record<string, any> => {
-  const restored: Record<string, any> = { ...metadata };
+): Record<string, unknown> => {
+  const restored: Record<string, unknown> = { ...metadata };
   for (const field of [...engineOwnedMetadata, ...omit]) {
     delete restored[field];
   }
@@ -107,13 +107,27 @@ const toRestoredMetadata = (
  * It automatically populates the identity store with identities derived from keys
  * in the keystore with context 1, providing a sign method that leverages the keystore backend.
  *
+ * Requires `WithIdentities` (`@algorandfoundation/identities-core`) and a
+ * keystore extension to be mounted first. It contributes
+ * `identity.store.restoreFromDidDocument` by extending the store API object
+ * already mounted at `provider.identity.store` (so every holder of that
+ * reference sees it) and returns the `identity` namespace with the existing
+ * members preserved.
+ *
  * @param provider - The provider instance being extended.
  * @param options - Configuration options for the extension.
  * @returns The identities keystore extension.
  *
  * @example
  * ```typescript
- * const provider = Provider.withExtensions([WithIdentityStore, WithKeyStore, WithIdentitiesKeystore]);
+ * const MyProvider = Provider.withExtensions([WithIdentities, WithKeyStore, WithIdentitiesKeystore]);
+ * const provider = new MyProvider(
+ *   { id: "my-wallet", name: "My Wallet" },
+ *   {
+ *     keystore: { store: keyStore, hooks: keyHooks },
+ *     identities: { store: identityStore, keystore: { autoPopulate: true } },
+ *   },
+ * );
  * ```
  */
 export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
@@ -123,7 +137,7 @@ export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
   // Ensure dependencies are present
   if (!provider.identity) {
     throw new Error(
-      "IdentitiesKeystore extension requires WithIdentityStore extension to be present on the provider.",
+      "IdentitiesKeystore extension requires WithIdentities extension to be present on the provider.",
     );
   }
   if (!provider.key) {
@@ -145,7 +159,7 @@ export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
    * `generate`, which only mints fresh, non-derived key material: a
    * `generate({ type: "hd-derived-ed25519", algorithm: "EdDSA" })` call falls
    * through the engine straight to the host WebCrypto, which rejects it with
-   * `'subtle.generateKey()' is not implemented for EdDSA` (React Native) — and
+   * `'subtle.generateKey()' is not implemented for EdDSA` (React Native), and
    * even where it does not throw it would mint an unrelated key instead of
    * re-deriving the backed-up one.
    */
@@ -158,8 +172,8 @@ export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
     }
 
     // The XHD (BIP32-Ed25519) root parents every ed25519 child. The
-    // `pbkdf2-p256` root is the deterministic-P256 "main key" — a different
-    // root that can only parent domain (passkey) keys — so the two are picked
+    // `pbkdf2-p256` root is the deterministic-P256 "main key" (a different
+    // root that can only parent domain, i.e. passkey, keys), so the two are picked
     // apart here instead of taking the first `hd-root-key` we come across.
     const rootKey = rootKeys.find((k) => k.metadata?.scheme !== "pbkdf2-p256");
     const mainKey = rootKeys.find((k) => k.metadata?.scheme === "pbkdf2-p256");
@@ -184,7 +198,11 @@ export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
         );
       }
 
-      const { account, index, derivation } = verificationVm.metadata ?? {};
+      const { account, index, derivation } = (verificationVm.metadata ?? {}) as {
+        account?: number;
+        index?: number;
+        derivation?: unknown;
+      };
       const keyId = await provider.key.store.deriveFromSeed(
         rootKey.id,
         getBip44Path(0, account, index),
@@ -215,7 +233,7 @@ export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
 
     const processedDerivations = new Set<string>();
 
-    const restoreKey = async (id: string, metadata: any) => {
+    const restoreKey = async (id: string, metadata: Record<string, unknown> | undefined) => {
       if (!metadata || (metadata.context === undefined && metadata.origin === undefined)) {
         return;
       }
@@ -230,7 +248,17 @@ export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
         counter,
         keyType: metadataKeyType,
         type,
-      } = metadata;
+      } = metadata as {
+        context?: number;
+        account?: number;
+        index?: number;
+        derivation?: unknown;
+        origin?: unknown;
+        userHandle?: unknown;
+        counter?: number;
+        keyType?: string;
+        type?: string;
+      };
 
       // DID documents generated by this extension store the keystore key type
       // under `metadata.keyType`; fall back to `metadata.type` for older docs.
@@ -371,7 +399,7 @@ export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
       publicKey: Uint8Array;
       type: string;
       algorithm?: string;
-      metadata?: Record<string, any>;
+      metadata?: Record<string, unknown>;
     }[] = localKeys
       .filter((k) => {
         if (!k.publicKey || k.id === keyId) return false;
@@ -548,9 +576,14 @@ export const WithIdentitiesKeystore: Extension<IdentitiesKeystoreExtension> = (
   }
 
   // Merge into the existing identity.store so we don't clobber the API
-  // (add/remove/get/clear/updateDidDocument) contributed by WithIdentityStore.
+  // (add/remove/get/clear/updateDidDocument/updateIdentityMetadata)
+  // contributed by WithIdentities. The Provider replaces `provider.identity`
+  // wholesale with the returned namespace, so the namespace object's other
+  // members (e.g. `remote`) are carried over; the provider itself is never
+  // spread (its reactive getters would be frozen into snapshots).
   return {
     identity: {
+      ...provider.identity,
       store: Object.assign(provider.identity.store ?? {}, {
         restoreFromDidDocument,
       }),

@@ -61,6 +61,11 @@ export function encodeDidKey(curve: keyof typeof MULTICODEC_PREFIX, publicKey: U
  * Parses a `did:key` identifier back into its curve + raw public key.
  *
  * Throws if the multibase prefix is unsupported or the curve is unknown.
+ *
+ * @example
+ * ```typescript
+ * const { curve, publicKey } = parseDidKey("did:key:z6Mk...");
+ * ```
  */
 export function parseDidKey(did: string): {
   did: string;
@@ -94,7 +99,12 @@ export function parseDidKey(did: string): {
 
 /**
  * Returns the canonical verificationMethod id for a `did:key`, i.e.
- * `did:key:z...#z...` — the value typically used as a JWS `kid`.
+ * `did:key:z...#z...`, the value typically used as a JWS `kid`.
+ *
+ * @example
+ * ```typescript
+ * const kid = didKeyVerificationMethod("did:key:z6Mk..."); // did:key:z6Mk...#z6Mk...
+ * ```
  */
 export function didKeyVerificationMethod(did: string): string {
   const parsed = parseDidKey(did);
@@ -107,8 +117,13 @@ export function didKeyVerificationMethod(did: string): string {
  *
  * Only the curves supported by {@link encodeDidKey} are accepted.
  * For `EC` curves the public key is expected in uncompressed form
- * (`0x04 || X || Y`) — compressed-point decoding requires a curve
+ * (`0x04 || X || Y`); compressed-point decoding requires a curve
  * library and is out of scope here.
+ *
+ * @example
+ * ```typescript
+ * const jwk = didKeyToJwk("did:key:z6Mk..."); // { kty: "OKP", crv: "Ed25519", x: "..." }
+ * ```
  */
 export function didKeyToJwk(did: string): JsonWebKey {
   const { curve, kty, publicKey } = parseDidKey(did);
@@ -133,6 +148,11 @@ export function didKeyToJwk(did: string): JsonWebKey {
 
 /**
  * Builds a `did:key` from a JWK. Mirror of {@link didKeyToJwk}.
+ *
+ * @example
+ * ```typescript
+ * const did = jwkToDidKey({ kty: "OKP", crv: "Ed25519", x: "..." });
+ * ```
  */
 export function jwkToDidKey(jwk: JsonWebKey): string {
   if (jwk.kty === "OKP" && jwk.crv && jwk.x) {

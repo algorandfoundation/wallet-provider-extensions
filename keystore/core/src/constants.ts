@@ -3,8 +3,8 @@ export const context = "@algorandfoundation/keystore";
 /**
  * The baseline set of standard WebCrypto algorithms the keystore relies on
  * directly from its **host** {@link SubtleCrypto} (as opposed to the composable
- * shim add-ons). These back the standard host key paths — `Ed25519` and generic
- * `ECDSA`/`ECDH`/`RSASSA-PKCS1-v1_5` keys — plus the `AES-GCM` used by
+ * shim add-ons). These back the standard host key paths (`Ed25519` and generic
+ * `ECDSA`/`ECDH`/`RSASSA-PKCS1-v1_5` keys), plus the `AES-GCM` used by
  * {@link import("./create.ts").KeyStore.encryptWithKey}.
  *
  * It is reported (tagged `source: "host"`) alongside the active shim algorithms
@@ -16,6 +16,7 @@ export const context = "@algorandfoundation/keystore";
  */
 export const DEFAULT_HOST_ALGORITHMS = [
   "Ed25519",
+  "X25519",
   "ECDSA",
   "ECDH",
   "RSASSA-PKCS1-v1_5",

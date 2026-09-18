@@ -4,7 +4,7 @@ import { localStorage } from "@/stores/mmkv-local";
 
 /**
  * The durable migration ledger, backed by the app's general-purpose MMKV
- * instance — deliberately separate from the `keystore` MMKV so the ledger
+ * instance. It is deliberately separate from the `keystore` MMKV so the ledger
  * survives operations that clear key material.
  *
  * The separation cuts both ways: if the `keystore` MMKV is cleared, or

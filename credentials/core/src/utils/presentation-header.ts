@@ -4,7 +4,7 @@ import type { JwsSigner } from "./signer.ts";
 
 /**
  * Builds the value of the `X-Credential-Presentation` header consumed
- * by credential-gated intermezzo endpoints — an SD-JWT VC
+ * by credential-gated intermezzo endpoints: an SD-JWT VC
  * presentation with a freshly-signed key-binding JWT bound to a
  * server-issued nonce.
  *
@@ -14,6 +14,17 @@ import type { JwsSigner } from "./signer.ts";
  *    challenge (or use a nonce already in hand).
  * 2. Use this helper to attach the device-attestation credential.
  * 3. Re-call the endpoint with the resulting header value.
+ *
+ * @example
+ * ```typescript
+ * const header = await buildCredentialPresentationHeader({
+ *   credential,
+ *   signer,
+ *   audience: "https://api.example.com",
+ *   nonce: serverNonce,
+ * });
+ * await fetch(url, { headers: { "X-Credential-Presentation": header } });
+ * ```
  */
 export async function buildCredentialPresentationHeader(params: {
   /** A stored SD-JWT VC credential (typ. the device-attestation credential). */

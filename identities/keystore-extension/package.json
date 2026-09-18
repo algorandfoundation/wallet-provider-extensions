@@ -33,7 +33,7 @@
     "release:dry-run": "package-releaser --dry-run"
   },
   "dependencies": {
-    "@algorandfoundation/identities-store": "workspace:*",
+    "@algorandfoundation/identities-core": "workspace:*",
     "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
     "@scure/base": "catalog:",

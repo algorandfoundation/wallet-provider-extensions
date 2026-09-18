@@ -1,21 +1,21 @@
 import type { Extension, ExtensionOptions } from "@algorandfoundation/wallet-provider";
-import type { LogStoreExtension } from "@algorandfoundation/log-store";
-import type { IdentitiesExtension } from "@algorandfoundation/identities-extension";
-import type { IdentityStoreState } from "@algorandfoundation/identities-store";
-import type { Store } from "@tanstack/store";
+import type { LogStoreExtension } from "@algorandfoundation/logs";
+import type { IdentitiesExtension } from "@algorandfoundation/identities";
 import type { CredentialStoreExtension } from "@algorandfoundation/credentials-core";
 import {
   IntermezzoClient,
   type BuildUserContractCreateRequest,
   type BuildUserContractCreateResponse,
   type BuildUserDidDocumentUpdateResponse,
-  type IntermezzoClientConfig,
   type ManagerIdentityResponse,
   type SignedUserDidUpdateGroup,
   type SubmitUserContractCreateResponse,
   type SubmitUserDidDocumentUpdateResponse,
 } from "@algorandfoundation/intermezzo-client";
-import type { IntermezzoCredentialsExtension } from "@algorandfoundation/credentials-intermezzo-extension";
+import type {
+  IntermezzoCredentialsExtension,
+  IntermezzoNamespace,
+} from "@algorandfoundation/credentials-intermezzo-extension";
 import {
   createIdentityAlgorandSigner,
   signGroupForIdentity,
@@ -29,31 +29,23 @@ import {
  * (`/wallet/manager/identity`) endpoints of `intermezzo-fresh` onto
  * the identities extension surface. OID4VC issuer/verifier flows
  * live in the sibling `@algorandfoundation/credentials-intermezzo-extension`
- * package.
+ * package, which also **owns** the `options.intermezzo` registration
+ * ({@link IntermezzoNamespace}); this bridge reads the same block
+ * (`baseUrl`, `getAuthToken`, `fetch`, the shared `client`, …) and adds no
+ * fields of its own. The anchor snapshot is written through
+ * `provider.identity.store.updateIdentityMetadata`, so no store needs to
+ * be passed here.
+ *
+ * @example
+ * ```typescript
+ * const options: IntermezzoIdentitiesExtensionOptions = {
+ *   intermezzo: { baseUrl: "https://api.example.com", getAuthToken: () => getManagerJwt() },
+ * };
+ * ```
  */
 export interface IntermezzoIdentitiesExtensionOptions extends ExtensionOptions {
-  /**
-   * The identities extension's reactive store, as passed to
-   * `WithIdentityStore` / `WithIdentities`. When provided,
-   * {@link IntermezzoIdentitiesApi.anchorIdentity} records the anchor
-   * snapshot in the identity's `metadata` (the identity-store API
-   * exposes no metadata setter, so the underlying TanStack store is
-   * mutated directly — persistence sidecars subscribed to it stay in
-   * sync).
-   */
-  identities?: {
-    store: Store<IdentityStoreState>;
-  };
-  intermezzo: IntermezzoClientConfig & {
-    /**
-     * Optional pre-built shared client. When provided, this client
-     * is reused instead of constructing a new one — this is how the
-     * credentials and identities extensions share connection state
-     * (auth token cache, custom `fetch`, etc.) when mounted side by
-     * side.
-     */
-    client?: IntermezzoClient;
-  };
+  /** Intermezzo host settings shared with `WithIntermezzoCredentials`. */
+  intermezzo: IntermezzoNamespace;
 }
 
 /**
@@ -63,6 +55,15 @@ export interface IntermezzoIdentitiesExtensionOptions extends ExtensionOptions {
  * `identityAddress`). The bridge resolves the `did:key` for the
  * identity from the identities store so callers don't need to plumb
  * key material themselves.
+ *
+ * @example
+ * ```typescript
+ * const { submitResponse } = await provider.identity.intermezzo.anchorIdentity({
+ *   identityAddress: "did:key:z6Mk...",
+ *   credentialPresentation: compactSdJwtVc,
+ * });
+ * console.log(submitResponse.did); // did:algo:...
+ * ```
  */
 export interface IntermezzoIdentitiesApi {
   /** Raw HTTP client for advanced flows. */
@@ -70,12 +71,12 @@ export interface IntermezzoIdentitiesApi {
 
   /** `GET /wallet/manager/identity`. */
   getManagerIdentity(): Promise<ManagerIdentityResponse>;
-  /** `POST /wallet/manager/identity` (idempotent — returns undefined on 409). */
+  /** `POST /wallet/manager/identity` (idempotent; returns undefined on 409). */
   deployManagerIdentity(): Promise<ManagerIdentityResponse | undefined>;
 
   /**
    * Returns an algokit-utils {@link AddressWithSigners} backed by
-   * the identity's Ed25519 key — i.e. the same key encoded in its
+   * the identity's Ed25519 key, i.e. the same key encoded in its
    * `did:key`. Use the `signer` field with an
    * {@link import('@algorandfoundation/algokit-utils/transact').TransactionComposer}
    * when assembling the wallet-owned positions of a `did:algo`
@@ -133,12 +134,12 @@ export interface IntermezzoIdentitiesApi {
   // All four endpoints are credential-gated by the device-attestation
   // SD-JWT VC. Callers must build a
   // compact presentation of that credential and pass it in
-  // `credentialPresentation` — it is forwarded as the
+  // `credentialPresentation`; it is forwarded as the
   // `x-credential-presentation` header. The manager JWT is sourced
   // by the underlying client from `options.intermezzo.getAuthToken`.
 
   /**
-   * `POST /v1/did/create/transactions` — build the unsigned atomic
+   * `POST /v1/did/create/transactions`: build the unsigned atomic
    * txn group to deploy this identity's `did:algo:...` contract.
    */
   buildUserContractCreate(req: {
@@ -150,7 +151,7 @@ export interface IntermezzoIdentitiesApi {
   }): Promise<BuildUserContractCreateResponse>;
 
   /**
-   * `POST /v1/did/create/submit` — broadcast the wallet-signed
+   * `POST /v1/did/create/submit`: broadcast the wallet-signed
    * `applicationCreate` group and register the new `did:algo:...`.
    */
   submitUserContractCreate(req: {
@@ -165,7 +166,7 @@ export interface IntermezzoIdentitiesApi {
   }): Promise<SubmitUserContractCreateResponse>;
 
   /**
-   * `POST /v1/did/update/transactions` — build the atomic groups
+   * `POST /v1/did/update/transactions`: build the atomic groups
    * needed to publish a new DID document for this identity's
    * `did:algo:...` contract.
    */
@@ -180,7 +181,7 @@ export interface IntermezzoIdentitiesApi {
   }): Promise<BuildUserDidDocumentUpdateResponse>;
 
   /**
-   * `POST /v1/did/update/submit` — submit the wallet-signed atomic
+   * `POST /v1/did/update/submit`: submit the wallet-signed atomic
    * groups returned by {@link buildUserDidDocumentUpdate}.
    */
   submitUserDidDocumentUpdate(req: {
@@ -200,9 +201,22 @@ export interface IntermezzoIdentitiesApi {
   }): Promise<SubmitUserDidDocumentUpdateResponse>;
 }
 
-/** The extension surface contributed by {@link WithIntermezzoIdentities}. */
-export interface IntermezzoIdentitiesExtension extends IdentitiesExtension {
-  identity: IdentitiesExtension["identity"] & {
+/**
+ * The extension surface contributed by {@link WithIntermezzoIdentities}:
+ * only the `identity.intermezzo` member. On a composed Provider it
+ * intersects with the identities extension's `identity` namespace, so
+ * `provider.identity.store` and `provider.identity.intermezzo` sit side by
+ * side.
+ *
+ * @example
+ * ```typescript
+ * const MyProvider = Provider.withExtensions([WithIdentities, WithCredentials, WithIntermezzoCredentials, WithIntermezzoIdentities]);
+ * const provider = new MyProvider(config, options);
+ * provider.identity.intermezzo.getManagerIdentity();
+ * ```
+ */
+export interface IntermezzoIdentitiesExtension {
+  identity: {
     intermezzo: IntermezzoIdentitiesApi;
   };
 }
@@ -213,21 +227,34 @@ export interface IntermezzoIdentitiesExtension extends IdentitiesExtension {
  * wallet provider.
  *
  * Depends on
- *   - {@link import('@algorandfoundation/identities-extension').WithIdentities}
+ *   - {@link import('@algorandfoundation/identities').WithIdentities}
  *     (mounts `provider.identity.store`), and
  *   - {@link import('@algorandfoundation/credentials-intermezzo-extension').WithIntermezzoCredentials}
  *     (provides `redeemOfferUri`).
  *
  * Both must be already present on the provider when this extension is
- * applied.
+ * applied. The extension returns only its contribution: the `identity`
+ * namespace with `intermezzo` added next to the members already mounted
+ * (the Provider replaces `provider.identity` wholesale, so the namespace
+ * object is carried over; the provider itself is never spread, which keeps
+ * reactive getters such as `provider.identities` live).
  *
  * @example
  * ```typescript
- * const provider = new MyProvider()
- *   .extend(WithIdentities, { ... })
- *   .extend(WithCredentials, { ... })
- *   .extend(WithIntermezzoCredentials, { intermezzo: { baseUrl } })
- *   .extend(WithIntermezzoIdentities, { intermezzo: { baseUrl } });
+ * const MyProvider = Provider.withExtensions([
+ *   WithIdentities,
+ *   WithCredentials,
+ *   WithIntermezzoCredentials,
+ *   WithIntermezzoIdentities,
+ * ]);
+ * const provider = new MyProvider(
+ *   { id: "my-wallet", name: "My Wallet" },
+ *   {
+ *     identities: { store: identitiesStore },
+ *     credentials: { store: credentialsStore, hooks: credentialHooks },
+ *     intermezzo: { baseUrl, getAuthToken: () => getManagerJwt() },
+ *   },
+ * );
  * ```
  */
 export const WithIntermezzoIdentities: Extension<IntermezzoIdentitiesExtension> = (
@@ -330,7 +357,7 @@ export const WithIntermezzoIdentities: Extension<IntermezzoIdentitiesExtension> 
       // 5. Record the anchor in the identity's metadata so the UI can
       //    later detect whether the local DID document has diverged
       //    from the on-chain version. We snapshot the document that
-      //    was anchored at this point in time — comparison happens
+      //    was anchored at this point in time; comparison happens
       //    later by deep-equality against the live `identity.didDocument`.
       const anchor: Record<string, unknown> = {
         didDocument: anchoredIdentity.didDocument,
@@ -341,28 +368,10 @@ export const WithIntermezzoIdentities: Extension<IntermezzoIdentitiesExtension> 
       if (typeof submitResponse.did === "string") {
         anchor.didAlgo = submitResponse.did;
       }
-      // Mutate the underlying TanStack store directly: the
-      // identity-store API doesn't expose a metadata setter, and
-      // persistence sidecars subscribe to this store to stay in
-      // sync. The store is injected via `options.identities.store`
-      // (the same instance handed to the identities extension).
-      const identitiesStore = options?.identities?.store;
-      if (identitiesStore) {
-        identitiesStore.setState((prev) => ({
-          ...prev,
-          identities: prev.identities.map((id) =>
-            id.address === req.identityAddress
-              ? { ...id, metadata: { ...id.metadata, anchor } }
-              : id,
-          ),
-        }));
-      } else {
-        log?.warn(
-          "anchorIdentity: options.identities.store not provided — anchor metadata not persisted",
-          {},
-          "IntermezzoIdentities",
-        );
-      }
+      // Written through the identity-store API (routed through its
+      // `updateMetadata` hook) so persistence sidecars subscribed to the
+      // identities store stay in sync.
+      await provider.identity.store.updateIdentityMetadata(req.identityAddress, { anchor });
       return {
         buildResponse,
         submitResponse,
@@ -429,10 +438,9 @@ export const WithIntermezzoIdentities: Extension<IntermezzoIdentitiesExtension> 
   };
 
   return {
-    ...provider,
     identity: {
       ...provider.identity,
       intermezzo: intermezzoApi,
     },
-  } as IntermezzoIdentitiesExtension;
+  };
 };

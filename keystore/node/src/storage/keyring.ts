@@ -54,7 +54,7 @@ interface NapiKeyringModule {
 }
 
 /**
- * Creates a {@link KeyringBinding} backed by `@napi-rs/keyring` — the modern,
+ * Creates a {@link KeyringBinding} backed by `@napi-rs/keyring`, the modern,
  * maintained, prebuilt (macOS/Windows/Linux incl. musl/arm) OS-keychain binding.
  *
  * The native module is loaded lazily via `createRequire`, so importing this

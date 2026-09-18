@@ -3,7 +3,7 @@
  *
  * Algo25 is a **reversible** encoding of a 32-byte seed: 24 words of 11 bits
  * each (the seed) plus a checksum word derived from `sha512_256(seed)[0..2]`.
- * Unlike BIP39 there is no PBKDF2 step — the mnemonic *is* the seed.
+ * Unlike BIP39 there is no PBKDF2 step: the mnemonic *is* the seed.
  *
  * @remarks
  * This is a deliberately minimal implementation so the keystore can enable the

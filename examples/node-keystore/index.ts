@@ -7,9 +7,11 @@
  * and an Ed25519 account, then sign and verify a message.
  *
  * Secret material is stored in your operating-system keychain and all UI-safe
- * metadata in a sealed file (`~/.algorand-keystore/…`) — exactly like any real
- * consumer of `@algorandfoundation/keystore-node`. The same package also ships
- * the `keystore` CLI, which drives this identical engine from the terminal.
+ * metadata in a sealed file (`~/.algorand-keystore/…`). Everything is imported
+ * from the `@algorandfoundation/keystore` meta package, whose `node` condition
+ * resolves to `@algorandfoundation/keystore-node`; that platform package also
+ * ships the `keystore` CLI, which drives this identical engine from the
+ * terminal.
  *
  * Run it with:
  * ```sh
@@ -18,14 +20,14 @@
  */
 
 import { Provider } from "@algorandfoundation/wallet-provider";
-import { WithKeyStore } from "@algorandfoundation/keystore-node";
-import type { Key, KeyStoreCapability, KeyStoreState } from "@algorandfoundation/keystore-node";
+import { WithKeyStore } from "@algorandfoundation/keystore";
+import type { Key, KeyStoreCapability, KeyStoreState } from "@algorandfoundation/keystore";
 import { Store } from "@tanstack/store";
 import Hook from "before-after-hook";
 import { generateMnemonic, mnemonicToSeed } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
 
-/** Reactive state store — the single source of truth for key metadata. */
+/** Reactive state store: the single source of truth for key metadata. */
 const store = new Store<KeyStoreState>({ keys: [], status: "idle", algorithms: [] });
 
 /** Hook collection for intercepting keystore operations (before/after/error). */

@@ -10,3 +10,5 @@ export { AssociationRow } from "./AssociationRow";
 export type { AssociationRowProps } from "./AssociationRow";
 export { CapabilityList } from "./CapabilityList";
 export type { CapabilityListProps } from "./CapabilityList";
+export { QrScannerModal } from "./QrScannerModal";
+export type { QrScannerModalProps } from "./QrScannerModal";

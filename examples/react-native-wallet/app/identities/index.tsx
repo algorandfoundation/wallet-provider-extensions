@@ -18,8 +18,9 @@ import {
   useRootColors,
 } from "@/hooks/useProvider";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import type { DIDDocument } from "@algorandfoundation/identities-store";
+import type { DIDDocument } from "@algorandfoundation/identities";
 import { HeaderCard } from "@/components";
+import { createLocalIdentity } from "@/stores/keystore";
 
 export default function Identities() {
   const { identity, key } = useProvider();
@@ -36,36 +37,15 @@ export default function Identities() {
     }
   };
 
-  const handleGenerateIdentity = async () => {
+  // Create a local identity: derive the next identity-context key from the
+  // wallet's XHD root (the orchestration lives in the keystore domain
+  // module); the identities extension auto-populates a `did:key` identity
+  // from it.
+  const handleCreateLocalIdentity = async () => {
     try {
-      const rootKeys = keys.filter((k) => k.type === "hd-root-key");
-      if (rootKeys.length === 0) {
-        Alert.alert("No Root Key", "Please import or generate a seed first on the Keys page.");
-        return;
-      }
-
-      const activeSeed = rootKeys[0].id;
-      // Find next index for context 1
-      const context1Keys = keys.filter(
-        (k) => k.metadata?.context === 1 && k.metadata?.parentKeyId === activeSeed,
-      );
-      const nextIndex = context1Keys.length;
-
-      await key.store.generate({
-        type: "hd-derived-ed25519",
-        algorithm: "EdDSA",
-        extractable: true,
-        keyUsages: ["sign", "verify"],
-        params: {
-          parentKeyId: activeSeed,
-          context: 1, // Context 1 is for Identities
-          account: 0,
-          index: nextIndex,
-          derivation: 9,
-        },
-      });
+      await createLocalIdentity(key.store, keys);
     } catch (error: any) {
-      Alert.alert("Failed to generate identity key", error.message);
+      Alert.alert("Failed to create local identity", error.message);
     }
   };
 
@@ -84,9 +64,9 @@ export default function Identities() {
           accentColor="#5856D6"
           actions={[
             {
-              label: "Generate",
+              label: "Local Identity",
               icon: "shield-plus-outline",
-              onPress: handleGenerateIdentity,
+              onPress: handleCreateLocalIdentity,
               disabled: status !== "idle",
             },
             {
@@ -102,7 +82,9 @@ export default function Identities() {
         {identities.length === 0 ? (
           <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.emptyState}>
             <Text style={styles.emptyStateText}>No identities found.</Text>
-            <Text style={styles.emptyStateSubtext}>Generate one to get started with DIDs.</Text>
+            <Text style={styles.emptyStateSubtext}>
+              Create a local identity to get started with DIDs.
+            </Text>
           </Animated.View>
         ) : (
           identities.map((item, i) => {

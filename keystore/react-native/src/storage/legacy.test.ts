@@ -179,7 +179,7 @@ describe("adoptLegacyRecords", () => {
     });
 
     expect(result).toEqual({ adopted: [], skipped: [] });
-    // The flat record is left untouched — nothing was migrated.
+    // The flat record is left untouched; nothing was migrated.
     expect(storage.getString("legacy-3")).toBe("some-sealed-blob");
   });
 });

@@ -50,6 +50,10 @@ export type KeyFormat = "raw" | "pem" | "der" | "jwk" | "openpgp" | string;
  * - `P256`: ECDSA using P-256 and SHA-256
  * - `EdDSA`: EdDSA using Ed25519
  * - `raw`: raw bytes (e.g., storing seed material)
+ *
+ * Shims extend this set at runtime; `Falcon-1024` (post-quantum Falcon
+ * signatures, a first-class peer of `EdDSA` for signing keys) is the
+ * canonical shim-provided algorithm.
  */
 export type Algorithm = "RS256" | "P256" | "EdDSA" | "raw" | string;
 
