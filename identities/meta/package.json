@@ -1,7 +1,7 @@
 {
   "name": "@algorandfoundation/identities",
   "version": "0.0.0",
-  "description": "Meta package for the identities domain (store + unified WithIdentities extension) with conditional platform exports.",
+  "description": "Meta package for the identities domain: the unified WithIdentities extension over the core store, with conditional platform exports.",
   "license": "Apache-2.0",
   "author": "Algorand Foundation",
   "repository": {
@@ -40,22 +40,39 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf dist coverage node_modules docs",
     "docs": "typedoc",
-    "test": "vitest run --passWithNoTests",
-    "test:cov": "vitest run --coverage --passWithNoTests",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
     "release": "package-releaser",
     "release:dry-run": "package-releaser --dry-run"
   },
   "dependencies": {
-    "@algorandfoundation/identities-extension": "workspace:*",
-    "@algorandfoundation/identities-store": "workspace:*"
+    "@algorandfoundation/identities-core": "workspace:*"
   },
   "devDependencies": {
+    "@algorandfoundation/identities-connections-extension": "workspace:*",
+    "@algorandfoundation/identities-keystore-extension": "workspace:*",
+    "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/package-releaser": "workspace:^",
+    "@algorandfoundation/wallet-provider": "catalog:",
     "typedoc": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
+    "@algorandfoundation/identities-connections-extension": "workspace:*",
+    "@algorandfoundation/identities-keystore-extension": "workspace:*",
+    "@algorandfoundation/keystore-core": "workspace:*",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/identities-connections-extension": {
+      "optional": true
+    },
+    "@algorandfoundation/identities-keystore-extension": {
+      "optional": true
+    },
+    "@algorandfoundation/keystore-core": {
+      "optional": true
+    }
   }
 }

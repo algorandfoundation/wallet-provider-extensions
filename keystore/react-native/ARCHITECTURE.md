@@ -134,7 +134,7 @@ The extension leverages specialized libraries for Algorand-specific operations:
 - ✅ **Never exported** after import.
 - ✅ **Never shared** with wallet UI.
 - ✅ **Derivation happens inside** the secure storage layer.
-- ✅ **Child keys are isolated** — deriving Account 0 doesn't expose the seed.
+- ✅ **Child keys are isolated**: deriving Account 0 doesn't expose the seed.
 
 ## Memory Management
 

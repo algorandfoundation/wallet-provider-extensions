@@ -9,7 +9,7 @@ const DID = "did:key:z6MkTestHolder";
 /**
  * Builds a provider that already carries the identities surface and the
  * credential store engine (as a platform `WithCredentials` extension
- * would mount it) — the mount prerequisite for the bridge.
+ * would mount it), which is the mount prerequisite for the bridge.
  */
 function createCredentialProvider() {
   const hooks = new Hook.Collection<any>();
@@ -104,6 +104,44 @@ describe("WithIntermezzoCredentials", () => {
     expect(extension.credential.intermezzo.client).toBe(client);
     // The credential store surface mounted earlier is preserved.
     expect(extension.credential.store).toBe(provider.credential.store);
+  });
+
+  it("returns only the credential namespace it contributes (never spreads the provider)", () => {
+    const provider = createCredentialProvider();
+    const extension = WithIntermezzoCredentials(provider as any, {
+      intermezzo: { client: createMockClient() } as any,
+    });
+
+    expect(Object.keys(extension)).toEqual(["credential"]);
+    // The namespace object is spread (the Provider replaces `credential`
+    // wholesale), so the previously mounted members survive.
+    expect(extension.credential.store).toBe(provider.credential.store);
+    expect(extension.credential.intermezzo).toBeDefined();
+  });
+
+  it("keeps provider.credentials live after mounting through a Provider", async () => {
+    const provider = createCredentialProvider();
+    const extension = WithIntermezzoCredentials(provider as any, {
+      intermezzo: { client: createMockClient() } as any,
+    });
+
+    // Merge exactly the way the Provider constructor does: own property
+    // descriptors of the returned surface are defined onto the instance.
+    Object.defineProperties(provider, Object.getOwnPropertyDescriptors(extension));
+
+    expect(provider.credentials).toEqual([]);
+    await provider.credential.store.addCredential({
+      id: "cred-1",
+      type: ["VerifiableCredential"],
+      identityAddress: DID,
+      name: "Live",
+      format: "vc+sd-jwt",
+      raw: "eyJ...~",
+      receivedAt: 1,
+    });
+    // A spread `...provider` would have frozen the getter into a `[]` snapshot.
+    expect(provider.credentials.map((c: { id: string }) => c.id)).toEqual(["cred-1"]);
+    expect(provider.credential.intermezzo).toBe(extension.credential.intermezzo);
   });
 
   it("createOffer resolves the holder did:key and mirrors the session locally", async () => {

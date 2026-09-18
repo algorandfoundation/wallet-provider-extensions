@@ -1,8 +1,9 @@
 import type { Extension, ExtensionOptions } from "@algorandfoundation/wallet-provider";
-import type { LogStoreExtension } from "@algorandfoundation/log-store";
-import type { IdentityStoreExtension } from "@algorandfoundation/identities-store";
+import type { LogStoreExtension } from "@algorandfoundation/logs";
+import type { IdentityStoreExtension } from "@algorandfoundation/identities-core";
 import type {
   Credential,
+  CredentialFormat,
   CredentialStoreExtension,
   IssuanceSession,
   VerificationSession,
@@ -36,28 +37,65 @@ import {
 /**
  * Options for {@link WithIntermezzoCredentials}.
  *
- * Wires the OID4VC issuer/verifier surface of `intermezzo-fresh` into
- * the credential store. Manager DID-document
+ * Narrows the shared {@link ExtensionOptions} registry: the `intermezzo`
+ * block ({@link IntermezzoNamespace}) is **required** when this bridge is
+ * mounted. It wires the OID4VC issuer/verifier surface of an intermezzo host
+ * into the credential store; manager DID-document
  * (`/wallet/manager/identity`) endpoints live in the sibling
  * `@algorandfoundation/identities-intermezzo-extension` extension.
+ *
+ * @example
+ * ```typescript
+ * const options: IntermezzoCredentialsExtensionOptions = {
+ *   intermezzo: { baseUrl: "https://api.example.com", pollIntervalMs: 5_000 },
+ * };
+ * ```
  */
 export interface IntermezzoCredentialsExtensionOptions extends ExtensionOptions {
-  intermezzo: IntermezzoClientConfig & {
-    /**
-     * If set, the extension will poll `/credential/issuer/sessions`
-     * and `/credential/verifier/sessions` on this interval (ms) and
-     * mirror them into the local credential store. Defaults to off.
-     */
-    pollIntervalMs?: number;
-    /**
-     * Optional pre-built shared client. When provided, this client
-     * is reused instead of constructing a new one — this is how the
-     * credentials and identities extensions share connection state
-     * (auth token cache, custom `fetch`, etc.) when mounted side by
-     * side.
-     */
-    client?: IntermezzoClient;
-  };
+  /** Intermezzo host settings, see {@link IntermezzoNamespace}. */
+  intermezzo: IntermezzoNamespace;
+}
+
+/**
+ * The `options.intermezzo` namespace shared by every intermezzo bridge on the
+ * {@link ExtensionOptions} registry.
+ *
+ * This package owns the registration; sibling bridges (e.g.
+ * `@algorandfoundation/identities-intermezzo-extension`) read the same block
+ * and **augment** this interface when they need extra fields, so a
+ * composition root configures the intermezzo host once.
+ *
+ * @example
+ * ```typescript
+ * declare module "@algorandfoundation/credentials-intermezzo-extension" {
+ *   interface IntermezzoNamespace {
+ *     managerAppId?: number;
+ *   }
+ * }
+ * ```
+ */
+export interface IntermezzoNamespace extends IntermezzoClientConfig {
+  /**
+   * If set, the extension will poll `/credential/issuer/sessions`
+   * and `/credential/verifier/sessions` on this interval (ms) and
+   * mirror them into the local credential store. Defaults to off.
+   */
+  pollIntervalMs?: number;
+  /**
+   * Optional pre-built shared client. When provided, this client
+   * is reused instead of constructing a new one; this is how the
+   * credentials and identities extensions share connection state
+   * (auth token cache, custom `fetch`, etc.) when mounted side by
+   * side.
+   */
+  client?: IntermezzoClient;
+}
+
+declare module "@algorandfoundation/wallet-provider" {
+  interface ExtensionOptions {
+    /** Intermezzo host settings shared by the intermezzo bridges, see {@link IntermezzoNamespace}. */
+    intermezzo?: IntermezzoNamespace;
+  }
 }
 
 /**
@@ -69,8 +107,16 @@ export interface IntermezzoCredentialsExtensionOptions extends ExtensionOptions 
  * the key material themselves.
  *
  * Manager DID-document operations live on
- * `provider.identity.intermezzo` — see
+ * `provider.identity.intermezzo`; see
  * `@algorandfoundation/identities-intermezzo-extension`.
+ *
+ * @example
+ * ```typescript
+ * const { credential } = await provider.credential.intermezzo.redeemOfferUri({
+ *   identityAddress: "did:key:z6Mk...",
+ *   offerUri: "openid-credential-offer://...",
+ * });
+ * ```
  */
 export interface IntermezzoCredentialsApi {
   /** Raw HTTP client for advanced flows. */
@@ -149,9 +195,21 @@ export interface IntermezzoCredentialsApi {
   dispose(): void;
 }
 
-/** The extension surface contributed by {@link WithIntermezzoCredentials}. */
+/**
+ * The extension surface contributed by {@link WithIntermezzoCredentials}: the
+ * already-mounted `credential` namespace plus the `intermezzo` bridge API.
+ *
+ * @example
+ * ```typescript
+ * const MyProvider = Provider.withExtensions([WithIdentities, WithCredentials, WithIntermezzoCredentials]);
+ * const provider = new MyProvider(config, { intermezzo: { baseUrl: "https://api.example.com" } });
+ * await provider.credential.intermezzo.refreshIssuanceSessions();
+ * ```
+ */
 export interface IntermezzoCredentialsExtension extends CredentialStoreExtension {
+  /** The `credential` namespace, extended with the intermezzo bridge. */
   credential: CredentialStoreExtension["credential"] & {
+    /** Holder-side OID4VC API against the intermezzo host. */
     intermezzo: IntermezzoCredentialsApi;
   };
 }
@@ -160,27 +218,51 @@ export interface IntermezzoCredentialsExtension extends CredentialStoreExtension
  * Wires the intermezzo-fresh OID4VC issuer/verifier into the wallet
  * provider.
  *
- * Depends on `WithCredentials` (from a credentials platform package —
- * `@algorandfoundation/credentials-web`,
- * `@algorandfoundation/react-native-credentials` — or the
+ * Depends on `WithCredentials` (from a credentials platform package,
+ * `@algorandfoundation/credentials-node`, `@algorandfoundation/credentials-web`
+ * or `@algorandfoundation/react-native-credentials`, or the
  * `@algorandfoundation/credentials` meta) being already mounted on the
- * provider — issuance and verification sessions returned by the server are
+ * provider: issuance and verification sessions returned by the server are
  * mirrored into that store so the UI can drive everything from a single
  * tanstack store. An identities extension must be mounted as well: holder
  * `did:key` resolution goes through `provider.identity.store`.
  *
+ * The extension returns **only** the surface it contributes: the `credential`
+ * namespace (spread from the mounted one, since the Provider replaces own
+ * properties wholesale) with `intermezzo` added. It never spreads the
+ * provider itself, so reactive getters such as `provider.credentials` stay
+ * live.
+ *
+ * @param provider - A provider carrying the `credential` and `identity` surfaces (and optionally `log`).
+ * @param options - {@link IntermezzoCredentialsExtensionOptions}; `options.intermezzo.baseUrl` or `.client` is required.
+ * @returns The {@link IntermezzoCredentialsExtension} surface (`{ credential }` only).
+ *
  * @example
  * ```typescript
- * const provider = new MyProvider()
- *   .extend(WithLogStore, { ... })
- *   .extend(WithCredentials, { credentials: { store, hooks } })
- *   .extend(WithIntermezzoCredentials, {
+ * import { Provider } from "@algorandfoundation/wallet-provider";
+ * import { WithLogs } from "@algorandfoundation/logs";
+ * import { WithIdentities } from "@algorandfoundation/identities-core";
+ * import { WithCredentials } from "@algorandfoundation/credentials";
+ * import { WithIntermezzoCredentials } from "@algorandfoundation/credentials-intermezzo-extension";
+ *
+ * // Mount order matters: identities → credentials → intermezzo bridge.
+ * const MyProvider = Provider.withExtensions([
+ *   WithLogs,
+ *   WithIdentities,
+ *   WithCredentials,
+ *   WithIntermezzoCredentials,
+ * ]);
+ * const provider = new MyProvider(
+ *   { id: "my-provider", name: "My Provider" },
+ *   {
+ *     credentials: { store, hooks },
  *     intermezzo: {
- *       baseUrl: 'https://api.example.com',
- *       getAuthToken: () => keychain.get('manager-jwt'),
+ *       baseUrl: "https://api.example.com",
+ *       getAuthToken: () => keychain.get("manager-jwt"),
  *       pollIntervalMs: 5_000,
  *     },
- *   });
+ *   },
+ * );
  * ```
  */
 export const WithIntermezzoCredentials: Extension<IntermezzoCredentialsExtension> = (
@@ -415,7 +497,7 @@ export const WithIntermezzoCredentials: Extension<IntermezzoCredentialsExtension
         identityAddress: req.identityAddress,
         name: req.name ?? vct ?? "Verifiable Credential",
         configurationId: vct,
-        format: format as any,
+        format: format as CredentialFormat,
         raw,
         issuer: offer.credential_issuer,
         holder: holderDidKey,
@@ -491,7 +573,7 @@ export const WithIntermezzoCredentials: Extension<IntermezzoCredentialsExtension
 
       // 3. Build the VP token. For SD-JWT VCs, the `vp_token` MUST be the
       // SD-JWT compact serialization (issuer JWT ~ disclosures ~ kb-jwt),
-      // NOT a W3C JWT VP wrapper — otherwise Credo's verifier rejects
+      // NOT a W3C JWT VP wrapper; otherwise Credo's verifier rejects
       // with "VP at path $ does not match the required format vc+sd-jwt".
       // For any other format we fall back to a W3C JWT VP.
       let vpToken: string;
@@ -585,8 +667,12 @@ export const WithIntermezzoCredentials: Extension<IntermezzoCredentialsExtension
     void tick();
   }
 
+  // Only the contributed surface: the Provider merges own property
+  // descriptors, so spreading `provider` here would freeze its reactive
+  // getters (`credentials`, `issuanceSessions`, ...) into snapshots. The
+  // namespace object itself must be spread because `credential` is replaced
+  // wholesale.
   return {
-    ...provider,
     credential: {
       ...provider.credential,
       intermezzo: intermezzoApi,

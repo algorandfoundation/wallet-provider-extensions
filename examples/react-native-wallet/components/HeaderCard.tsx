@@ -15,7 +15,7 @@ export interface HeaderAction {
 export interface HeaderCardProps {
   /** Small uppercase tagline shown below the title. */
   label: string;
-  /** Large main title — either a count or a name. */
+  /** Large main title: either a count or a name. */
   title: string | number;
   /** Icon shown in an inverted (white) circle next to the title. */
   icon: IconName;

@@ -1,6 +1,6 @@
 # @algorandfoundation/react-native-keystore
 
-A secure key management system for the Algorand Wallet Provider. Manage cryptographic keys, derive HD wallets from BIP39 seeds, and sign arbitrary data—all while keeping private keys locked away in a secure vault.
+A secure key management system for React Native. Manage cryptographic keys, derive HD wallets from BIP39 seeds, and sign arbitrary data while keeping private keys locked away in a secure vault. The engine runs standalone (see [Standalone engine](#standalone-engine-createreactnativekeystore)); it also ships first-class support for the Algorand Wallet Provider via the `WithKeyStore` extension.
 
 ## Migrations
 
@@ -12,13 +12,13 @@ is present on the provider.
 > before the deterministic-P256 split) used to run automatically on every engine
 > start. It is now revision `0001` and runs only when `WithMigrations` is
 > installed. `@algorandfoundation/provider-migrations` is an **optional peer
-> dependency** — it is not installed for you — so add it first:
+> dependency**; it is not installed for you, so add it first:
 >
 > ```bash
 > pnpm add @algorandfoundation/provider-migrations
 > ```
 >
-> Then add it — **first** — to your provider:
+> Then add it, **first**, to your provider:
 >
 > ```typescript
 > import { WithMigrations, keyValueLedger } from "@algorandfoundation/provider-migrations";
@@ -38,22 +38,22 @@ is present on the provider.
 
 ### Revisions
 
-| Revision | Name                   | What it does                                                                                                                                                                                                                                                                                                                        |
-| -------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0001`   | `flag-legacy-passkeys` | Flags passkeys derived from the XHD root before the deterministic-P256 split as needing migration. Metadata-only — nothing is decrypted and no biometric prompt fires.                                                                                                                                                              |
-| `0002`   | `adopt-flat-records`   | Adopts legacy **flat** `<id>` records — one sealed blob per key, as written by the deprecated `commit()` helper and by older native passkey AutoFill credential providers sharing the same MMKV instance — into the split `k/<id>` + `m/<id>` layout the driver reads, then re-runs the passkey flag pass over what became visible. |
+| Revision | Name                   | What it does                                                                                                                                                                                                                                                                                                                      |
+| -------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001`   | `flag-legacy-passkeys` | Flags passkeys derived from the XHD root before the deterministic-P256 split as needing migration. Metadata-only; nothing is decrypted and no biometric prompt fires.                                                                                                                                                             |
+| `0002`   | `adopt-flat-records`   | Adopts legacy **flat** `<id>` records (one sealed blob per key, as written by the deprecated `commit()` helper and by older native passkey AutoFill credential providers sharing the same MMKV instance) into the split `k/<id>` + `m/<id>` layout the driver reads, then re-runs the passkey flag pass over what became visible. |
 
 > Revision `0002` decrypts material, so it reads the master key **once** for the
-> whole pass — the only step that can raise a biometric/passcode prompt, and only
+> whole pass, which is the only step that can raise a biometric/passcode prompt, and only
 > when at least one flat record actually exists. A record it cannot decrypt (or
 > that carries no `privateKey`/`seed` material, e.g. a native credential wrapped
 > by a biometric cipher this package cannot open) is left untouched and reported
-> through the provider's log — never deleted.
+> through the provider's log; it is never deleted.
 >
 > Because `0002` runs **once per ledger**, anything that keeps writing flat
 > records after it has run stays invisible to the driver. Update the native
 > passkey AutoFill provider to a version that writes the split `k/` + `m/`
-> layout **before** (or together with) shipping this migration —
+> layout **before** (or together with) shipping this migration;
 > `@algorandfoundation/react-native-passkey-autofill` does so from
 > `1.0.0-canary.23` (see its `KeystoreRecords`/`PasskeyCredentialStore`
 > record-format owners).
@@ -78,36 +78,37 @@ This architecture enables:
 
 ## Supported Algorithms & Key Types
 
-The React Native backend implements a subset of the [`KeyType`](../store/src/types/core.ts) / [`Algorithm`](../store/src/types/core.ts) unions defined by `@algorandfoundation/keystore`:
+The React Native backend implements a subset of the [`KeyType`](../core/src/types/core.ts) / [`Algorithm`](../core/src/types/core.ts) unions defined by `@algorandfoundation/keystore-core`:
 
 | Type                 | Algorithm     | Description                                                                                                  |
 | -------------------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
 | `seed`               | `raw`         | BIP39 (24‑word) or Algo25 (25‑word) seed material; root of HD derivation                                     |
 | `hd-seed`            | `raw`         | **Deprecated** alias of `seed`, kept for backward compatibility                                              |
-| `hd-root-key`        | `EdDSA`       | XHD root key derived from a `seed` — required parent for `hd-derived-ed25519`                                |
+| `hd-root-key`        | `raw`         | XHD root key derived from a `seed`, which is the required parent for `hd-derived-ed25519`                    |
 | `hd-derived-ed25519` | `EdDSA`       | XHD-derived Ed25519 child key (Algorand path `m/44'/283'/account'/change/index`)                             |
 | `hd-derived-p256`    | `P256`        | XHD-derived P-256 child key (passkey / WebAuthn flows)                                                       |
 | `ed25519`            | `EdDSA`       | Standalone Ed25519 key derived directly from a `seed` parent (no XHD root required)                          |
 | `falcon-1024`        | `Falcon-1024` | Post-quantum lattice signature key, backed by the **native** `@joe-p/react-native-falcon` module (see below) |
 
-> `ed25519` and `hd-derived-*` keys both require a seed parent supplied via `params.parentKeyId`. Convert any BIP39 mnemonic to seed bytes before calling `importSeed`, then use the resulting seed ID when calling `generate`. `RS256` / generic `ecc` / `secret-key` types from the core union are not currently implemented in this backend.
+> `ed25519` and `hd-root-key` generation requires a seed parent supplied via `params.parentKeyId`, and `hd-derived-ed25519` keys are created with `deriveFromSeed(rootId, path)` from an `hd-root-key` parent. Convert any BIP39 mnemonic to seed bytes before calling `importSeed`, then use the resulting seed ID when calling `generate`.
 
-## Quick Start
+## Quick Start (with a Provider)
 
 ### 1. Initialize the Keystore
 
-The keystore is typically used as an extension for the Algorand Wallet Provider.
+The engine runs standalone (see
+[Standalone engine (`createReactNativeKeyStore`)](#standalone-engine-createreactnativekeystore)
+below) and it ships first-class support for the Algorand Wallet Provider via
+the `WithKeyStore` extension:
 
 ```typescript
 import { WithKeyStore } from "@algorandfoundation/react-native-keystore";
 import { Provider } from "@algorandfoundation/wallet-provider";
+import { subtle } from "react-native-quick-crypto";
 import { keyStore } from "./stores/keystore";
 import { keyStoreHooks } from "./stores/hooks";
 
-// Use the concrete provider pattern
-class MyProvider extends Provider<typeof MyProvider.EXTENSIONS> {
-  static EXTENSIONS = [WithKeyStore] as const;
-}
+const MyProvider = Provider.withExtensions([WithKeyStore]);
 
 const provider = new MyProvider(
   {
@@ -116,10 +117,9 @@ const provider = new MyProvider(
   },
   {
     keystore: {
-      extension: {
-        store: keyStore,
-        hooks: keyStoreHooks,
-      },
+      store: keyStore,
+      hooks: keyStoreHooks,
+      subtle,
     },
   },
 );
@@ -128,17 +128,15 @@ const provider = new MyProvider(
 ### 2. Generate a Key
 
 ```typescript
-const keyId = await provider.keystore.generate({
-  type: "hd-derived-ed25519",
-  algorithm: "EdDSA",
+// Grow an XHD root key from an imported seed, then derive an account key.
+const rootId = await provider.key.store.generate({
+  type: "hd-root-key",
+  algorithm: "raw",
   extractable: false,
-  keyUsages: ["sign"],
-  params: {
-    parentKeyId: seedId,
-    account: 0,
-    index: 0,
-  },
+  keyUsages: ["deriveBits", "deriveKey"],
+  params: { parentKeyId: seedId },
 });
+const keyId = await provider.key.store.deriveFromSeed(rootId, "m/44'/283'/0'/0/0");
 
 console.log(keyId); // "abc-123..."
 ```
@@ -148,8 +146,8 @@ console.log(keyId); // "abc-123..."
 ```typescript
 const data = new Uint8Array([1, 2, 3, ...]);
 
-const signature = await provider.keystore.sign(keyId, data);
-// Private key never exposed — signature is returned directly
+const signature = await provider.key.store.sign(keyId, data);
+// Private key never exposed; the signature is returned directly
 ```
 
 ### 4. Convert a BIP39 Mnemonic to Seed Bytes and Import It
@@ -163,25 +161,25 @@ const mnemonic = "abandon abandon abandon ... about";
 // Convert the BIP39 mnemonic outside the keystore so the mnemonic string never enters it
 const seed = await mnemonicToSeed(mnemonic);
 
-const seedId = await provider.keystore.importSeed(seed);
+const seedId = await provider.key.store.importSeed(seed);
 // Seed bytes are securely stored; the BIP39 mnemonic itself is not passed to the keystore
 ```
 
 ### 5. Derive Multiple Accounts
 
 ```typescript
-// Derive account 0
-const account0 = await provider.keystore.deriveFromSeed(
-  seedId,
+// Derive account 0 (from the XHD root key generated in step 2)
+const account0 = await provider.key.store.deriveFromSeed(
+  rootId,
   "m/44'/283'/0'/0/0", // Algorand path
 );
 
 // Derive account 1
-const account1 = await provider.keystore.deriveFromSeed(seedId, "m/44'/283'/0'/0/1");
+const account1 = await provider.key.store.deriveFromSeed(rootId, "m/44'/283'/0'/0/1");
 
-// Sign with any account — keys are isolated
-const sig0 = await provider.keystore.sign(account0, data);
-const sig1 = await provider.keystore.sign(account1, data);
+// Sign with any account, as the keys are isolated
+const sig0 = await provider.key.store.sign(account0, data);
+const sig1 = await provider.key.store.sign(account1, data);
 ```
 
 ## API Overview
@@ -190,37 +188,38 @@ const sig1 = await provider.keystore.sign(account1, data);
 
 ```typescript
 // Generate a new key
-const keyId = await provider.keystore.generate(options);
+const keyId = await provider.key.store.generate(options);
 
 // Import a key or raw seed bytes
-const keyId = await provider.keystore.import(keyData, format);
+const keyId = await provider.key.store.import(keyData, format);
 const seedBytes = await mnemonicToSeed(mnemonic);
-const seedId = await provider.keystore.importSeed(seedBytes);
+const seedId = await provider.key.store.importSeed(seedBytes);
 
 // Export public key (private key never exported)
-const keyData = await provider.keystore.export(keyId);
+const keyData = await provider.key.store.export(keyId);
 
 // Sign and verify
-const signature = await provider.keystore.sign(keyId, data);
-const isValid = await provider.keystore.verify(keyId, data, signature);
+const signature = await provider.key.store.sign(keyId, data);
+const isValid = await provider.key.store.verify(keyId, data, signature);
 
-// HD Wallet derivation
-const derivedKeyId = await provider.keystore.deriveFromSeed(seedId, "m/44'/283'/0'/0/0");
+// HD Wallet derivation (rootId is an `hd-root-key` generated from the seed)
+const derivedKeyId = await provider.key.store.deriveFromSeed(rootId, "m/44'/283'/0'/0/0");
 
 // List and manage keys
 const allKeys = provider.keys;
 const status = provider.status;
-await provider.keystore.remove(keyId);
-await provider.keystore.clear();
+await provider.key.store.remove(keyId);
+await provider.key.store.clear();
 ```
 
-## Shared-Engine Storage Driver (`createReactNativeKeyStore`)
+## Standalone engine (`createReactNativeKeyStore`)
 
-Alongside the provider extension above, this package now exposes a
-`KeyStoreDriver`-based engine that plugs into the shared, platform-neutral
-`createKeyStore` orchestrator in `@algorandfoundation/keystore-core`. This is
-the same engine the browser (`withIndexDB`) uses — only the persistence
-("material custodian") differs per platform.
+The keystore also runs entirely without the Provider abstraction, serving as a first-class
+peer of the extension above. This package exposes a `KeyStoreDriver`-based
+engine that plugs into the shared, platform-neutral `createKeyStore`
+orchestrator in `@algorandfoundation/keystore-core`. This is the same engine
+the browser (`withIndexDB`) uses; only the persistence ("material custodian")
+differs per platform.
 
 Because MMKV cannot hold a live `CryptoKey`, the mobile driver is byte-only
 (`capabilities.nativeCryptoKey === false`): every secret is serialized, sealed
@@ -229,27 +228,18 @@ in MMKV; only UI-safe metadata is mirrored into the reactive store. Because
 unlocking can require a biometric/passcode prompt, the engine is generic over a
 per-operation context (`capabilities.interactiveUnlock === true`,
 `Ctx = AuthenticationOptions`) that is threaded straight into the master-key
-read — so a prompt is raised exactly when a secret is actually needed. `verify`
-stays context-free — it only touches the public key and never unlocks.
+read, so a prompt is raised exactly when a secret is actually needed. `verify`
+stays context-free, as it only touches the public key and never unlocks.
 
 ```typescript
 import { createReactNativeKeyStore } from "@algorandfoundation/react-native-keystore";
 import { Store } from "@tanstack/store";
 import { subtle } from "react-native-quick-crypto";
-import { fromSeed, XHDWalletAPI } from "@algorandfoundation/xhd-wallet-api";
 
 const store = new Store({ keys: [], status: "idle" });
-const api = new XHDWalletAPI();
-const keystore = createReactNativeKeyStore({
-  store,
-  subtle,
-  xhd: {
-    fromSeed: (seed) => fromSeed(Buffer.from(seed)),
-    deriveKey: (r, p, isPriv, d) => api.deriveKey(r, p, isPriv, d),
-    rawSign: (r, p, data, d) => (api as any).rawSign(r, p, data, d),
-    verifyWithPublicKey: (sig, msg, pk) => api.verifyWithPublicKey(sig, msg, pk),
-  },
-});
+
+// All shims on by default; no bindings to wire up.
+const keystore = createReactNativeKeyStore({ store, subtle });
 await keystore.ready;
 
 const seedId = await keystore.importSeed(seedBytes);
@@ -319,18 +309,18 @@ A bare string is shorthand for `{ title }`. The engine tags every call with its
 "encryptWithKey" | "decryptWithKey" | "remove" | "clear" | "secret.put" |
 "secret.get" | "secret.remove"`) and, where the call targets one key, its
 `keyId`; the `key` handed to the formatter is the **metadata** already in the
-reactive store — nothing is ever decrypted to build a prompt. `verify` is not
+reactive store; nothing is ever decrypted to build a prompt. `verify` is not
 tagged: it never unlocks.
 
 #### `authenticationValidityDuration` (unlock reuse window)
 
-The master key is **never cached in JS memory** — it is read, used and wiped per
+The master key is **never cached in JS memory**; it is read, used, and wiped per
 operation. To avoid prompting on every operation, use the platform's own
 post-unlock reuse window instead, which never exposes the key bytes:
 
 - **Android**: the value is baked into the Keystore key when the master-key item
   is **created** (`setUserAuthenticationValidityDurationSeconds`, default 5s).
-  Changing it later has no effect on an existing item — that item must be
+  Changing it later has no effect on an existing item, so that item must be
   deleted and recreated.
 - **iOS**: applied per read as an `LAContext` reuse duration, so it can be
   changed freely between reads.
@@ -350,8 +340,8 @@ can also unlock the vault. Setting `invalidateOnEnrollment: true` stores it with
 at that moment.
 
 > ⚠️ **With the strict policy, any biometric change destroys the master key.**
-> Adding a finger or re-enrolling Face ID — even legitimately, by the real user
-> — permanently invalidates the stored item. Every sealed record becomes
+> Adding a finger or re-enrolling Face ID, even legitimately by the real user,
+> permanently invalidates the stored item. Every sealed record becomes
 > unreadable and the wallet can only be recovered **from the seed phrase**. Only
 > enable this for users you know hold a backup.
 
@@ -372,7 +362,7 @@ module (a Nitro HybridObject with an Android/iOS C++ backend) onto the core
 When you create the engine without an explicit `shims` array, it enables the
 full default shim set and folds Falcon-1024 in automatically: it uses the
 `falcon` binding you pass, or otherwise lazily loads `@joe-p/react-native-falcon`
-(`loadDefaultFalconBinding`) when the module is installed — and simply leaves
+(`loadDefaultFalconBinding`) when the module is installed, and simply leaves
 Falcon out of the default set when it is not, without throwing.
 
 ```typescript
@@ -415,9 +405,9 @@ binding expects.
 - ✅ **Never exported** from the keystore
 - ✅ **Never exposed** to the wallet UI or React state
 - ✅ **Always encrypted** at rest (Stored in MMKV, encrypted with Keychain-backed master key)
-- ✅ **Ephemeral in memory** — cleared immediately after use via `clearBuffer`
+- ✅ **Ephemeral in memory**: cleared immediately after use via `clearBuffer`
 - ✅ **Isolated** per derivation path (multi-account support)
-- ✅ **Master key is never cached in JS memory** — it is read from the Keychain,
+- ✅ **Master key is never cached in JS memory**: it is read from the Keychain,
   used and wiped per operation; prompt spam is avoided at the OS level via
   [`authenticationValidityDuration`](#authenticationvalidityduration-unlock-reuse-window)
 
@@ -428,15 +418,15 @@ binding expects.
 - ✅ **Never exported** after import
 - ✅ **Never shared** with wallet UI
 - ✅ **Derivation happens inside** the secure backend
-- ✅ **Ephemeral in memory** — seeds are cleared after derivation
-- ✅ **Child keys are isolated** — deriving Account 0 doesn't expose the seed
+- ✅ **Ephemeral in memory**: seeds are cleared after derivation
+- ✅ **Child keys are isolated**: deriving Account 0 doesn't expose the seed
 
 ## Architecture & Bootstrapping
 
 For more detailed information, see:
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — Design details and storage flow.
-- [BOOTSTRAPPING.md](./BOOTSTRAPPING.md) — Complete integration and startup guide.
+- [ARCHITECTURE.md](./ARCHITECTURE.md): Design details and storage flow.
+- [BOOTSTRAPPING.md](./BOOTSTRAPPING.md): Complete integration and startup guide.
 
 ## License
 

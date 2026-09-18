@@ -1,18 +1,22 @@
 packages:
-  - "log"
+  - "logs"
   - "migrations"
   - "accounts/**"
   - "keystore/**"
   - "identities/**"
   - "credentials/**"
+  - "connections/**"
+  - "passkeys/**"
   - "examples/*"
   - "build"
+  - "docs"
 
 catalog:
   "@algorandfoundation/algokit-utils": "^10.0.0-beta.2"
   "@algorandfoundation/dp256": "^1.1.0"
   "@algorandfoundation/intermezzo-client": "^1.0.0-canary.1"
-  "@algorandfoundation/wallet-provider": "^1.0.0-canary.5"
+  "@algorandfoundation/liquid-client": "^1.0.0-canary.9"
+  "@algorandfoundation/wallet-provider": "^1.0.0-canary.6"
   "@algorandfoundation/xhd-wallet-api": "^2.0.0-canary.1"
   "@napi-rs/keyring": "^1.1.7"
   "@noble/ciphers": "^2.1.1"
@@ -21,12 +25,14 @@ catalog:
   "@scure/base": "^2.0.0"
   "@scure/bip39": "^1.5.0"
   "@tanstack/store": "^0.9.0"
+  "@txnlab/use-wallet": "^5.0.0"
+  "algosdk": "^3.0.0"
   "before-after-hook": "^4.0.0"
   "falcon-1024": "^0.2.0"
   "react-native": "0.81.5"
   "react-native-keychain": "^10.0.0"
-  "react-native-mmkv": "4.1.2"
-  "react-native-nitro-modules": "^0.34.1"
+  "react-native-mmkv": "4.3.1"
+  "react-native-nitro-modules": "^0.35.9"
   "react-native-quick-crypto": "^1.0.13"
   "semantic-release": "^25.0.3"
   "typedoc": "^0.26.11"
@@ -38,6 +44,19 @@ overrides:
   # Each entry is pinned to the lowest fixed release inside the major line that
   # is already resolved, to keep the remediation non-breaking.
   "@algorandfoundation/intermezzo-client": link:../intermezzo-client-js
+  # The Provider's 1.0.0 `ExtensionOptions` registry (an augmentable interface
+  # every extension registers its `options.<domain>` namespace on) is not yet on
+  # npm; resolve to the local clone until `@algorandfoundation/wallet-provider`
+  # 1.0.0 is published.
+  "@algorandfoundation/wallet-provider": link:../wallet-provider
+  # use-wallet v5 resolves to the local clone (its /adapter entry is not yet on
+  # npm). `file:` (not `link:`) so its algosdk peer resolves to THIS workspace's
+  # algosdk — two instances would break the adapter's `instanceof` checks.
+  "@txnlab/use-wallet": file:../use-wallet/packages/core
+  # Single @tanstack/store instance — the use-wallet fork pins an exact patch
+  # release while the catalog resolves `^0.9.0`. Two copies break nominal
+  # assignability of `Store` (separate declarations of private members).
+  "@tanstack/store": "^0.9.0"
   "@babel/core@7": "^7.29.6"
   "@tootallnate/once@2": "^2.0.1"
   "@xmldom/xmldom@0.8": "^0.8.13"

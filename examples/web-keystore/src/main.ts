@@ -1,8 +1,8 @@
 import "./style.css";
 
 import { Provider } from "@algorandfoundation/wallet-provider";
-import { WithKeyStore } from "@algorandfoundation/keystore-web";
-import type { Key, KeyStoreCapability, KeyStoreState } from "@algorandfoundation/keystore-web";
+import { WithKeyStore } from "@algorandfoundation/keystore";
+import type { Key, KeyStoreCapability, KeyStoreState } from "@algorandfoundation/keystore";
 import { Store } from "@tanstack/store";
 import Hook from "before-after-hook";
 
@@ -22,14 +22,14 @@ import {
  * A small, framework-free demo of the browser keystore extension. It composes a
  * {@link Provider} with the {@link WithKeyStore} extension, discovers the active
  * cryptographic capabilities, and offers a hierarchical (BIP32-Ed25519) wallet
- * flow alongside a post-quantum Falcon-1024 key — with per-key sign, export and
+ * flow alongside a post-quantum Falcon-1024 key, with per-key sign, export and
  * remove. All keystore orchestration lives in `./keystore.ts`; this file only
  * wires the DOM and renders reactive state.
  */
 
 // --- Provider wiring -------------------------------------------------------
 
-/** Reactive state store — the single source of truth for the rendered UI. */
+/** Reactive state store: the single source of truth for the rendered UI. */
 const store = new Store<KeyStoreState>({ keys: [], status: "idle", algorithms: [] });
 
 /** Hook collection for intercepting keystore operations. */

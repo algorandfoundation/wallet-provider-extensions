@@ -33,7 +33,7 @@ const biometricOptions: ReactKeystoreOptions["keystore"]["authentication"] = {
   // How long one successful unlock stays valid before the OS re-prompts.
   // Android bakes this into the master key at creation time (keychain's
   // default is 5s), so it only applies to master keys created after this
-  // change — existing installs keep their original window. Multi-step flows
+  // change; existing installs keep their original window. Multi-step flows
   // (e.g. seed creation → passkey-provider sync) fit inside one prompt.
   authenticationValidityDuration: 30,
 };
@@ -47,7 +47,7 @@ const biometricOptions: ReactKeystoreOptions["keystore"]["authentication"] = {
 const provider = new ReactNativeProvider(
   {
     // The account extensions scope their reads/writes to a wallet key that
-    // defaults to this id — keep it in lockstep with the accounts store.
+    // defaults to this id, so keep it in lockstep with the accounts store.
     id: WALLET_KEY,
     name: "Wallet Provider",
   },
@@ -61,7 +61,7 @@ const provider = new ReactNativeProvider(
         autoPopulate: true,
       },
       // The accounts DOMAIN travels connections through the store's
-      // session-scoped remote mirror — normalize the keystore bridge's
+      // session-scoped remote mirror: normalize the keystore bridge's
       // base64 addresses to canonical Algorand addresses on the way out.
       remote: { expose: exposeConnectionAccounts },
     },
@@ -103,7 +103,7 @@ const provider = new ReactNativeProvider(
     passkeys: {
       store: passkeysStore,
       // The same MMKV-backed passkey store the Android credential
-      // provider serves to `navigator.credentials.get` — the wallet UI
+      // provider serves to `navigator.credentials.get`, so the wallet UI
       // and the provider share one source of truth (key material stays
       // native; only public metadata reaches JS).
       module: PasskeyAutofill,

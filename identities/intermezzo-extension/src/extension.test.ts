@@ -7,8 +7,10 @@ import {
 } from "@algorandfoundation/algokit-utils/transact";
 import type { Transaction } from "@algorandfoundation/algokit-utils/transact";
 import { encodeDidKey } from "@algorandfoundation/credentials-core";
-import type { Identity, IdentityStoreState } from "@algorandfoundation/identities-store";
+import { WithIdentities } from "@algorandfoundation/identities-core";
+import type { Identity, IdentityStoreState } from "@algorandfoundation/identities-core";
 import type { IntermezzoClient } from "@algorandfoundation/intermezzo-client";
+import { Provider } from "@algorandfoundation/wallet-provider";
 import { WithIntermezzoIdentities } from "./extension.ts";
 import { createIdentityAlgorandSigner, signGroupForIdentity } from "./algorandSigner.ts";
 
@@ -36,6 +38,15 @@ function createProvider(identity: Identity = createIdentity()) {
         async getIdentity(address: string) {
           return identities.get(address);
         },
+        updateIdentityMetadata: vi.fn(
+          async (address: string, metadata: Record<string, unknown>) => {
+            const current = identities.get(address);
+            if (!current) return undefined;
+            const updated = { ...current, metadata: { ...current.metadata, ...metadata } };
+            identities.set(address, updated);
+            return updated;
+          },
+        ),
       },
     },
     credential: { store: {} },
@@ -86,12 +97,44 @@ describe("WithIntermezzoIdentities", () => {
 
   it("reuses an injected options.intermezzo.client and exposes the API", () => {
     const client = { getManagerIdentity: vi.fn() } as unknown as IntermezzoClient;
-    const extension = WithIntermezzoIdentities(createProvider(), {
+    const provider = createProvider();
+    const extension = WithIntermezzoIdentities(provider, {
       intermezzo: { client } as any,
     });
 
     expect(extension.identity.intermezzo.client).toBe(client);
-    expect(extension.identity.store).toBeDefined();
+    // The namespace object is carried over so `identity.store` survives the
+    // Provider's wholesale replacement of `provider.identity`.
+    expect((extension.identity as any).store).toBe(provider.identity.store);
+  });
+
+  it("returns only its contribution and keeps provider.identities live on a Provider", async () => {
+    const client = {} as IntermezzoClient;
+    const identitiesStore = new Store<IdentityStoreState>({ identities: [] });
+    const WithCredentialsStub = () => ({ credential: { store: {} } });
+    const MyProvider = Provider.withExtensions([
+      WithIdentities,
+      WithCredentialsStub,
+      WithIntermezzoIdentities,
+    ]);
+    const provider = new MyProvider(
+      { id: "wallet", name: "Wallet" },
+      { identities: { store: identitiesStore }, intermezzo: { client } as any },
+    );
+
+    // The surface the extension hands back has no `identities` own property
+    // (a spread of `provider` would have frozen the reactive getter).
+    const surface = WithIntermezzoIdentities(provider as any, { intermezzo: { client } as any });
+    expect(Object.keys(surface)).toEqual(["identity"]);
+    expect(Object.getOwnPropertyDescriptor(surface, "identities")).toBeUndefined();
+
+    // ...so the getter mounted by WithIdentities is still live after mounting.
+    expect(provider.identities).toEqual([]);
+    await provider.identity.store.addIdentity(createIdentity());
+    expect(provider.identities.map((i) => i.address)).toEqual([DID]);
+    // Both namespace members coexist on the composed provider.
+    expect(provider.identity.intermezzo.client).toBe(client);
+    expect(provider.identity.store.getIdentity).toBeTypeOf("function");
   });
 
   it("getAlgorandSigner derives the Algorand address from the identity's did:key", async () => {
@@ -132,10 +175,8 @@ describe("WithIntermezzoIdentities", () => {
     } as unknown as IntermezzoClient;
 
     const identity = createIdentity({ didDocument: { id: DID } as any });
-    const identitiesStore = new Store<IdentityStoreState>({ identities: [identity] });
     const provider = createProvider(identity);
     const extension = WithIntermezzoIdentities(provider, {
-      identities: { store: identitiesStore },
       intermezzo: { client } as any,
     });
 
@@ -165,11 +206,45 @@ describe("WithIntermezzoIdentities", () => {
       credentialPresentation: "sd-jwt~kb",
     });
 
-    // The anchor snapshot lands in the identity's metadata.
-    const anchored = identitiesStore.state.identities[0];
+    // The anchor snapshot is written through the identity-store API.
+    expect(provider.identity.store.updateIdentityMetadata).toHaveBeenCalledTimes(1);
+    const [address, metadata] = provider.identity.store.updateIdentityMetadata.mock.calls[0];
+    expect(address).toBe(DID);
+    expect(metadata.anchor).toMatchObject({
+      didAlgo: "did:algo:testnet:app:123",
+      didDocument: { id: DID },
+    });
+    const anchored = await provider.identity.store.getIdentity(DID);
     expect(anchored.metadata?.anchor).toMatchObject({ didAlgo: "did:algo:testnet:app:123" });
     expect(result.submitResponse.did).toBe("did:algo:testnet:app:123");
     expect(String(result.signer.addr)).toBeTruthy();
+  });
+
+  it("anchorIdentity persists the anchor into a real identities store via updateIdentityMetadata", async () => {
+    const { b64 } = buildUnsignedTxnB64();
+    const client = {
+      buildUserContractCreate: vi.fn().mockResolvedValue({
+        group: { txnGroup: [b64], indexesToSign: [0] },
+      }),
+      submitUserContractCreate: vi.fn().mockResolvedValue({ did: "did:algo:testnet:app:9" }),
+    } as unknown as IntermezzoClient;
+
+    const identity = createIdentity({ metadata: { source: "local" } });
+    const identitiesStore = new Store<IdentityStoreState>({ identities: [identity] });
+    const core = WithIdentities({} as any, { identities: { store: identitiesStore } });
+    const provider = { ...core, credential: { store: {} } } as any;
+    const extension = WithIntermezzoIdentities(provider, { intermezzo: { client } as any });
+
+    await extension.identity.intermezzo.anchorIdentity({
+      identityAddress: DID,
+      credentialPresentation: "sd-jwt~kb",
+    });
+
+    const anchored = identitiesStore.state.identities[0];
+    expect(anchored.metadata).toMatchObject({
+      source: "local",
+      anchor: { didAlgo: "did:algo:testnet:app:9" },
+    });
   });
 });
 

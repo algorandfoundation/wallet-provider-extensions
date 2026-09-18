@@ -9,8 +9,8 @@
  *   bytes are base64-encoded and written to a keychain entry keyed by the key
  *   id; the driver relies on the OS keychain's own encryption-at-rest rather
  *   than adding an app-level cipher over the material. Because some backends
- *   (Windows Credential Manager) cap an entry at ~2.5 KB, oversized material —
- *   notably Falcon-1024 private keys — is **chunked** across numbered entries
+ *   (Windows Credential Manager) cap an entry at ~2.5 KB, oversized material
+ *   (notably Falcon-1024 private keys) is **chunked** across numbered entries
  *   (`m/<id>`, `m/<id>/1`, `m/<id>/2`, …) and reassembled on read.
  * - **All metadata lives in one sealed file.** UI-safe {@link Key} records are
  *   kept together in a single blob that is AES-GCM sealed with a small master

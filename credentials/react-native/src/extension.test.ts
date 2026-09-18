@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import Hook from "before-after-hook";
 import { memoryCredentialDriver } from "@algorandfoundation/credentials-core";
 import type { Credential } from "@algorandfoundation/credentials-core";
@@ -78,5 +78,60 @@ describe("WithCredentials (react-native)", () => {
     await extension.credential.store.addCredential({ ...mockCredential, id: "cred-2" });
 
     expect(JSON.parse((await driver.get("creds"))!)).toHaveLength(2);
+  });
+
+  it("auto-loads the connections bridge over the engine-resolved store", async () => {
+    const extension = WithCredentials({} as any, {
+      credentials: { driver: memoryCredentialDriver() },
+    });
+    // The reference a consumer takes before the bridge resolves...
+    const namespace = extension.credential;
+
+    // The remote mirror is attached once the dynamic bridge import resolves;
+    // `store.ready` settles exactly when it (and hydration) has.
+    await extension.credential.store.ready;
+    expect(extension.credential.remote).toBeDefined();
+    // ...carries the mirror too: the namespace is shared, not shallow-copied.
+    expect(namespace.remote).toBe(extension.credential.remote);
+
+    // Writes through the store API are visible to the mirror: one shared store.
+    await extension.credential.store.addCredential(mockCredential);
+    expect(extension.credential.remote!.expose().map((c) => c.id)).toEqual(["cred-1"]);
+
+    // ... and records the mirror receives ride the same reactive state.
+    extension.credential.remote!.receive("session-1", [
+      {
+        id: "cred-peer",
+        type: ["VerifiableCredential"],
+        identityAddress: "",
+        name: "Peer",
+        format: "unknown",
+      },
+    ]);
+    expect(extension.credentials.map((c) => c.id).sort()).toEqual(["cred-1", "cred-peer"]);
+    // Session mirrors never echo back through expose.
+    expect(extension.credential.remote!.expose().map((c) => c.id)).toEqual(["cred-1"]);
+  });
+
+  it("degrades gracefully when the bridge module is unavailable", async () => {
+    vi.doMock("@algorandfoundation/credentials-connections-extension", () => {
+      throw new Error("Cannot find module '@algorandfoundation/credentials-connections-extension'");
+    });
+    try {
+      // Mounting must not throw; the bridge import rejection is swallowed.
+      const extension = WithCredentials({} as any, {
+        credentials: { driver: memoryCredentialDriver() },
+      });
+
+      // `ready` still resolves (never rejects) when the bridge is missing.
+      await expect(extension.credential.store.ready).resolves.toBeUndefined();
+
+      expect(extension.credential.remote).toBeUndefined();
+      // The local store surface still works without the bridge.
+      await extension.credential.store.addCredential(mockCredential);
+      expect(extension.credentials).toHaveLength(1);
+    } finally {
+      vi.doUnmock("@algorandfoundation/credentials-connections-extension");
+    }
   });
 });

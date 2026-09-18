@@ -10,9 +10,9 @@ export interface AssociationRowAction {
   icon: IconName;
   /** Optional accessible label / hint. */
   label?: string;
-  /** Destination route — if provided, the action acts as a Link. */
+  /** Destination route. If provided, the action acts as a Link. */
   href?: Href;
-  /** Tap handler — used when `href` is not provided. */
+  /** Tap handler, used when `href` is not provided. */
   onPress?: () => void;
   /** Tint for the action icon. Defaults to the row accent color. */
   color?: string;
@@ -30,11 +30,11 @@ export interface AssociationRowProps {
   href?: Href;
   /** Tap handler for the row body (e.g. selection). When provided, the row is not navigated. */
   onPress?: () => void;
-  /** Visual selected state — adds a subtle highlight. */
+  /** Visual selected state; adds a subtle highlight. */
   selected?: boolean;
   /**
    * Optional trailing action button. When provided, the row itself is no
-   * longer auto-navigated via `href` — the dedicated button handles
+   * longer auto-navigated via `href`: the dedicated button handles
    * navigation while the row body remains free for selection/onPress.
    */
   action?: AssociationRowAction;

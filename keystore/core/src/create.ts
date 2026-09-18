@@ -68,16 +68,16 @@ export interface CreateKeyStoreOptions<Ctx = unknown> {
    * supplied surfaces the host's own "unsupported algorithm" error. Injected
    * this way, core never depends on any specific `xhd`/`falcon`/… binding.
    *
-   * Defaults to {@link createDefaultShims} — every supported algorithm add-on
+   * Defaults to {@link createDefaultShims}: every supported algorithm add-on
    * (BIP32-Ed25519, Falcon-1024, Deterministic-P256, BIP39 and Algo25) enabled
    * with its bundled binding. Pass an explicit array (including `[]`) to
    * override this and supply your own/platform-native bindings.
    *
    * May also be a (possibly async) factory, resolved once as part of
    * {@link KeyStore.ready}. This lets a synchronous platform engine defer
-   * building its default stack — e.g. React Native asynchronously loads its
+   * building its default stack (e.g. React Native asynchronously loads its
    * native `@joe-p/react-native-falcon` binding and folds it into
-   * {@link createDefaultShims} — without blocking construction.
+   * {@link createDefaultShims}) without blocking construction.
    */
   shims?: SubtleShim[] | (() => SubtleShim[] | Promise<SubtleShim[]>);
   /**
@@ -85,7 +85,7 @@ export interface CreateKeyStoreOptions<Ctx = unknown> {
    * material-touching {@link KeyStoreAPI} method is wrapped so `before`/`after`
    * hooks can intercept, observe or short-circuit the operation, and the
    * collection is exposed as {@link KeyStore.hooks}. This is how the Wallet
-   * Provider extension threads its hooks into the engine — the hooks are bound
+   * Provider extension threads its hooks into the engine: the hooks are bound
    * once, when the keystore is created, rather than per call site.
    */
   hooks?: HookCollection<any>;
@@ -148,7 +148,7 @@ function seedToEd25519Pkcs8(seed: Uint8Array): Uint8Array {
 
 /**
  * Unwraps the 32-byte Ed25519 seed from the PKCS#8 document produced by
- * {@link seedToEd25519Pkcs8} — the layout every byte-persisted Ed25519 record
+ * {@link seedToEd25519Pkcs8}, the layout every byte-persisted Ed25519 record
  * is sealed in, and the shape {@link KeyData.privateKey} is defined as for
  * `ed25519` keys (so an `export` round-trips through `import` unchanged).
  */
@@ -183,9 +183,9 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
 
 /**
  * The generation inputs THIS engine consumes as secrets. Metadata is stored in
- * PLAINTEXT — mirrored into the reactive store, pushed over RPC and persisted
+ * PLAINTEXT: mirrored into the reactive store, pushed over RPC and persisted
  * unencrypted (IndexedDB metadata store, the MMKV `k/` bucket, Node's metadata
- * file) — so these are dropped before the rest of `params` is recorded.
+ * file), so these are dropped before the rest of `params` is recorded.
  *
  * Deliberately limited to what the engine itself reads: an inline `seed` or
  * `entropy`, the BIP39 `passphrase` and the PBKDF2 `salt`. Existing key
@@ -264,7 +264,7 @@ const ENCRYPT_PEER_SUITE = 1;
 /** HPKE `info` binding peer ciphertexts to this keystore's encrypt scheme. */
 const ENCRYPT_PEER_INFO = new TextEncoder().encode("keystore-encrypt-v3");
 /**
- * Peer framing: `[version(1) | suite(1) | senderPub(65) | enc(65) | ct]` — the
+ * Peer framing: `[version(1) | suite(1) | senderPub(65) | enc(65) | ct]`; the
  * header is everything before the AEAD ciphertext.
  */
 const ENCRYPT_PEER_HEADER_LENGTH = 2 + HPKE_P256_POINT_LENGTH * 2;
@@ -274,7 +274,7 @@ const ENCRYPT_PEER_HEADER_LENGTH = 2 + HPKE_P256_POINT_LENGTH * 2;
  * (HKDF-SHA-256 over the sealed private material, salted with the public key so
  * the derived key is bound to the pair). The private bytes are only ever
  * available inside {@link KeyStoreDriver.use}, so encrypting and decrypting
- * require the same unlock as any other material-touching operation — this is
+ * require the same unlock as any other material-touching operation; this is
  * what gives `encryptWithKey`/`decryptWithKey` confidentiality against anyone
  * who merely knows the public key.
  */
@@ -304,11 +304,11 @@ async function deriveAesKeyFromPrivate(
  * Resolves the AES-GCM key that seals {@link KeyStoreAPI.encryptWithKey}
  * ciphertext from whatever material the driver unsealed:
  *
- * - `bytes` — HKDF-SHA-256 over the sealed private bytes
+ * - `bytes`: HKDF-SHA-256 over the sealed private bytes
  *   ({@link deriveAesKeyFromPrivate}), the byte-only-backend scheme.
- * - a native `AES-GCM` {@link CryptoKey} — the stored key itself, handed
+ * - a native `AES-GCM` {@link CryptoKey}: the stored key itself, handed
  *   straight to the host so the material never surfaces as bytes.
- * - a native `ECDH`/`X25519` {@link CryptoKey} — a **self-agreement** (the
+ * - a native `ECDH`/`X25519` {@link CryptoKey}: a **self-agreement** (the
  *   private key against its own public key), a secret only the private-key
  *   holder can compute, folded through the same HKDF. With a `deriveKey`-only
  *   key the agreement stays entirely inside the host.
@@ -316,7 +316,7 @@ async function deriveAesKeyFromPrivate(
  * The source is a fixed property of how the key is persisted, so encrypt and
  * decrypt always resolve the same AES key for a given id. Any other native key
  * (a signature-only Ed25519/ECDSA `CryptoKey`, whose WebCrypto usages permit
- * neither encryption nor key agreement) throws — no secret path to an
+ * neither encryption nor key agreement) throws: no secret path to an
  * encryption key exists for it.
  */
 async function aesKeyFromMaterial(
@@ -377,17 +377,17 @@ async function toRawP256Point(host: SubtleCrypto, publicKey: Uint8Array): Promis
 }
 
 /**
- * Resolves a key's material into the ECDH pair the HPKE peer scheme needs — a
+ * Resolves a key's material into the ECDH pair the HPKE peer scheme needs: a
  * `deriveBits`-capable P-256 private `CryptoKey` plus the matching
  * uncompressed public point:
  *
  * - a native `ECDH` `CryptoKey` is used as-is (its public half re-exported
- *   raw), provided its usages include `deriveBits` — HPKE concatenates raw DH
- *   outputs, which `deriveKey` alone cannot produce;
+ *   raw), provided its usages include `deriveBits` (HPKE concatenates raw DH
+ *   outputs, which `deriveKey` alone cannot produce);
  * - byte-backed `ECDH` material is re-imported from its sealed PKCS#8 document
  *   just-in-time, with the public point taken from the metadata mirror.
  *
- * Anything else — signing keys, XHD/HD-derived keys, non-P-256 curves —
+ * Anything else (signing keys, XHD/HD-derived keys, non-P-256 curves)
  * throws: peer encryption deliberately requires a key generated for
  * derivation (`keyUsages: ["deriveBits", ...]`). XHD agreements go through
  * `deriveSharedSecret` instead.
@@ -666,13 +666,13 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
 
   /**
    * Generates a fresh mnemonic **seed** (`type: "seed"`) via the BIP39 or Algo25
-   * shim. Only the recoverable **entropy** is persisted (sealed at rest) —
+   * shim. Only the recoverable **entropy** is persisted (sealed at rest);
    * `metadata.scheme` records which mnemonic scheme it belongs to so the phrase
    * can be reconstructed and downstream derivation can convert entropy → seed
    * just-in-time. The scheme is taken from `params.scheme`, else inferred from
    * `algorithm` (`"Algo25"` ⇒ `algo25`, otherwise `bip39`).
    *
-   * A `params.passphrase` (the BIP39 "25th word") is NOT persisted by default —
+   * A `params.passphrase` (the BIP39 "25th word") is NOT persisted by default:
    * `metadata.protected` merely records that one is required, and every later
    * derivation must supply it again. Passing `params.storePassphrase: true`
    * opts into sealing it in the secret store next to the seed (the id is
@@ -764,7 +764,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
   };
 
   /**
-   * Generates a deterministic-P256 (passkey) **main key** — the PBKDF2-HMAC-SHA512
+   * Generates a deterministic-P256 (passkey) **main key**, the PBKDF2-HMAC-SHA512
    * root of the passkey hierarchy. It shares the `hd-root-key` type with the XHD
    * root but is distinguished by `algorithm: "P256"` + `metadata.scheme:
    * "pbkdf2-p256"`, so no new {@link KeyType} is introduced. Domain passkeys are
@@ -776,7 +776,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     ctx?: Ctx,
   ): Promise<KeyId> => {
     const parentKeyId = options.params?.parentKeyId as string | undefined;
-    // Never persist raw secrets into (plaintext) metadata — strip any inline
+    // Never persist raw secrets into (plaintext) metadata: strip any inline
     // entropy/seed/salt/passphrase the caller passed for generation.
     const safeParams = publicParams(options.params);
     await withSeed(
@@ -859,7 +859,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       pkcs8.fill(0);
       await driver.put(id, { kind: "cryptokey", privateKey, publicKey: pair.publicKey }, ctx);
     } else {
-      // Byte-only backend — or a key requested `extractable: true`, whose
+      // Byte-only backend, or a key requested `extractable: true`, whose
       // material `export` must be able to hand back: persist the private key
       // as sealed pkcs8 bytes.
       const pkcs8 = new Uint8Array(await host.exportKey("pkcs8", pair.privateKey));
@@ -885,7 +885,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
 
   /**
    * Imports an existing standalone Ed25519 private key (a 32-byte seed) into
-   * the keystore, persisting it exactly like {@link generateEd25519} does —
+   * the keystore, persisting it exactly like {@link generateEd25519} does;
    * the only difference being that the private key material comes from the
    * caller instead of a freshly generated pair.
    *
@@ -972,13 +972,17 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     id: KeyId,
     ctx?: Ctx,
   ): Promise<KeyId> => {
-    const algorithm = { name: options.algorithm, ...options.params } as unknown as
+    // `params` is spread first: extra entries (labels like `params.name`,
+    // caller metadata, …) ride along harmlessly, but the WebCrypto algorithm
+    // name always comes from `options.algorithm`; a caller's display label
+    // must never clobber it (the host rejects it as an unrecognized name).
+    const algorithm = { ...options.params, name: options.algorithm } as unknown as
       | AlgorithmIdentifier
       | RsaHashedKeyGenParams;
     // The algorithm object handed to `generateKey` may legitimately carry secret
     // inputs; the one RECORDED for later verification must not (see
     // `publicParams`).
-    const signAlgorithm = { name: options.algorithm, ...publicParams(options.params) };
+    const signAlgorithm = { ...publicParams(options.params), name: options.algorithm };
     if (native && !options.extractable) {
       const result = (await host.generateKey(algorithm, false, options.keyUsages)) as
         | CryptoKey
@@ -1418,7 +1422,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       await ready;
       const key = await loadMetadata(id);
       // Only a key created `extractable: true` ever releases private material;
-      // everything else exports its public metadata alone — private material is
+      // everything else exports its public metadata alone; private material is
       // owned by the storage layer and never crosses the public surface.
       if (!key.extractable) return { ...key } as KeyData;
       setStatus("exporting");
@@ -1502,7 +1506,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
           });
           // Peer layout: [version(1) | suite(1) | senderPub(65) | enc(65) | ct].
           // The sender's public point rides along so the recipient's
-          // decryptWithKey is self-contained — it both keys the agreement and
+          // decryptWithKey is self-contained: it both keys the agreement and
           // is authenticated by it (a swapped sender fails to open).
           const out = new Uint8Array(ENCRYPT_PEER_HEADER_LENGTH + ciphertext.byteLength);
           out[0] = ENCRYPT_VERSION_PEER;
@@ -1513,7 +1517,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
           return out;
         }
         // Self path: unlock the material just-in-time and resolve the AES key
-        // from it — HKDF over private bytes, or the native host key/agreement
+        // from it: HKDF over private bytes, or the native host key/agreement
         // when the driver holds a CryptoKey. The AES handle survives the
         // callback; raw bytes never do.
         const aes = await driver.use(id, ctx, (m) =>
@@ -1591,7 +1595,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
       id: KeyId,
       publicKey: Uint8Array,
       meFirst: boolean,
-      _algorithm?: string,
+      algorithm?: string,
       ctx?: Ctx,
     ): Promise<Uint8Array> {
       await ready;
@@ -1601,6 +1605,8 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
         if (key.type === "hd-derived-ed25519") {
           // XHD Diffie-Hellman: unlock the root just-in-time and let the shim
           // run ECDH along the recorded path against the remote public key.
+          // `algorithm: "x25519"` asks for the RAW X25519 agreement (remote key
+          // raw X25519, no hashing) instead of the default ARC-52 hashed one.
           const parentKeyId = key.metadata?.parentKeyId as string;
           return await driver.use(parentKeyId, ctx, async (m) => {
             if (m.kind !== "bytes") {
@@ -1617,10 +1623,39 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
                 rootKey: m.bytes,
                 otherPartyPub: publicKey,
                 meFirst,
+                x25519: algorithm === "x25519",
               } as unknown as AlgorithmIdentifier,
               handle,
             );
             return new Uint8Array(secret as ArrayBuffer);
+          });
+        }
+        // A native X25519 key agrees through the host's X25519 `deriveBits`,
+        // the WebCrypto path that works with NON-extractable private keys
+        // (non-extractability blocks *export*, not *use*). The remote public
+        // key is accepted raw (32 bytes) or as an SPKI document (the shape
+        // `Key.publicKey` mirrors for host-generated keys).
+        if (key.algorithm === "X25519") {
+          const remote = await host.importKey(
+            publicKey.byteLength === 32 ? "raw" : "spki",
+            bs(publicKey),
+            { name: "X25519" },
+            false,
+            [],
+          );
+          return await driver.use(id, ctx, async (m) => {
+            const privateKey =
+              m.kind === "cryptokey"
+                ? m.privateKey
+                : await host.importKey("pkcs8", bs(m.bytes), { name: "X25519" }, false, [
+                    "deriveBits",
+                  ]);
+            const secret = await host.deriveBits(
+              { name: "X25519", public: remote } as EcdhKeyDeriveParams,
+              privateKey,
+              256,
+            );
+            return new Uint8Array(secret);
           });
         }
         // Standard EC key: perform host-native ECDH. The stored private key is

@@ -1,4 +1,19 @@
-import { WithIntermezzoIdentities } from "./extension.ts";
+/**
+ * @module default
+ * @packageDocumentation
+ *
+ * `@algorandfoundation/identities-intermezzo-extension` bridges the
+ * identities domain to an intermezzo backend. The
+ * {@link WithIntermezzoIdentities} extension mounts
+ * `provider.identity.intermezzo`: manager identity endpoints, the
+ * credential-gated `did:algo` anchoring flow (`anchorIdentity`, which records
+ * the anchor snapshot through `provider.identity.store.updateIdentityMetadata`)
+ * and DID-document update flows, configured from the `options.intermezzo`
+ * block owned by `@algorandfoundation/credentials-intermezzo-extension`. It
+ * requires `WithIdentities` and `WithCredentials` on the provider. The signer
+ * helpers ({@link createIdentityAlgorandSigner}, {@link signGroupForIdentity})
+ * and the re-exported `IntermezzoClient` run standalone, no Provider required.
+ */
 
 export * from "./extension.ts";
 export {
@@ -27,5 +42,3 @@ export type {
   SubmitUserDidDocumentUpdateResponse,
   UnsignedAlgorandGroup,
 } from "@algorandfoundation/intermezzo-client";
-
-export default WithIntermezzoIdentities;

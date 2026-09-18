@@ -1,10 +1,10 @@
-# A Deep Dive into State Flows
+# A Deep Dive into the Provider
 
-> How data moves through the Wallet Provider Extensions, and why that shape lets
-> us do something powerful: describe the **entire** state of a wallet — every
-> identity, every account, every passkey — as a single, standard document that
-> is always up to date, without any component telling any other component to
-> update.
+> How data flows through the Provider and its Wallet Provider Extensions, and
+> why that shape lets us do something powerful: describe the **entire** state
+> of a wallet (every identity, every account, every passkey) as a single,
+> standard document that is always up to date, without any component telling
+> any other component to update.
 
 ## Who this is for
 
@@ -18,7 +18,7 @@ By the end you should be able to answer three questions confidently:
 
 1. **What** is the wallet's superpower, and why is it the state we most want to
    show?
-2. **How** do we always know the full state of the wallet — which keys are
+2. **How** do we always know the full state of the wallet, such as which keys are
    identities, which are spendable accounts, which are passkeys?
 3. **Why** does modeling state as flows make that full-state view correct by
    construction, and how you extend it with a new extension of your own.
@@ -40,18 +40,18 @@ _whole_ picture at once.
 
 Because this system keeps all of that state in coordinated stores, we can do
 something most wallets cannot: at any instant, we can project the complete state
-of the wallet into a single **W3C DID Document** — the open standard for
+of the wallet into a single **W3C DID Document**: the open standard for
 describing an identity and the keys/services attached to it.
 
 That document is the superpower. It answers, in one standard artifact:
 
-- _Who is this?_ — the identity's `did:key`.
-- _What keys prove it?_ — every verification method (Ed25519 identity/account
+- _Who is this?_ The identity's `did:key`.
+- _What keys prove it?_ Every verification method (Ed25519 identity/account
   keys, P-256 passkeys).
-- _What can it connect to?_ — services (e.g. WebRTC ICE servers).
+- _What can it connect to?_ Services (e.g. WebRTC ICE servers).
 
 And crucially, because it is _derived from the stores_ rather than hand-written,
-it is never stale. Add a passkey, derive a new account — the document that
+it is never stale. Add a passkey or derive a new account, and the document that
 represents the wallet updates itself. It is a backup format, a sync format, and
 a portable description of the wallet's capabilities, all at once.
 
@@ -69,7 +69,7 @@ Picture the moving parts:
   phrase, derives an account, registers a passkey, or restores from disk.
 - An **accounts** layer that shows spendable accounts.
 - An **identities** layer that shows who the user is.
-- A **consumer** — a UI, a CLI, an RPC peer, or the DID-document projection —
+- A **consumer** (a UI, a CLI, an RPC peer, or the DID-document projection)
   that must reflect all of this _accurately and instantly_, and never show a
   stale or half-updated picture.
 
@@ -81,7 +81,7 @@ which calls `ui.refresh()`. That rots fast:
   taught about every new consumer. Adding the DID-document projection would mean
   editing the keystore.
 - **Order-of-operations bugs.** A consumer that reads halfway through an update
-  sees a "torn" state — a key added but its account/identity not yet built.
+  sees a "torn" state: a key added but its account/identity not yet built.
 - **No single truth.** Keys, accounts, identities, and a cached UI copy drift
   apart. Debugging becomes "which of these four lists is lying to me?"
 - **You could never build the document.** A coherent full-state projection is
@@ -90,9 +90,9 @@ which calls `ui.refresh()`. That rots fast:
 The state-flow architecture makes those problems structurally impossible with
 three rules:
 
-1. **Each domain has exactly one source of truth** — a _store_.
-2. **State is only ever replaced, never edited in place** — it is _immutable_.
-3. **Consumers subscribe; producers never call consumers directly** — updates
+1. **Each domain has exactly one source of truth**: a _store_.
+2. **State is only ever replaced, never edited in place**: it is _immutable_.
+3. **Consumers subscribe; producers never call consumers directly**: updates
    _flow_ outward.
 
 Follow those three and the full-state DID document falls out for free.
@@ -101,20 +101,20 @@ Follow those three and the full-state DID document falls out for free.
 
 ## 3. The three rules, concretely
 
-### Rule 1 — One store per domain
+### Rule 1: One store per domain
 
 A **store** holds one well-defined slice of state and lets you read it, replace
 it, and subscribe to changes. We use [`@tanstack/store`](https://tanstack.com/store).
-If two parts of the app disagree, the store is right and they are wrong — by
+If two parts of the app disagree, the store is right and they are wrong; by
 construction, because they both read from it.
 
-The keystore's state is deliberately tiny and _UI-safe_ — no private key
+The keystore's state is deliberately tiny and _UI-safe_: no private key
 material, only metadata and a status flag:
 
 ```typescript
 // keystore/core/src/types/extension.ts
 export interface KeyStoreState {
-  keys: Key[]; // metadata only — ids, types, public keys, context
+  keys: Key[]; // metadata only: ids, types, public keys, context
   status: string; // "idle" | "generating" | "signing" | "ready" | ...
 }
 ```
@@ -122,12 +122,15 @@ export interface KeyStoreState {
 The accounts and identities stores are just as small:
 
 ```typescript
-// accounts/store/src/types.ts
-export interface AccountStoreState<T> {
-  accounts: T[];
+// accounts/core/src/types.ts
+export interface AccountStoreState<T = Account> {
+  wallets: Partial<Record<WalletKey, WalletState<T>>>; // accounts partitioned by wallet key
+  activeWallet: WalletKey | null;
 }
+// WalletState<T> = { accounts: T[]; activeAccount: T | null }, a structural
+// twin of use-wallet's state, so the two can share a store.
 
-// identities/store/src/types.ts
+// identities/core/src/types.ts
 export interface IdentityStoreState {
   identities: Identity[];
 }
@@ -137,39 +140,61 @@ Each store draws a clean boundary. The accounts package can be developed,
 tested, and shipped without ever importing the identities package, and vice
 versa. The store _is_ the contract between them.
 
-### Rule 2 — Immutability: replace, don't edit
+### Rule 2: Immutability (replace, don't edit)
 
 This is the rule newcomers push back on, so let's be concrete.
 
-**Mutable (in-place) — what we do NOT do:**
+**Mutable (in-place), which we do NOT do:**
 
 ```typescript
 // ❌ Editing the existing array in place.
-store.state.accounts.push(newAccount);
+store.state.wallets[walletKey].accounts.push(newAccount);
 ```
 
-**Immutable — what we DO:**
+**Immutable, which we DO:**
 
 ```typescript
-// accounts/store/src/store.ts
-export function addAccount<T>({ store, account }): T {
-  store.setState((state) => ({
-    ...state, // copy the old state
-    accounts: [account, ...state.accounts], // brand-new array
-  }));
+// accounts/core/src/store.ts (abridged)
+export function addAccount<T>({ store, walletKey, account }): T {
+  store.setState((state) => {
+    const wallet = state.wallets[walletKey] ?? { accounts: [], activeAccount: null };
+    return {
+      ...state, // copy the old state
+      wallets: {
+        ...state.wallets, // brand-new wallets map
+        [walletKey]: {
+          ...wallet,
+          accounts: [
+            { ...account },
+            ...wallet.accounts.filter((a) => a.address !== account.address),
+          ],
+        },
+      },
+    };
+  });
   return account;
 }
 ```
 
 No `push`, no `splice`, no `account.balance = ...`. We build a **new** state
-object from the old one. Removal is the same — `filter` returns a new array:
+object from the old one. Removal follows the same principle; `filter` returns a new array:
 
 ```typescript
-export function removeAccount<T>({ store, address }): void {
-  store.setState((state) => ({
-    ...state,
-    accounts: state.accounts.filter((a) => a.address !== address),
-  }));
+export function removeAccount<T>({ store, walletKey, address }): void {
+  store.setState((state) => {
+    const wallet = state.wallets[walletKey];
+    if (!wallet) return state;
+    return {
+      ...state,
+      wallets: {
+        ...state.wallets,
+        [walletKey]: {
+          ...wallet,
+          accounts: wallet.accounts.filter((a) => a.address !== address),
+        },
+      },
+    };
+  });
 }
 ```
 
@@ -177,9 +202,9 @@ Why it earns its keep:
 
 1. **Cheap change detection.** "Did anything change?" is `oldState !== newState`
    (a reference check), not a deep comparison. This is exactly how a UI decides
-   whether to re-render — and how the DID projection knows it must be rebuilt.
+   whether to re-render, and how the DID projection knows it must be rebuilt.
    Mutate in place and the reference never changes, so the check says "nothing
-   changed" and the view silently goes stale — the single most common bug this
+   changed" and the view silently goes stale, which is the single most common bug this
    removes.
 2. **No torn reads.** A subscriber always sees a _complete_ snapshot; the swap
    from old to new is atomic, so "key added but account not yet built" never
@@ -191,20 +216,20 @@ Why it earns its keep:
 > never erase and rewrite; you pin up a new photo each time and everyone looks
 > at the latest one.
 
-### Rule 3 — Subscribe, don't call
+### Rule 3: Subscribe, don't call
 
 Operations like `addAccount` are plain functions that take everything they need
-as arguments (`{ store, account }`) and reach for no globals — trivial to test.
+as arguments (`{ store, walletKey, account }`) and reach for no globals, making them trivial to test.
 We wrap them with **hooks**
 ([`before-after-hook`](https://github.com/gr2m/before-after-hook)) so behavior
 can be extended from the outside without editing the operation:
 
 ```typescript
-// accounts/store/src/extension.ts
+// accounts/core/src/extension.ts
 account: {
   store: {
     async addAccount(account) {
-      return hooks("add", addAccount, { store, account });
+      return hooks("add", addAccount, { store, walletKey, account });
     },
     hooks,
   },
@@ -231,17 +256,22 @@ knows what every key is for.** Keys are derived under a numeric `context`, and
 that context tells us the key's role. Two small bridge extensions read the same
 keystore and route keys to the right store:
 
-- **Context 0 → a payment account.** The Algorand accounts bridge
-  (`accounts/keystore-extension`) turns each address-context key into a spendable
+- **Context 0 → a payment account.** The reference keystore bridge
+  (`accounts/keystore-extension`) turns each address-context key into a signable
   account:
 
   ```typescript
   // accounts/keystore-extension/src/extension.ts
-  const isAddressContext = k.type === "ed25519" || k.metadata?.context === 0;
+  const isAddressContext = k.type !== "hd-derived-ed25519" || k.metadata?.context === 0;
   if (isAddressContext && k.publicKey) {
-    addAccount({ store: accountStore, account: createKeyAccount(k.id, address, ...) });
+    addAccount({ store: accountStore, walletKey, account: createKeyAccount(k, address, ...) });
   }
   ```
+
+  As a reference example it addresses every key type (`ed25519`,
+  `hd-derived-ed25519`, `falcon-1024`) by `base64(publicKey)`; concrete Algorand
+  addresses and canonical post-quantum digests live in
+  `@algorandfoundation/algorand-accounts-extension` (`WithAlgorandAccounts`).
 
 - **Context 1 → an identity.** The identities bridge
   (`identities/keystore-extension`) turns each identity-context key into an
@@ -260,7 +290,7 @@ and reconcile on every change (guarding on `status` so they only act on settled
 `"ready"`/`"idle"` snapshots, never a mid-operation one).
 
 So at any moment the system can answer "which keys are identities, which are
-payment accounts, which are passkeys?" — not by guessing, but because it routed
+payment accounts, which are passkeys?" This is not known by guessing, but because it routed
 every key deliberately. That complete, categorized picture is exactly what a DID
 document needs.
 
@@ -269,7 +299,7 @@ document needs.
 ## 5. An account is a view of a key, not a copy
 
 Before we assemble the document, one grounding point about what an account
-actually _is_ in this system. An account is **not** a copy of a key — it is a
+actually _is_ in this system. An account is **not** a copy of a key; it is a
 **view** of one. It never holds the private key. `createKeyAccount` stores only a
 reference (`keyId`) and a `sign` method that delegates back to the keystore:
 
@@ -281,28 +311,28 @@ sign: async (txns) => {
 };
 ```
 
-Truth stays where it belongs — in the keystore. The account is a _view_ of a
+Truth stays where it belongs: in the keystore. The account is a _view_ of a
 key, not a copy of it.
 
 The other thing to notice is what an account's `address` is (and is not) to the
 generic store: an **opaque string**. Turning a public key into a chain-specific
 address is the job of a chain-aware bridge, not of the generic accounts store,
-which never inspects or derives it. That separation — chain specifics behind a
-chain-specific layer — is exactly what §8 is about.
+which never inspects or derives it. That separation (chain specifics behind a
+chain-specific layer) is exactly what §8 is about.
 
 ---
 
 ## 6. Assembling the superpower: the DID document
 
 Now we can build the full-state view. An identity is anchored to a seed, and the
-identities bridge gathers **every derived key descending from that seed** —
-Ed25519 account keys and P-256 passkeys alike — and projects them into one
+identities bridge gathers **every derived key descending from that seed**, including
+Ed25519 account keys and P-256 passkeys alike, and projects them into one
 document.
 
 The `did:key` identifier is just the public key in multibase form:
 
 ```typescript
-// identities/store/src/did-document.ts
+// identities/core/src/did-document.ts
 export function generateDidKey(publicKey: Uint8Array): string {
   const multicodecPrefix = new Uint8Array([0xed, 0x01]); // Ed25519
   const prefixed = new Uint8Array(2 + publicKey.length);
@@ -349,20 +379,33 @@ The result is one artifact that describes the whole wallet:
   "@context": ["https://www.w3.org/ns/did/v1", "..."],
   "id": "did:key:z6Mk...",
   "verificationMethod": [
-    { "id": "did:key:z6Mk...#<idKeyId>",  "type": "Ed25519VerificationKey2020", "controller": "did:key:z6Mk..." },
-    { "id": "did:key:z6Mk...#<acctKeyId>","type": "Ed25519VerificationKey2020", "controller": "did:key:z6Mk..." },
-    { "id": "did:key:z6Mk...#<passkeyId>","type": "JsonWebKey2020",             "controller": "did:key:z6Mk..." }
+    {
+      "id": "did:key:z6Mk...#<idKeyId>",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:key:z6Mk..."
+    },
+    {
+      "id": "did:key:z6Mk...#<acctKeyId>",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:key:z6Mk..."
+    },
+    {
+      "id": "did:key:z6Mk...#<passkeyId>",
+      "type": "JsonWebKey2020",
+      "controller": "did:key:z6Mk..."
+    }
   ],
-  "authentication":  ["did:key:z6Mk...#<idKeyId>"],
+  "authentication": ["did:key:z6Mk...#<idKeyId>"],
   "assertionMethod": ["did:key:z6Mk...#<idKeyId>"],
-  "service": [ { "id": "did:key:z6Mk...#webrtc-ice-servers", "type": "WebRTCICECredentials", "iceServers": [ ... ] } ]
+  "keyAgreement": ["did:key:z6Mk...#<x25519KeyId>"],
+  "service": []
 }
 ```
 
 Because the bridge subscribes to the keystore, whenever _any_ key in a seed's
 hierarchy changes it re-renders every affected identity's document (see the
 `hierarchyChanged` handling). The document is therefore a live mirror of the
-wallet's full state — which is why it doubles as a **backup**: the same bridge
+wallet's full state, which is why it doubles as a **backup**: the same bridge
 can `restoreFromDidDocument`, re-deriving the exact keys the document describes.
 
 Here is the shape of the whole system:
@@ -382,13 +425,13 @@ Each layer only replaces its own state and trusts the flow.
 
 ---
 
-## 7. Built to grow: new kinds of account — and of identity
+## 7. Built to grow: new kinds of account and of identity
 
 The account model is intentionally generic so that new account kinds fit without
 touching the flow. The account type is an _open_ union:
 
 ```typescript
-// accounts/store/src/types.ts
+// accounts/core/src/types.ts
 export type AccountType = "ed25519" | "lsig" | "falcon" | string;
 ```
 
@@ -411,7 +454,7 @@ members are just examples of the shapes it anticipates:
   }
   ```
 
-- `lsig` names a **logic-signature** account — program-controlled, with no seed
+- `lsig` names a **logic-signature** account: program-controlled, with no seed
   phrase at all.
 - `string` leaves the door open for anything else you need.
 
@@ -430,10 +473,10 @@ tree, not new plumbing.
 ### The same open door on the identity side
 
 "Who you are" is no more fixed than "how you sign," so identities use the _exact
-same_ open-union trick as accounts — the identity type is open, too:
+same_ open-union trick as accounts; the identity type is open, too:
 
 ```typescript
-// identities/store/src/types.ts
+// identities/core/src/types.ts
 export type IdentityType = "xhd" | "did:key" | string;
 ```
 
@@ -441,17 +484,17 @@ The bridge today builds a hierarchical-deterministic seed (`"xhd"`) projected to
 a `did:key`. If you need a different identity shape, you add it the same way you
 add an account kind. For example:
 
-- **`mdoc`** — an ISO/IEC 18013-5 _mobile document_ — is not a `did:key` at all;
+- **`mdoc`** (an ISO/IEC 18013-5 _mobile document_) is not a `did:key` at all;
   it carries its own issuer-signed data structure rather than a single
   wallet-derived key.
 - **`did:web`, `did:jwk`, verifiable-credential holders**, and organization- or
-  hardware-backed identities are the same story — a new `type`, a new way to
+  hardware-backed identities are the same story: a new `type` and a new way to
   prove it, the same store.
 
 Adding one in your own extension is the mirror image of adding an account kind:
 
 1. Route it into the identities store under its own `type`. Such an identity
-   need not descend from the wallet seed the way `"xhd"` identities do — a bridge
+   need not descend from the wallet seed the way `"xhd"` identities do; a bridge
    can add it from an entirely different source.
 2. Teach the projection how to _describe_ it. A `did:key` identity emits a DID
    document; an `mdoc` identity might instead surface its credential metadata, or
@@ -477,14 +520,14 @@ Algorand-specific package.** The chain-specific weight is quarantined.
 Look at what the generic stores depend on:
 
 ```jsonc
-// accounts/store/package.json — the generic account model
+// accounts/core/package.json: the generic account model
 "dependencies": {
   "@algorandfoundation/wallet-provider": "catalog:",
   "@noble/hashes": "catalog:",
   "@scure/base": "catalog:"
 }
 
-// identities/store/package.json — the generic identity model
+// identities/core/package.json: the generic identity model
 "dependencies": {
   "@algorandfoundation/wallet-provider": "catalog:",
   "@scure/base": "catalog:",
@@ -492,7 +535,7 @@ Look at what the generic stores depend on:
 }
 ```
 
-There is **no `algosdk`, no chain SDK** in these packages — nor in any of the
+There is **no `algosdk`, no chain SDK** in these packages, nor in any of the
 generic stores. They know only about generic primitives (hashing, base-N
 encoding, the store, the hook library), model _accounts_ and _identities_ as
 abstract shapes, and remain reusable for a chain that is not Algorand at all.
@@ -506,7 +549,7 @@ out and neither it nor its transitive weight is in your bundle.
 Where do the rest of the Algorand specifics live? In Algorand-specific places,
 loaded only when used:
 
-- **Address encoding** — turning a public key into an Algorand address — is a
+- **Address encoding** (turning a public key into an Algorand address) is a
   chain-specific concern, so it belongs _inside_ a chain-aware bridge, not in the
   generic accounts store. If you never install such a bridge, its chain SDK is
   never imported. The generic stores never learn the rule; they treat `address`
@@ -524,7 +567,7 @@ loaded only when used:
   ```
 
   It is only wired in if you enable the `Algo25` capability. Turn it off and the
-  Algorand mnemonic code path — and any dependency it would pull — is simply not
+  Algorand mnemonic code path (and any dependency it would pull) is simply not
   part of your bundle.
 
 The rule of thumb: **generic packages carry generic dependencies; Algorand
@@ -539,7 +582,7 @@ packages lets bundlers tree-shake the unused paths away entirely.
 
 Everything above described a single process holding its own keystore. Real
 deployments are rarely one process. The same account lives on a phone, is
-brokered by a service, and is _used_ by a web page — three vantage points on the
+brokered by a service, and is _used_ by a web page: three vantage points on the
 same wallet. The same flow model can serve all three, because each perspective
 is just a different **source of truth** feeding the same stores.
 
@@ -548,22 +591,22 @@ how the same model applies across these deployment shapes so you can see where a
 new extension might fit. It is not a promised feature set you need in order to
 build an extension today.
 
-- **Wallet** — a client that operates on at least one domain _with authority_:
+- **Wallet**: a client that operates on at least one domain _with authority_:
   it can actually sign. A mobile wallet or a browser-extension wallet. This is
   the only party that truly holds the identity and the account keys, so its
   keystore is the real source of truth. Everything else is a _view_ of it. This
   is the world sections §1–§8 modeled directly.
 
-- **RPC** — a third-party service standing between a wallet and its consumer. It
+- **RPC**: a third-party service standing between a wallet and its consumer. It
   might be a custody provider like Fireblocks, or another wallet entirely (a
   mobile client reached over LiquidAuth). These are what typically show up in
   `use-wallet` and get delivered to a web client, and what back non-self-custodial
   or MPC-style setups where "the key" is not a single local secret. An RPC peer
-  usually has **no local keystore** — it has _accounts connected to a wallet_,
+  usually has **no local keystore**: it has _accounts connected to a wallet_,
   and it forwards signing requests across the wire.
 
-- **Web** — a client that must _request access_ to a wallet, almost always
-  through an RPC connection. It can own a small keystore of its own — not to hold
+- **Web**: a client that must _request access_ to a wallet, almost always
+  through an RPC connection. It can own a small keystore of its own, not to hold
   the user's real accounts, but to mint **session keys** that authenticate and
   encrypt its RPC channel to the wallet.
 
@@ -589,27 +632,32 @@ our model is defined by _behavior_, not by _where its key lives_, the exact same
 accounts store and extensions can describe an account that is **connected over a
 wire** instead of derived from a local keystore.
 
-Recall the account shape — it never holds a private key, only an address and a
-`sign` function:
+Recall the account shape: the generic `Account` never holds a private key, only
+data like an address and a type; a bridge attaches the `sign` function:
 
 ```typescript
-// accounts/store/src/types.ts (Account)
-export interface Account {
-  address: string;
-  type: AccountType;
-  // ...
-  sign?: (txns: Uint8Array[]) => Promise<Uint8Array[]>;
+// accounts/core/src/types.ts (Account): data only
+export interface Account extends BaseAccount {
+  balance?: bigint;
+  assets?: AccountAsset[];
+  type?: AccountType;
+}
+
+// accounts/keystore-extension/src/types.ts (KeystoreAccount): a bridge adds sign
+export interface KeystoreAccount extends Account {
+  sign: (txns: Uint8Array[]) => Promise<Uint8Array[]>;
 }
 ```
 
 For a local wallet, `sign` delegates to the keystore (§5). For a **remote**
-account there is no keystore to delegate to — so `sign` delegates _across the
+account there is no keystore to delegate to, so `sign` delegates _across the
 RPC connection_ instead:
 
 ```typescript
 // A remote account: same store, same shape, different sign target.
 addAccount({
   store: accountStore,
+  walletKey: "remote-wallet",
   account: {
     address,
     type: "ed25519",
@@ -640,9 +688,9 @@ LiquidAuth, and friends) and models each connector as a `BaseWallet` exposing
 
 So a wallet could hand its resources across the wallet→dapp boundary by exposing
 the _same extensions_ it uses internally: the dapp side installs
-`WithAccountStore` (and, if it wants identity, `WithIdentities`) and hydrates
+`WithAccounts` (and, if it wants identity, `WithIdentities`) and hydrates
 them from the RPC session instead of a keystore. One extension surface, two
-sides of the connection. The wallet does not ship a separate "dapp SDK" — the
+sides of the connection. The wallet does not ship a separate "dapp SDK"; the
 dapp reuses the wallet's own building blocks.
 
 ---
@@ -650,18 +698,18 @@ dapp reuses the wallet's own building blocks.
 ## 11. A basis for communication and metadata sharing
 
 There is a natural next question: when the web/dapp side connects, how does it
-learn _what this wallet is_ — which keys can sign, which identity is in play,
+learn _what this wallet is_: which keys can sign, which identity is in play,
 what services (ICE servers, relays) it can be reached on? The DID document from
 §6 already answers exactly that, which makes it a natural **basis for
-communication and metadata sharing** between two systems — not a bespoke
+communication and metadata sharing** between two systems, not a bespoke
 handshake you have to design up front.
 
 Two properties are what make it useful as shared metadata:
 
 - Because the document is _derived_ (§6), it is always an honest description of
-  the wallet at that instant — you cannot advertise a capability the stores do
+  the wallet at that instant: you cannot advertise a capability the stores do
   not actually back.
-- A `did:key` is _self-describing_ — the keys are encoded in the identifier, so
+- A `did:key` is _self-describing_: the keys are encoded in the identifier, so
   a counterpart can verify signatures with **no network lookup at all**. The
   richer metadata (services, sibling verification methods, passkeys) can simply
   be **exchanged and cached** by the peers themselves when no public resolver is
@@ -678,8 +726,8 @@ await provider.identity.store.restoreFromDidDocument(receivedDidDocument);
 // -> subscribers (UI, session logic) update automatically.
 ```
 
-The point is the ordering, not a concrete protocol. Once the basics — accounts
-and identities — are in place and projectable as a document, that document is a
+The point is the ordering, not a concrete protocol. Once the basics (accounts
+and identities) are in place and projectable as a document, that document is a
 shared, self-verifying record both sides already understand. From there you can
 expand outward into comms, negotiation, session setup, and the like, building
 each on top of the same flows rather than inventing a side-channel to describe
@@ -701,7 +749,7 @@ When you write or review code in this repo, hold it to these:
   A updates a store and B subscribes. A must not import B. (This is why the DID
   projection can exist at all.)
 - **Route keys by role.** A key's `context` decides whether it is a payment
-  account or an identity — keep that the single place the decision is made.
+  account or an identity: keep that the single place the decision is made.
 - **Guard on `status` before acting on a snapshot** when a store has a
   lifecycle, so you never act on an in-flight state.
 - **Keep private material out of state.** Stores hold metadata and references
@@ -712,13 +760,13 @@ When you write or review code in this repo, hold it to these:
 
 - **A remote account is still just an account.** If a key lives on the other end
   of an RPC connection, model it with the same `Account` shape and point `sign`
-  at the wire — do not fork the store for "local vs. remote."
+  at the wire; do not fork the store for "local vs. remote."
 - **Share metadata as the document, not a bespoke format.** When two systems
   need to describe a wallet to each other, exchange (and cache) the DID document
   and `restoreFromDidDocument` it; layer any richer comms on top of that shared
   record rather than inventing a side-channel to describe keys and services.
 
-Follow these and the full-state DID document — the wallet's superpower — is not
+Follow these and the full-state DID document (the wallet's superpower) is not
 something you have to carefully maintain. It is something the architecture hands
 you for free, correct by construction, and ready for the account types you have
 not invented yet.

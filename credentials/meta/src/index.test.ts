@@ -1,14 +1,18 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
-import { DigitalCredentialsUnsupportedError } from "@algorandfoundation/credentials-core";
+import {
+  DigitalCredentialsUnsupportedError,
+  createCredentialStore,
+} from "@algorandfoundation/credentials-core";
+import * as node from "@algorandfoundation/credentials-node";
 import * as meta from "./index.ts";
 
 // vitest runs with the package directory as cwd.
-const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as Record<
-  string,
-  any
->;
+const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+  exports: Record<string, Record<string, unknown>>;
+  dependencies?: Record<string, string>;
+};
 
 describe("@algorandfoundation/credentials export map", () => {
   it("routes react-native to the native entry", () => {
@@ -25,12 +29,13 @@ describe("@algorandfoundation/credentials export map", () => {
     });
   });
 
-  it("routes node and default to the platform-neutral entry", () => {
+  it("routes node and default to the node entry", () => {
     expect(pkg.exports["."].node).toEqual({
       types: "./dist/index.d.ts",
       default: "./dist/index.js",
     });
     expect(pkg.exports["."].default).toBe("./dist/index.js");
+    expect(Object.keys(pkg.dependencies ?? {})).toContain("@algorandfoundation/credentials-node");
   });
 
   it("stays backend-agnostic (no intermezzo dependencies)", () => {
@@ -41,23 +46,23 @@ describe("@algorandfoundation/credentials export map", () => {
 });
 
 describe("node entry", () => {
+  it("is a pure re-export of @algorandfoundation/credentials-node", () => {
+    expect(meta.WithCredentials).toBe(node.WithCredentials);
+    expect(meta.nodeDigitalCredentials).toBe(node.nodeDigitalCredentials);
+    expect(meta.createCredentialStore).toBe(createCredentialStore);
+    expect(meta.DigitalCredentialsUnsupportedError).toBe(DigitalCredentialsUnsupportedError);
+  });
+
   it("re-exports the full credentials-core surface", () => {
-    expect(meta.WithCredentials).toBeTypeOf("function");
     expect(meta.addCredential).toBeTypeOf("function");
     expect(meta.queryCredentials).toBeTypeOf("function");
     expect(meta.parseSdJwtVc).toBeTypeOf("function");
     expect(meta.encodeDidKey).toBeTypeOf("function");
     expect(meta.parseCredentialOfferUrl).toBeTypeOf("function");
-    expect(meta.DigitalCredentialsUnsupportedError).toBe(DigitalCredentialsUnsupportedError);
+    expect(meta.identityHolderBinding).toBeTypeOf("function");
   });
 
-  it("exposes an explicit node unsupported Digital Credentials stub", async () => {
-    expect(meta.nodeDigitalCredentials.isSupported()).toBe(false);
-    await expect(meta.nodeDigitalCredentials.get({ requests: [] })).rejects.toBeInstanceOf(
-      DigitalCredentialsUnsupportedError,
-    );
-    await expect(meta.nodeDigitalCredentials.create({ requests: [] })).rejects.toBeInstanceOf(
-      DigitalCredentialsUnsupportedError,
-    );
+  it("does not export a default", () => {
+    expect((meta as Record<string, unknown>).default).toBeUndefined();
   });
 });

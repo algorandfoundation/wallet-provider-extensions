@@ -17,7 +17,7 @@
  *
  * The concrete `xhd`/`falcon` primitives are supplied by the caller so the
  * same decorators work across platforms (Node/web via `@noble`-backed
- * libraries, React Native via native bindings) — core only depends on the
+ * libraries, React Native via native bindings); core only depends on the
  * binding *types*.
  */
 

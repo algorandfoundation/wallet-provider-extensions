@@ -42,7 +42,7 @@
     "falcon-1024": "catalog:"
   },
   "devDependencies": {
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@algorandfoundation/package-releaser": "workspace:^",
     "@tanstack/store": "catalog:",
     "fake-indexeddb": "^6.2.5",
@@ -50,12 +50,12 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
   },
   "peerDependenciesMeta": {
-    "@algorandfoundation/log-store": {
+    "@algorandfoundation/logs": {
       "optional": true
     }
   }

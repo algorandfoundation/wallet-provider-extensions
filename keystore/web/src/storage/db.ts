@@ -25,10 +25,10 @@ export const MATERIAL_STORE = "material";
 /**
  * A persisted secret for a single key.
  *
- * - `cryptokey` — a genuine non-extractable {@link CryptoKey} structured-cloned
+ * - `cryptokey`: a genuine non-extractable {@link CryptoKey} structured-cloned
  *   into IndexedDB. Used for standard host algorithms (Ed25519, ECDSA, AES, …)
  *   so private material never materialises as bytes in JS.
- * - `bytes` — AES-GCM ciphertext (with its IV) for material that cannot be a
+ * - `bytes`: AES-GCM ciphertext (with its IV) for material that cannot be a
  *   `CryptoKey`: shim key material (BIP32-Ed25519 roots, Falcon private keys)
  *   and raw BIP39 seeds. Encrypted at rest with the vault master key.
  */

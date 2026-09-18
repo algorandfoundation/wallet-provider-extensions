@@ -1,22 +1,19 @@
 import type { KeyStoreExtension, KeyStoreOptions } from "@algorandfoundation/keystore-core";
-import type { LogStoreExtension } from "@algorandfoundation/log-store";
+import type { LogStoreExtension } from "@algorandfoundation/logs";
 import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
 
 import { createNodeKeyStore } from "./engine.ts";
 import type { KeyringBinding } from "./storage/keyring.ts";
 import type { MetadataFile } from "./storage/metadata.ts";
 
-/**
- * Node.js keystore extension options.
- *
- * Extends the base {@link KeyStoreOptions} `keystore` block with the pieces the
- * {@link createNodeKeyStore} engine needs, following the Provider/Extensions
- * pattern: the reactive state store, hooks, host `subtle` and composable `shims`
- * come from the base options, while the OS-keychain / sealed-metadata seams are
- * injected here.
- */
-export interface NodeKeystoreOptions extends KeyStoreOptions {
-  keystore: KeyStoreOptions["keystore"] & {
+declare module "@algorandfoundation/keystore-core" {
+  /**
+   * Node.js additions to the shared `options.keystore` namespace: the
+   * OS-keychain / sealed-metadata seams the {@link createNodeKeyStore} engine
+   * needs. The reactive state store, hooks, host `subtle` and composable `shims`
+   * come from the base {@link KeyStoreNamespace}.
+   */
+  interface KeyStoreNamespace {
     /**
      * OS-keychain binding holding secret material + the metadata master key.
      * Defaults to `@napi-rs/keyring`. Injectable for tests / alternative stores.
@@ -28,8 +25,18 @@ export interface NodeKeystoreOptions extends KeyStoreOptions {
     service?: string;
     /** Path of the sealed metadata file (default filesystem store only). */
     metadataPath?: string;
-  };
+  }
 }
+
+/**
+ * Node.js keystore extension options.
+ *
+ * The same {@link KeyStoreOptions} shape; this package augments the shared
+ * {@link KeyStoreNamespace} with the OS-keychain / sealed-metadata seams, so
+ * `options.keystore` accepts `keyring`, `metadata`, `service` and
+ * `metadataPath` alongside the base `store`/`hooks`/`subtle`/`shims`.
+ */
+export type NodeKeystoreOptions = KeyStoreOptions;
 
 /**
  * Wallet Provider Extension that adds Node.js Keystore functionality.
@@ -42,8 +49,8 @@ export interface NodeKeystoreOptions extends KeyStoreOptions {
  *   is injected via `options.api.keystore`, it is used as-is.
  * - Otherwise the extension **builds** the node engine from the
  *   `options.keystore` block (the reactive `store`, the `hooks` collection, an
- *   optional host `subtle`, the composable `shims` — which default to the full
- *   set — and optional keychain / metadata-file seams). The keystore hooks are
+ *   optional host `subtle`, the composable `shims`, which default to the full
+ *   set, and optional keychain / metadata-file seams). The keystore hooks are
  *   applied when the engine is created, so every material-touching operation is
  *   interceptable.
  *

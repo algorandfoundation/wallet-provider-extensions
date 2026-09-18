@@ -22,7 +22,7 @@ import type {
  * revision executes.
  *
  * When this extension is absent, `provider.migrations` is `undefined` and every
- * `register` call is a no-op — that is the opt-in mechanism.
+ * `register` call is a no-op; that is the opt-in mechanism.
  *
  * @param provider - The provider being extended.
  * @param options - {@link MigrationsOptions}. `migrations.ledger` is required.

@@ -274,7 +274,7 @@ describe("WithKeyStore — migrations registration", () => {
   it("closes the loop: a legacy passkey flagged by the registered migration surfaces in the engine's keys", async () => {
     const register = vi.fn();
     // `ready` only settles once the test below has actually driven the
-    // registered migration against `registered.context()` — mirroring the
+    // registered migration against `registered.context()`, mirroring the
     // real gate in `createReactNativeKeyStore` (`before`), so the engine
     // cannot hydrate before the migration has run.
     let resolveReady!: () => void;
@@ -285,7 +285,7 @@ describe("WithKeyStore — migrations registration", () => {
     const storage = fixtureMemoryStorage();
     seedLegacyPasskey(storage, "pk1");
 
-    // No `api.keystore` here — this exercises the real
+    // No `api.keystore` here: this exercises the real
     // `createReactNativeKeyStore` path, not the injected-backend shortcut, so
     // the assertion below pins down the actual engine's storage, not a stub's.
     const extension = WithKeyStore(provider, {
@@ -293,7 +293,7 @@ describe("WithKeyStore — migrations registration", () => {
         store: new Store<KeyStoreState>({ keys: [], status: "idle" }),
         subtle: globalThis.crypto.subtle,
         // Explicit shims (empty) sidestep the default set's dynamic Falcon
-        // import — irrelevant here and would only slow the test down.
+        // import; it is irrelevant here and would only slow the test down.
         shims: [],
         storage,
       },
@@ -307,7 +307,7 @@ describe("WithKeyStore — migrations registration", () => {
     // directly. If `extension.ts` ever built the engine from a *different*
     // storage instance than the one it registered, this still writes the
     // flag to the registered (correct) storage, while the engine below would
-    // be reading from the other one — so the flag would never surface and
+    // be reading from the other one, so the flag would never surface and
     // the assertion at the bottom would fail.
     const ctx = registered.context();
     for (const revision of registered.migrations) {

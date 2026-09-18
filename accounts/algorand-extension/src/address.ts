@@ -4,15 +4,23 @@
  * Each supported keystore key type maps to an {@link AlgorandAddressEncoder}
  * that turns the key into a concrete Algorand address (plus any
  * address-scheme metadata worth recording on the account). The map is the
- * extensibility seam for future account kinds — e.g. Falcon LSIG accounts
- * or the upcoming HybridLsig (Ed25519 + Falcon-1024) — which plug in as new
+ * extensibility seam for future account kinds (e.g. Falcon LSIG accounts
+ * or the upcoming HybridLsig, Ed25519 + Falcon-1024), which plug in as new
  * encoders without changing the account shape or the extension's flow.
  */
 import type { Key } from "@algorandfoundation/keystore-core";
 import { encodeAddress } from "algosdk";
 import { PQ_SCHEME_FALCON1024, canonicalPQAddress } from "./pq-address.ts";
 
-/** The result of encoding a key into an Algorand address. */
+/**
+ * The result of encoding a key into an Algorand address.
+ *
+ * @example
+ * ```typescript
+ * const encoded: EncodedAlgorandAddress | undefined = algorandAddressForKey(key);
+ * console.log(encoded?.address, encoded?.metadata);
+ * ```
+ */
 export interface EncodedAlgorandAddress {
   /** The 58-character Algorand address string. */
   address: string;
@@ -26,6 +34,12 @@ export interface EncodedAlgorandAddress {
 /**
  * Derives the Algorand address (and any scheme metadata) for a key, or
  * `undefined` when the key cannot be represented as an Algorand account.
+ *
+ * @example
+ * ```typescript
+ * const lsigEncoder: AlgorandAddressEncoder = (key) =>
+ *   key.publicKey ? { address: encodeAddress(lsigAddressFor(key.publicKey)) } : undefined;
+ * ```
  */
 export type AlgorandAddressEncoder = (key: Key) => EncodedAlgorandAddress | undefined;
 
@@ -56,6 +70,11 @@ const falcon1024Encoder: AlgorandAddressEncoder = (key) => {
 /**
  * The supported key types and their encoders. Future account kinds
  * (falcon LSIG, HybridLsig) land here as additional entries.
+ *
+ * @example
+ * ```typescript
+ * const encoded = ALGORAND_ADDRESS_ENCODERS[key.type]?.(key);
+ * ```
  */
 export const ALGORAND_ADDRESS_ENCODERS: Readonly<Record<string, AlgorandAddressEncoder>> = {
   "hd-derived-ed25519": ed25519Encoder,
@@ -67,9 +86,18 @@ export const ALGORAND_ADDRESS_ENCODERS: Readonly<Record<string, AlgorandAddressE
  * Derives the Algorand address for a keystore key via the encoder map.
  *
  * HD-derived keys must live in the Algorand address context
- * (`metadata.context === 0`) — identity-context keys are never accounts.
+ * (`metadata.context === 0`); identity-context keys are never accounts.
  * Keys of unsupported types (or missing a public key) return `undefined`
  * and are skipped by the extension.
+ *
+ * @param key - The keystore key to derive an address for.
+ * @returns The encoded address (plus scheme metadata) or `undefined`.
+ *
+ * @example
+ * ```typescript
+ * const encoded = algorandAddressForKey(key);
+ * if (encoded) console.log(encoded.address); // 58-character Algorand address
+ * ```
  */
 export function algorandAddressForKey(key: Key): EncodedAlgorandAddress | undefined {
   if (key.type === "hd-derived-ed25519" && key.metadata?.context !== 0) {

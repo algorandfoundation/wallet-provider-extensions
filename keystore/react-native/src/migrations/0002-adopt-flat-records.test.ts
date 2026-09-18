@@ -68,7 +68,7 @@ describe("revision 0002 — adopt-flat-records", () => {
 
   it("closes the 0001 gap: a legacy passkey that was still flat gets flagged after adoption", async () => {
     const storage = memoryStorage();
-    // A pre-dp256-split passkey (no `scheme` in metadata) still stored flat —
+    // A pre-dp256-split passkey (no `scheme` in metadata) still stored flat,
     // invisible to revision 0001's `k/` scan when it ran.
     storage.set(
       "pk-flat",

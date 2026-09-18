@@ -3,8 +3,8 @@
  * @packageDocumentation
  *
  * `@algorandfoundation/keystore-node` is the Node.js / server entry point for
- * the keystore. The shared cryptographic implementation — the composable Subtle
- * shims and the platform-neutral {@link createKeyStore} engine — lives in
+ * the keystore. The shared cryptographic implementation (the composable Subtle
+ * shims and the platform-neutral {@link createKeyStore} engine) lives in
  * `@algorandfoundation/keystore-core` and relies only on the universal
  * `globalThis.crypto` (`crypto.subtle` / `crypto.getRandomValues`) and pure-JS
  * primitives, so it runs unchanged on Node and other server runtimes; it is

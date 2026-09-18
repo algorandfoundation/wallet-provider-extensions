@@ -1,0 +1,55 @@
+{
+  "name": "@algorandfoundation/passkeys-keystore-extension",
+  "version": "0.0.0",
+  "description": "Passkeys Keystore bridge (mirrors keystore-derived P256 domain keys into the passkeys store) for Wallet Provider Extensions.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "passkeys/keystore-extension"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules docs",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/keystore-core": "workspace:*",
+    "@algorandfoundation/passkeys-core": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:"
+  },
+  "devDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@algorandfoundation/package-releaser": "workspace:*",
+    "@tanstack/store": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@tanstack/store": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/logs": {
+      "optional": true
+    }
+  }
+}

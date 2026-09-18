@@ -35,24 +35,25 @@
     "release:dry-run": "package-releaser --dry-run"
   },
   "dependencies": {
-    "@algorandfoundation/accounts-store": "workspace:*",
+    "@algorandfoundation/accounts-core": "workspace:*",
     "@algorandfoundation/keystore-core": "workspace:*",
     "@algorandfoundation/wallet-provider": "catalog:",
     "@scure/base": "catalog:"
   },
   "devDependencies": {
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@algorandfoundation/package-releaser": "workspace:*",
     "@algorandfoundation/xhd-wallet-api": "catalog:",
+    "falcon-1024": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@algorandfoundation/log-store": "workspace:*",
+    "@algorandfoundation/logs": "workspace:*",
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
   },
   "peerDependenciesMeta": {
-    "@algorandfoundation/log-store": {
+    "@algorandfoundation/logs": {
       "optional": true
     }
   }

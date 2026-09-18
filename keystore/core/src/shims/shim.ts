@@ -22,7 +22,7 @@ import { MaterialAccessError } from "../errors.ts";
  *
  * The property is defined non-enumerable and is keyed by a module-private
  * symbol, so it is invisible to ordinary {@link CryptoKey} consumers and to
- * enumeration/serialisation — only {@link consumeKeyMaterial} can reach it. It
+ * enumeration/serialisation; only {@link consumeKeyMaterial} can reach it. It
  * exists solely for the `generateKey`/`deriveKey` birth moment; every other
  * operation supplies material just-in-time through algorithm parameters.
  */
@@ -41,7 +41,7 @@ const MATERIAL = Symbol("keystore.material");
  *
  * A shim may optionally carry the {@link SubtleShim.algorithm} identifier it
  * adds (set via {@link tagShim}), so a keystore can enumerate which algorithm
- * add-ons are actually active — see {@link import("../types/extension.ts").KeyStoreState.algorithms}.
+ * add-ons are actually active; see {@link import("../types/extension.ts").KeyStoreState.algorithms}.
  */
 export interface SubtleShim {
   (host: SubtleCrypto): SubtleCrypto;
@@ -148,7 +148,7 @@ export function createKeyHandle(
 }
 
 /**
- * Reads — exactly **once** — the raw material a `generateKey`/`deriveKey` call
+ * Reads, exactly **once**, the raw material a `generateKey`/`deriveKey` call
  * attached to a freshly minted handle, hands it to `use`, then deterministically
  * erases it: the plaintext buffer is zero-filled and the handle's reference is
  * dropped in a `finally`, so the secret is removed from memory the instant the
@@ -163,7 +163,7 @@ export function createKeyHandle(
  * @param key - A handle minted by `generateKey`/`deriveKey` carrying material.
  * @param use - Consumer that persists the material (e.g. encrypts at rest). The
  *   `Uint8Array` it receives is only valid for the synchronous duration of the
- *   call — it is wiped as soon as `use` returns, so copy out anything you need
+ *   call; it is wiped as soon as `use` returns, so copy out anything you need
  *   to retain.
  * @returns Whatever `use` returns.
  * @throws {MaterialAccessError} If the handle carries no material, or its
@@ -193,7 +193,7 @@ export function consumeKeyMaterial<T>(key: CryptoKey, use: (material: Uint8Array
 /**
  * Returns true when `key` is a handle for the shim algorithm `name`.
  *
- * Routing is based purely on the handle's advertised algorithm — the shims
+ * Routing is based purely on the handle's advertised algorithm; the shims
  * hold no registry of the keys they have minted.
  */
 export function isShimKey(key: CryptoKey, name: string): boolean {
@@ -203,7 +203,7 @@ export function isShimKey(key: CryptoKey, name: string): boolean {
 /**
  * Reads required material out of an operation's algorithm parameters.
  *
- * @throws {MaterialAccessError} If the parameter is missing — material must be
+ * @throws {MaterialAccessError} If the parameter is missing; material must be
  *   injected just-in-time by the caller (typically a storage engine).
  */
 export function paramMaterial(algorithm: AlgorithmIdentifier, field: string): Uint8Array {
@@ -222,7 +222,7 @@ export function paramMaterial(algorithm: AlgorithmIdentifier, field: string): Ui
 /**
  * Reads the private material a caller injected through an operation's algorithm
  * parameters, hands it to `use`, then deterministically **zero-fills** it in a
- * `finally` — so the seed or root key the storage engine decrypted for this one
+ * `finally`, so the seed or root key the storage engine decrypted for this one
  * operation is erased from memory the instant the operation completes, rather
  * than lingering until GC.
  *

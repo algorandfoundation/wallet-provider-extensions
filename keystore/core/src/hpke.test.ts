@@ -45,7 +45,7 @@ async function importPrivate(scalarHex: string, pointHex: string): Promise<Crypt
 }
 
 /**
- * RFC 9180 Appendix A.3.3 — DHKEM(P-256, HKDF-SHA256), HKDF-SHA256,
+ * RFC 9180 Appendix A.3.3: DHKEM(P-256, HKDF-SHA256), HKDF-SHA256,
  * AES-128-GCM, Auth mode setup information and the sequence-0 encryption.
  */
 const vector = {

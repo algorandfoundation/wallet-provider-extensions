@@ -1,0 +1,68 @@
+{
+  "name": "@algorandfoundation/accounts",
+  "version": "0.0.0",
+  "description": "Meta package for the accounts domain: the unified WithAccounts extension over the core store, with conditional platform exports.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "accounts/meta"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "react-native": {
+        "types": "./dist/index.native.d.ts",
+        "default": "./dist/index.native.js"
+      },
+      "browser": {
+        "types": "./dist/index.web.d.ts",
+        "default": "./dist/index.web.js"
+      },
+      "node": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules docs",
+    "docs": "typedoc",
+    "test": "vitest run --passWithNoTests",
+    "test:cov": "vitest run --coverage --passWithNoTests",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/accounts-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@algorandfoundation/accounts-connections-extension": "workspace:*",
+    "@algorandfoundation/package-releaser": "workspace:^",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "typedoc": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/accounts-connections-extension": "workspace:*",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/accounts-connections-extension": {
+      "optional": true
+    }
+  }
+}

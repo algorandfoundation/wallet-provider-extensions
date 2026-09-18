@@ -1,0 +1,57 @@
+{
+  "name": "@algorandfoundation/accounts-core",
+  "version": "1.0.0-canary.2",
+  "description": "Core Accounts store and extension.",
+  "license": "Apache-2.0",
+  "author": "Algorand Foundation",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/algorandfoundation/wallet-provider-extensions.git",
+    "directory": "accounts/core"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist coverage node_modules docs",
+    "docs": "typedoc",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "bench": "vitest bench",
+    "release": "package-releaser",
+    "release:dry-run": "package-releaser --dry-run"
+  },
+  "dependencies": {
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@noble/hashes": "catalog:",
+    "@scure/base": "catalog:"
+  },
+  "devDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@algorandfoundation/package-releaser": "workspace:*",
+    "@txnlab/use-wallet": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@algorandfoundation/logs": "workspace:*",
+    "@tanstack/store": "catalog:",
+    "before-after-hook": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@algorandfoundation/logs": {
+      "optional": true
+    }
+  }
+}

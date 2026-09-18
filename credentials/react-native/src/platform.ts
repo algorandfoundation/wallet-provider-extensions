@@ -14,14 +14,21 @@ const REASON =
  *
  * Currently an **explicit `unsupported` stub**: `isSupported()` returns
  * `false` and `get`/`create` reject with
- * {@link DigitalCredentialsUnsupportedError} — never a silent no-op.
+ * {@link DigitalCredentialsUnsupportedError}, never a silent no-op.
  *
- * The real implementation will bridge to the platform credential managers —
+ * The real implementation will bridge to the platform credential managers:
  * Android's Credential Manager `DigitalCredential` API (and the registry APIs
- * for acting as a holder), with iOS following as Apple exposes an equivalent —
- * keeping this exact surface so applications do not change when support lands.
+ * for acting as a holder), with iOS following as Apple exposes an equivalent.
+ * It will keep this exact surface so applications do not change when support lands.
  *
  * @experimental The W3C Digital Credentials API is still a draft.
+ *
+ * @example
+ * ```typescript
+ * if (reactNativeDigitalCredentials.isSupported()) {
+ *   await reactNativeDigitalCredentials.get({ requests });
+ * }
+ * ```
  */
 export const reactNativeDigitalCredentials: DigitalCredentialsPlatform = {
   isSupported(): boolean {

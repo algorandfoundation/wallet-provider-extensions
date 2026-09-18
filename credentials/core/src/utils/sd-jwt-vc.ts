@@ -18,6 +18,12 @@ import type { JwsSigner } from "./signer.ts";
  * The intermezzo issuance flow produces an SD-JWT VC for the
  * device-attestation credential; credential-gated endpoints require
  * presenting it back as `X-Credential-Presentation`.
+ *
+ * @example
+ * ```typescript
+ * const parsed: ParsedSdJwtVc = parseSdJwtVc(compact);
+ * console.log(parsed.claims, parsed.disclosures.map((d) => d.name));
+ * ```
  */
 export interface ParsedSdJwtVc {
   /** Raw compact issuer-signed JWT (`<h>.<p>.<s>`). */
@@ -33,6 +39,17 @@ export interface ParsedSdJwtVc {
   keyBindingJwt?: string;
 }
 
+/**
+ * The decoded payload of the issuer-signed JWT inside an SD-JWT VC, before
+ * disclosures are merged in (see {@link ParsedSdJwtVc.claims} for the
+ * materialised view).
+ *
+ * @example
+ * ```typescript
+ * const payload: SdJwtVcPayload = parseSdJwtVc(compact).payload;
+ * console.log(payload.vct, payload.iss);
+ * ```
+ */
 export interface SdJwtVcPayload {
   /** Issuer DID / URL. */
   iss?: string;
@@ -42,7 +59,7 @@ export interface SdJwtVcPayload {
   iat?: number;
   /** Expires-at (seconds since epoch). */
   exp?: number;
-  /** Holder binding — JWK or DID of the key the holder must prove control of. */
+  /** Holder binding: JWK or DID of the key the holder must prove control of. */
   cnf?: { jwk?: Record<string, unknown>; kid?: string };
   /** Status list reference (revocation). */
   status?: Record<string, unknown>;
@@ -51,6 +68,15 @@ export interface SdJwtVcPayload {
   [k: string]: unknown;
 }
 
+/**
+ * One decoded SD-JWT disclosure (`[salt, name, value]` for object members,
+ * `[salt, value]` for array elements) together with its digest.
+ *
+ * @example
+ * ```typescript
+ * const names = parseSdJwtVc(compact).disclosures.map((d: Disclosure) => d.name);
+ * ```
+ */
 export interface Disclosure {
   /** Original base64url-encoded disclosure string. */
   encoded: string;
@@ -92,7 +118,7 @@ function decodeDisclosure(encoded: string, alg: string): Disclosure {
  * digests with their corresponding disclosure values. Array elements
  * encoded as `{ "...": "<digest>" }` are likewise resolved.
  *
- * Undisclosed digests are silently dropped — that is the whole point
+ * Undisclosed digests are silently dropped; that is the whole point
  * of selective disclosure.
  */
 function mergeDisclosures(node: unknown, byDigest: Map<string, Disclosure>): unknown {
@@ -133,9 +159,14 @@ function mergeDisclosures(node: unknown, byDigest: Map<string, Disclosure>): unk
  * Parses an SD-JWT VC in compact serialization (with or without a
  * trailing key-binding JWT) and materialises the full claim set.
  *
- * The signature on the issuer JWT is **not** verified — verification
+ * The signature on the issuer JWT is **not** verified; verification
  * is performed by the relying party (Credo verifier). The wallet uses
  * the decoded claims for UI rendering and disclosure selection.
+ *
+ * @example
+ * ```typescript
+ * const parsed = parseSdJwtVc("eyJ...~WyJ...~");
+ * ```
  */
 export function parseSdJwtVc(compact: string): ParsedSdJwtVc {
   const segments = compact.split("~");
@@ -174,6 +205,15 @@ export function parseSdJwtVc(compact: string): ParsedSdJwtVc {
  *
  * The key-binding JWT is signed over `sha256(<issuer-jwt>~<d1>~...~<dn>~)`
  * per `draft-ietf-oauth-sd-jwt-vc` §4.3.
+ *
+ * @example
+ * ```typescript
+ * const presentation = await buildSdJwtPresentation({
+ *   parsed: parseSdJwtVc(compact),
+ *   disclose: ["given_name"],
+ *   keyBinding: { signer, audience, nonce },
+ * });
+ * ```
  */
 export async function buildSdJwtPresentation(params: {
   parsed: ParsedSdJwtVc;

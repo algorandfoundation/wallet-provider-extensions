@@ -167,7 +167,7 @@ describe("createWebKeyStore", () => {
       keyUsages: ["encrypt", "decrypt"],
       params: { length: 256 },
     });
-    // The key persists as a native CryptoKey — no byte material ever exists.
+    // The key persists as a native CryptoKey; no byte material ever exists.
     const db = await openDatabase(databaseName, globalThis.indexedDB);
     const record = await db.get<MaterialRecord>(MATERIAL_STORE, id);
     expect(record?.kind).toBe("cryptokey");
@@ -199,6 +199,37 @@ describe("createWebKeyStore", () => {
     expect(ciphertext[0]).toBe(2);
     const decrypted = await keystore.decryptWithKey!(id, ciphertext);
     expect(new TextDecoder().decode(decrypted)).toBe("agreement-sealed payload");
+  });
+
+  it("derives a shared secret between non-extractable X25519 CryptoKeys via the host", async () => {
+    // The use-wallet example's encryption flow: an identity's X25519
+    // key-agreement companion never surfaces its private bytes, yet the
+    // ECDH runs fine inside WebCrypto: non-extractability blocks
+    // *export*, not *use* (`deriveBits`).
+    const x25519Options = {
+      type: "ecc",
+      algorithm: "X25519",
+      extractable: false,
+      keyUsages: ["deriveBits"],
+    } as const;
+    const aliceId = await keystore.generate({ ...x25519Options });
+    const bobId = await keystore.generate({ ...x25519Options });
+    const db = await openDatabase(databaseName, globalThis.indexedDB);
+    const record = await db.get<MaterialRecord>(MATERIAL_STORE, aliceId);
+    expect(record?.kind).toBe("cryptokey");
+
+    const alicePublic = store.state.keys.find((k) => k.id === aliceId)!.publicKey!;
+    const bobPublic = store.state.keys.find((k) => k.id === bobId)!.publicKey!;
+
+    // SPKI-mirrored public halves are accepted as-is; a raw 32-byte key
+    // (the shape DID documents carry) agrees to the same secret.
+    const aliceSecret = await keystore.deriveSharedSecret!(aliceId, bobPublic, true);
+    const bobSecret = await keystore.deriveSharedSecret!(bobId, alicePublic, false);
+    expect(aliceSecret.byteLength).toBe(32);
+    expect(Array.from(aliceSecret)).toEqual(Array.from(bobSecret));
+
+    const viaRaw = await keystore.deriveSharedSecret!(aliceId, bobPublic.slice(-32), true);
+    expect(Array.from(viaRaw)).toEqual(Array.from(aliceSecret));
   });
 
   it("encrypts/decrypts with a deriveKey-only ECDH CryptoKey without surfacing bytes", async () => {
@@ -238,7 +269,7 @@ describe("createWebKeyStore", () => {
     expect(sealed[0]).toBe(3);
     const opened = await keystore.decryptWithKey!(bobId, sealed);
     expect(new TextDecoder().decode(opened)).toBe("dear bob (native)");
-    // Only the addressed recipient can open it — not even the sender.
+    // Only the addressed recipient can open it, not even the sender.
     await expect(keystore.decryptWithKey!(aliceId, sealed)).rejects.toThrow();
   });
 
@@ -272,7 +303,7 @@ describe("createWebKeyStore", () => {
       keyUsages: ["sign", "verify"],
     });
     // A non-extractable Ed25519 signing key can neither encrypt nor run a key
-    // agreement — there is no secret path to an encryption key for it.
+    // agreement; there is no secret path to an encryption key for it.
     await expect(keystore.encryptWithKey!(id, message)).rejects.toThrow(
       /neither encryption nor key agreement/,
     );

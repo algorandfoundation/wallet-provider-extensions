@@ -1,11 +1,11 @@
 /**
  * Exercises the shared {@link createKeyStore} orchestrator against a **byte-only**
- * driver (`nativeCryptoKey: false`) — the tier every non-IndexedDB backend
+ * driver (`nativeCryptoKey: false`), the tier every non-IndexedDB backend
  * (Keychain/MMKV, filesystem, SQL, …) uses.
  *
  * The IndexedDB engine test already covers the `nativeCryptoKey: true` path
  * where standard keys persist as non-extractable {@link CryptoKey}s. Here every
- * key — including standard host keys — is serialized to sealed bytes, so this
+ * key (including standard host keys) is serialized to sealed bytes, so this
  * proves the orchestrator's byte-only branches: `generateEd25519`/`generateHostKey`
  * byte serialization, just-in-time re-import at `sign`, SPKI-based `verify`, and
  * the HD/Falcon shim paths that are byte-only on every backend.
@@ -13,6 +13,7 @@
 
 import { DeterministicP256 } from "@algorandfoundation/dp256";
 import { KeyContext, XHDWalletAPI, fromSeed, harden } from "@algorandfoundation/xhd-wallet-api";
+import { ed25519, x25519 } from "@noble/curves/ed25519.js";
 import { sha512_256 } from "@noble/hashes/sha2.js";
 import * as bip39lib from "@scure/bip39";
 import { wordlist as englishWordlist } from "@scure/bip39/wordlists/english";
@@ -447,6 +448,43 @@ describe("createKeyStore (byte-only driver)", () => {
     expect(await keystore.verify(id, tampered, signature)).toBe(false);
   });
 
+  it("keeps a caller `params.name` label out of the host generateKey algorithm", async () => {
+    // Mirrors the use-wallet example's encryption demo: `name` inside `params`
+    // is the caller's display label (recorded verbatim as metadata), NOT the
+    // WebCrypto algorithm name; it must never clobber `options.algorithm`,
+    // which previously surfaced as `generateKey … Algorithm: Unrecognized name`.
+    const id = await keystore.generate({
+      type: "ecc",
+      algorithm: "ECDH",
+      extractable: false,
+      keyUsages: ["deriveBits", "deriveKey"],
+      params: { namedCurve: "P-256", name: "Encryption Key" },
+    });
+    const meta = store.state.keys.find((k) => k.id === id)!;
+    expect(meta.algorithm).toBe("ECDH");
+    expect(meta.metadata?.name).toBe("Encryption Key");
+    expect((meta.metadata!.signAlgorithm as { name: string }).name).toBe("ECDH");
+
+    const plaintext = new TextEncoder().encode("labelled key round-trip");
+    const ciphertext = await keystore.encryptWithKey!(id, plaintext);
+    const decrypted = await keystore.decryptWithKey!(id, ciphertext);
+    expect(new TextDecoder().decode(decrypted)).toBe("labelled key round-trip");
+  });
+
+  it("signs and verifies with a host key generated under a `params.name` label", async () => {
+    // The recorded `signAlgorithm` must keep the real algorithm name too, or
+    // the SPKI-based verify path would hand the label to the host Subtle.
+    const id = await keystore.generate({
+      type: "ecc",
+      algorithm: "ECDSA",
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+      params: { namedCurve: "P-256", hash: "SHA-256", name: "Signing Key" },
+    });
+    const signature = await keystore.sign(id, message);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+  });
+
   it("runs the passkey flow: entropy → dp256 main → domain key → sign/verify", async () => {
     const entropy = new Uint8Array(16).fill(9);
     const mainId = await keystore.generate({
@@ -632,7 +670,7 @@ describe("createKeyStore (byte-only driver)", () => {
       keyUsages: ["sign", "verify"],
     });
     // Version 1 keyed the cipher off the PUBLIC bytes, so anyone holding the
-    // public key could decrypt it — it must be refused, never decrypted.
+    // public key could decrypt it; it must be refused, never decrypted.
     const legacy = crypto.getRandomValues(new Uint8Array(64));
     legacy[0] = 1;
     await expect(keystore.decryptWithKey!(id, legacy)).rejects.toThrow(
@@ -652,8 +690,8 @@ describe("createKeyStore (byte-only driver)", () => {
     const publicKey = store.state.keys.find((k) => k.id === id)!.publicKey!;
 
     // Replay the audited attack: re-derive the AES key from the PUBLIC bytes
-    // alone — under the retired v1 scheme's parameters and the current v2 ones
-    // alike — and try to open the ciphertext. Every derivation must fail: only
+    // alone (under the retired v1 scheme's parameters and the current v2 ones
+    // alike) and try to open the ciphertext. Every derivation must fail: only
     // the sealed private material can reproduce the real key.
     const iv = ciphertext.subarray(1, 13);
     const payload = ciphertext.subarray(13);
@@ -699,7 +737,7 @@ describe("createKeyStore (byte-only driver)", () => {
     };
     const aliceId = await keystore.generate(ecdhOptions);
     const bobId = await keystore.generate(ecdhOptions);
-    // The metadata mirror carries the SPKI public bytes — exactly what a peer
+    // The metadata mirror carries the SPKI public bytes, exactly what a peer
     // would be handed as the recipient key.
     const bobPublic = store.state.keys.find((k) => k.id === bobId)!.publicKey!;
 
@@ -715,7 +753,7 @@ describe("createKeyStore (byte-only driver)", () => {
     const opened = await keystore.decryptWithKey!(bobId, sealed);
     expect(new TextDecoder().decode(opened)).toBe("dear bob");
 
-    // Nobody but the addressed recipient can open it — not even the sender.
+    // Nobody but the addressed recipient can open it, not even the sender.
     await expect(keystore.decryptWithKey!(aliceId, sealed)).rejects.toThrow();
   });
 
@@ -785,7 +823,7 @@ describe("createKeyStore (byte-only driver)", () => {
       keyUsages: ["deriveBits", "deriveKey"],
       params: { strength: 128, passphrase },
     });
-    // `protected` records that a passphrase is required — the passphrase itself
+    // `protected` records that a passphrase is required; the passphrase itself
     // is never persisted.
     expect(secretOf(seedId).protected).toBe(true);
     expect(secretOf(seedId).passphrase).toBeUndefined();
@@ -836,7 +874,7 @@ describe("createKeyStore (byte-only driver)", () => {
     });
     expect(secretOf(ed25519Id).passphrase).toBeUndefined();
 
-    // A host key records `signAlgorithm` for later verification — that copy of
+    // A host key records `signAlgorithm` for later verification; that copy of
     // the params is sanitized the same way, and verification must still work.
     const hostId = await keystore.generate({
       type: "ecc",
@@ -960,6 +998,74 @@ describe("createKeyStore (byte-only driver)", () => {
     expect(Array.from(aliceSecret)).toEqual(Array.from(bobSecret));
   });
 
+  it("derives a matching shared secret between two X25519 keys through the host", async () => {
+    // The WebCrypto agreement path a NON-extractable key uses: `deriveBits`
+    // only needs the *use* of the private key, never its bytes.
+    const generateX25519 = () =>
+      keystore.generate({
+        type: "ecc",
+        algorithm: "X25519",
+        extractable: false,
+        keyUsages: ["deriveBits"],
+      });
+    const aliceId = await generateX25519();
+    const bobId = await generateX25519();
+    const alice = store.state.keys.find((k) => k.id === aliceId);
+    const bob = store.state.keys.find((k) => k.id === bobId);
+
+    // The mirrored public halves are SPKI documents; deriveSharedSecret
+    // accepts them as-is. X25519 ECDH is symmetric, so both sides agree.
+    const aliceSecret = await keystore.deriveSharedSecret!(aliceId, bob!.publicKey!, true);
+    const bobSecret = await keystore.deriveSharedSecret!(bobId, alice!.publicKey!, false);
+    expect(aliceSecret.byteLength).toBe(32);
+    expect(Array.from(aliceSecret)).toEqual(Array.from(bobSecret));
+
+    // A raw 32-byte remote key (the shape DID documents carry) agrees too:
+    // the last 32 bytes of the SPKI document ARE the raw key.
+    const viaRaw = await keystore.deriveSharedSecret!(aliceId, bob!.publicKey!.slice(-32), true);
+    expect(Array.from(viaRaw)).toEqual(Array.from(aliceSecret));
+  });
+
+  it("derives a RAW X25519 shared secret between an XHD key and a plain X25519 peer", async () => {
+    // The secure-channel interop path: the wallet holds an XHD identity key
+    // whose DID document advertises the X25519 twin of its Ed25519 public key
+    // (the did:key birational map `u = (1 + y) / (1 - y)`); the remote peer
+    // (e.g. a browser dapp's non-extractable WebCrypto key) runs plain X25519
+    // `deriveBits` against that twin. `algorithm: "x25519"` makes the wallet
+    // side produce the SAME raw agreement: no ARC-52 hashing, no conversion.
+    const seed = new Uint8Array(32).fill(7);
+    const seedId = await keystore.importSeed!(seed);
+    const rootId = await keystore.generate({
+      type: "hd-root-key",
+      algorithm: "raw",
+      extractable: false,
+      keyUsages: ["sign"],
+      params: { parentKeyId: seedId },
+    });
+    const childId = await keystore.deriveFromSeed!(rootId, "m/44'/0'/0'/0/0", {
+      algorithm: "EdDSA",
+      mode: "peikert",
+    });
+    const child = store.state.keys.find((k) => k.id === childId);
+
+    // The advertised twin comes from the child's PUBLIC key alone: the
+    // montgomery u-coordinate of the decoded edwards point.
+    const twinPub = ed25519.utils.toMontgomery(child!.publicKey as Uint8Array);
+
+    // The remote peer agrees with its own X25519 keypair against the twin.
+    const remote = x25519.keygen();
+    const peerSecret = x25519.getSharedSecret(remote.secretKey, twinPub);
+
+    const walletSecret = await keystore.deriveSharedSecret!(
+      childId,
+      remote.publicKey,
+      true,
+      "x25519",
+    );
+    expect(walletSecret.byteLength).toBe(32);
+    expect(Array.from(walletSecret)).toEqual(Array.from(peerSecret));
+  });
+
   it("generates a BIP39 seed as recoverable entropy and derives an HD account from it", async () => {
     const seedId = await keystore.generate({
       type: "seed",
@@ -978,7 +1084,7 @@ describe("createKeyStore (byte-only driver)", () => {
     expect(seedMeta?.metadata?.protected).toBeUndefined();
 
     // The stored entropy converts to the 96-byte XHD root just-in-time, so an
-    // account can be derived, signed with and verified — proving the
+    // account can be derived, signed with and verified, proving the
     // entropy → seed → root pipeline end-to-end.
     const rootId = await keystore.generate({
       type: "hd-root-key",
@@ -1250,7 +1356,7 @@ describe("createKeyStore (hooks)", () => {
 });
 
 describe("createKeyStore (default shims)", () => {
-  // No `shims` supplied — the orchestrator falls back to `createDefaultShims()`,
+  // No `shims` supplied: the orchestrator falls back to `createDefaultShims()`,
   // so every supported algorithm is understood with zero wiring.
   let store: Store<KeyStoreState>;
   let keystore: KeyStore<void>;

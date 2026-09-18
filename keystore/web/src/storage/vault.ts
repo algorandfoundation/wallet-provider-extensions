@@ -35,7 +35,7 @@ export interface SealedBytes {
  * non-extractable AES-GCM key on first use.
  *
  * @param db - The keystore database handle.
- * @param subtle - The host {@link SubtleCrypto} (never a shim decorator — this
+ * @param subtle - The host {@link SubtleCrypto} (never a shim decorator; this
  *   is a standard AES-GCM key).
  * @returns The master {@link CryptoKey}.
  */

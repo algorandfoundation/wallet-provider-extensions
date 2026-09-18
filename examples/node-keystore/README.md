@@ -2,16 +2,17 @@
 
 A minimal, runnable Node.js example of the server keystore extension for the
 Wallet Provider. Secret material is stored in your operating-system keychain and
-all UI-safe metadata in a sealed file (`~/.algorand-keystore/…`), via
-`@algorandfoundation/keystore-node`.
+all UI-safe metadata in a sealed file (`~/.algorand-keystore/…`), via the
+`@algorandfoundation/keystore` meta package (whose `node` condition resolves to
+`@algorandfoundation/keystore-node`).
 
 ## What it demonstrates
 
-- **Provider composition** — composing a `Provider` with the `WithKeyStore`
+- **Provider composition**: composing a `Provider` with the `WithKeyStore`
   extension and reading its reactive `keys` / `algorithms` / `status`.
-- **Capability discovery** — listing the active algorithms, tagged by source
+- **Capability discovery**: listing the active algorithms, tagged by source
   (host `SubtleCrypto` vs. composable shim add-ons).
-- **Key lifecycle** — minting a BIP39 seed, deriving an HD (BIP32-Ed25519) root
+- **Key lifecycle**: minting a BIP39 seed, deriving an HD (BIP32-Ed25519) root
   key, deriving an Ed25519 account, then signing and verifying a message.
 
 ## Running the example
@@ -28,7 +29,9 @@ pnpm --filter node-keystore-example start
 
 ## The `keystore` CLI
 
-The same engine is exposed as a terminal CLI by `@algorandfoundation/keystore-node`:
+The same engine is exposed as a terminal CLI by `@algorandfoundation/keystore-node`
+(the platform package behind the meta package, kept as a dev dependency here for
+its `keystore` bin):
 
 ```bash
 keystore generate seed                 # mint a BIP39 seed (prints the phrase once)

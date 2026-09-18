@@ -7,7 +7,7 @@ export const DEFAULT_LEDGER_KEY: string = "@algorandfoundation/provider-migratio
  * An in-memory {@link MigrationLedger}.
  *
  * Nothing survives a restart, so every migration re-runs on the next launch.
- * Intended for tests and deliberately ephemeral use — never as an application's
+ * Intended for tests and deliberately ephemeral use, never as an application's
  * durable ledger.
  *
  * @param initial - Revisions to seed the ledger with.
@@ -36,7 +36,7 @@ export function memoryLedger(initial: Record<string, Revision> = {}): MigrationL
  *
  * The whole map is serialised as one JSON blob under a single key, so a run
  * resolves the entire graph with one read. An absent, unparseable, or
- * non-object payload reads as empty — which re-runs every migration, and is
+ * non-object payload reads as empty, which re-runs every migration, and is
  * safe precisely because migrations are required to be idempotent.
  *
  * @param kv - The backing store. MMKV, `localStorage`, AsyncStorage, or a file

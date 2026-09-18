@@ -1,6 +1,6 @@
 /**
  * Adoption of the legacy **flat** `<id>` record layout (one sealed blob per
- * key, holding both metadata and material — see `commit`/`fetchSecret` in
+ * key, holding both metadata and material; see `commit`/`fetchSecret` in
  * `state.ts`) into the `k/<id>` + `m/<id>` pair {@link createKeychainDriver}
  * understands.
  *
@@ -13,8 +13,8 @@
  * silently invisible to the reactive store.
  *
  * The pass is exposed to applications as tracked revision `0002`
- * (`adopt-flat-records`) of this package's migration manifest — see
- * `../migrations/0002-adopt-flat-records.ts` — rather than running ad hoc on
+ * (`adopt-flat-records`) of this package's migration manifest (see
+ * `../migrations/0002-adopt-flat-records.ts`) rather than running ad hoc on
  * every engine start.
  */
 
@@ -41,7 +41,7 @@ export interface LegacyAdoptionFailure {
 export interface LegacyAdoptionResult {
   /** Ids successfully split into `k/<id>` + `m/<id>` (flat record removed). */
   adopted: string[];
-  /** Records left untouched — corrupt, undecryptable, or carrying no material. */
+  /** Records left untouched: corrupt, undecryptable, or carrying no material. */
   skipped: LegacyAdoptionFailure[];
 }
 
@@ -52,7 +52,7 @@ export interface LegacyAdoptionDeps {
   /** Host Subtle implementation used to open/re-seal material. */
   subtle: SubtleCrypto;
   /**
-   * Resolves the existing master key for a **read**. Must not create one —
+   * Resolves the existing master key for a **read**. Must not create one;
    * a missing master key with no flat records around is the ordinary fresh
    * install, not an error.
    */
@@ -66,7 +66,7 @@ export interface LegacyAdoptionDeps {
  * ledger serialises its revision map under. Excluded defensively: applications
  * are advised to keep the ledger in its own MMKV instance, but one pointed at
  * this keystore's instance must never have its ledger blob treated as a flat
- * record — it would be reported as skipped and could raise a needless unlock
+ * record; it would be reported as skipped and could raise a needless unlock
  * prompt. Kept as a literal so the storage layer stays free of any runtime
  * dependency on the migrations package.
  */
@@ -87,8 +87,8 @@ function isFlatCandidate(key: string): boolean {
  *
  * @remarks
  * Cheap and side-effect-free when there is nothing to adopt: the MMKV keys are
- * scanned first and the master key is touched — the only operation that can
- * raise a biometric/passcode prompt — only when at least one flat candidate
+ * scanned first and the master key is touched (the only operation that can
+ * raise a biometric/passcode prompt) only when at least one flat candidate
  * exists. A missing master key is then treated as "nothing to migrate" rather
  * than an error, since a fresh install has neither a master key nor any flat
  * records. The pass is idempotent (already-adopted records are `k/`/`m/`
@@ -122,7 +122,7 @@ export async function adoptLegacyRecords(deps: LegacyAdoptionDeps): Promise<Lega
   try {
     masterKey = await masterKeyForRead(authentication);
   } catch (error) {
-    // No master key and nothing has ever been sealed with one — the ordinary
+    // No master key and nothing has ever been sealed with one: the ordinary
     // fresh install. Anything else (unlock cancelled, hardware failure, …) is
     // a real problem the caller should see.
     if (error instanceof MasterKeyNotFoundError) return { adopted, skipped };

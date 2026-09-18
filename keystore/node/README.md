@@ -2,12 +2,16 @@
 
 The Node.js / server entry point for the Wallet Provider Keystore.
 
-All of the cryptographic implementation — the composable Subtle shims and the
-shared, platform-neutral `createKeyStore` engine — lives in
+All of the cryptographic implementation, including the composable Subtle shims and the
+shared, platform-neutral `createKeyStore` engine, lives in
 [`@algorandfoundation/keystore-core`](../core/README.md), which this package
 re-exports (types, errors, shims, constants and the engine). On top of it, this
-package ships an **OS-keychain storage engine** — the server counterpart to the
+package ships an **OS-keychain storage engine**, which is the server counterpart to the
 IndexedDB engine in [`@algorandfoundation/keystore-web`](../web/README.md).
+
+Both usage modes are first-class: the `createNodeKeyStore` engine runs entirely
+standalone, and the same engine ships first-class support for the Algorand
+Wallet Provider via the `WithKeyStore` extension.
 
 ## Universal by design
 
@@ -22,13 +26,13 @@ keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service /
 libsecret via [`@napi-rs/keyring`](https://www.npmjs.com/package/@napi-rs/keyring)):
 
 - **Secret material is stored directly in the keychain**, relying on its
-  encryption at rest — no extra app-level cipher over the material. Oversized
+  encryption at rest; there is no extra app-level cipher over the material. Oversized
   material (notably Falcon-1024 private keys, which exceed the ~2.5 KB Windows
   Credential Manager per-entry cap) is transparently **chunked** across numbered
   keychain entries and reassembled on read.
 - **All key metadata is kept in a single AES-GCM sealed file** (default
   `~/.algorand-keystore/metadata.bin`), keyed by a small master key held in the
-  keychain — so metadata has no per-entry size limit and never leaks in plaintext
+  keychain, ensuring metadata has no per-entry size limit and never leaks in plaintext
   at rest. The reactive store mirrors only UI-safe metadata.
 
 `@napi-rs/keyring` is an **optional** dependency and is loaded lazily, so it is
@@ -53,17 +57,18 @@ const id = await keystore.generate({
 const signature = await keystore.sign(id, new TextEncoder().encode("hi"));
 ```
 
-A `WithKeyStore` Provider/Extensions wrapper is also exported (parity with the
-browser and React Native packages) and builds the engine from the
-`options.keystore` block when no `api.keystore` backend is injected.
+For the Provider/Extensions pattern a `WithKeyStore` extension is exported as a
+first-class peer of the standalone engine (parity with the browser and React
+Native packages); it builds the engine from the `options.keystore` block when
+no `api.keystore` backend is injected.
 
 ## Two engines: in-process and RPC
 
 This package ships **two** ways to reach the same keystore:
 
-1. **In-process** — `createNodeKeyStore` (above): the keystore runs directly
+1. **In-process**: `createNodeKeyStore` (above), where the keystore runs directly
    inside your Node application.
-2. **RPC** — a JSON-RPC 2.0 service over a **local socket** (a Unix domain
+2. **RPC**: a JSON-RPC 2.0 service over a **local socket** (a Unix domain
    socket, or a named pipe on Windows) that hosts a keystore, plus a drop-in
    **client engine** (`createRpcKeyStore`) third-party processes use to drive it
    as if it were in-process. No TCP port is opened; access is gated by
@@ -95,7 +100,7 @@ console.log(`keystore RPC listening on ${path}`);
 ### The drop-in client engine
 
 `createRpcKeyStore` implements the full `KeyStore` contract by forwarding every
-call over the socket, so it is interchangeable with the in-process engine — pass
+call over the socket, so it is interchangeable with the in-process engine; pass
 it to the extension via `options.api.keystore`. The client's reactive `store` is
 kept hydrated by the service's state pushes (so `keys`/`algorithms` work
 remotely):

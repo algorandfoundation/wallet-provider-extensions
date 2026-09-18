@@ -6,7 +6,7 @@
  * driver and hands it to the shared, platform-neutral
  * {@link createKeyStore} orchestrator in `@algorandfoundation/keystore-core`.
  * All crypto orchestration lives in core and is shared with every other
- * backend; this package only supplies the server persistence — secret material
+ * backend; this package only supplies the server persistence: secret material
  * in the OS keychain (via `@napi-rs/keyring`) and all metadata in a single
  * AES-GCM sealed file keyed by a keychain-held master key.
  *

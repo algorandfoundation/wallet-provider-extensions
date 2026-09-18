@@ -54,8 +54,8 @@ const CAPABILITIES: DriverCapabilities = {
  * The vault master key lives in the same object store as user material, so an
  * id collision is not merely a naming clash: writing over it would orphan every
  * sealed record in the database, and deleting it would do the same on the next
- * reload. The id is reserved — it is never listed, never removed and never
- * overwritten — so a caller that picks it gets a loud error instead of a
+ * reload. The id is reserved (it is never listed, never removed and never
+ * overwritten), so a caller that picks it gets a loud error instead of a
  * silently broken vault.
  */
 function assertNotReserved(id: KeyId): void {

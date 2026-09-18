@@ -23,7 +23,7 @@ export interface Revision {
 export interface SecretScratch {
   /**
    * Takes ownership of `bytes`. The caller must not touch the array afterwards.
-   * Deliberately does not copy — a copy would mean a second plaintext buffer
+   * Deliberately does not copy: a copy would mean a second plaintext buffer
    * alive in the heap.
    */
   put(label: string, bytes: Uint8Array): void;
@@ -39,7 +39,7 @@ export interface SecretScratch {
 
 /**
  * The subset of the log extension's API the engine uses. Declared structurally
- * so this package takes no dependency on `@algorandfoundation/log-store`.
+ * so this package takes no dependency on `@algorandfoundation/logs`.
  */
 export interface MigrationLogger {
   info(message: string, metadata?: Record<string, unknown>, context?: string): void;
@@ -60,8 +60,8 @@ export interface MigrationUtils {
 /**
  * A single forward-only data migration.
  *
- * `up` must be **idempotent** — running it twice must converge to the same
- * state — and must be a no-op when there is nothing to migrate.
+ * `up` must be **idempotent** (running it twice must converge to the same
+ * state) and must be a no-op when there is nothing to migrate.
  *
  * @example
  * ```typescript
@@ -89,7 +89,7 @@ export interface Migration<Ctx = unknown> {
 export interface MigrationModule<Ctx = unknown> {
   /** Unique module id. Use the package name. */
   module: string;
-  /** Resolved lazily — only called when the module has pending revisions. */
+  /** Resolved lazily: only called when the module has pending revisions. */
   context: () => Ctx | Promise<Ctx>;
   /** The module's revisions, ascending by id. */
   migrations: readonly Migration<Ctx>[];
@@ -151,22 +151,39 @@ export interface MigrationsExtension {
   migrations: MigrationsApi;
 }
 
-/** Provider options consumed by {@link MigrationsExtension}. */
+/**
+ * The `options.migrations` namespace `WithMigrations` claims on the shared
+ * {@link ExtensionOptions} registry.
+ */
+export interface MigrationsNamespace {
+  /** Required. Where revisions are recorded. */
+  ledger: MigrationLedger;
+  /** Defaults to `true`. When `false`, nothing runs until `run()` is called. */
+  autoRun?: boolean;
+  /** Optional pre-built hook collection. */
+  hooks?: HookCollection<any>;
+}
+
+declare module "@algorandfoundation/wallet-provider" {
+  interface ExtensionOptions {
+    /** Migration runner settings, see {@link MigrationsNamespace}. */
+    migrations?: MigrationsNamespace;
+  }
+}
+
+/**
+ * Provider options consumed by {@link MigrationsExtension}. Narrows the shared
+ * registry: the `migrations` block is **required** when the extension is
+ * mounted.
+ */
 export interface MigrationsOptions extends ExtensionOptions {
-  migrations: {
-    /** Required. Where revisions are recorded. */
-    ledger: MigrationLedger;
-    /** Defaults to `true`. When `false`, nothing runs until `run()` is called. */
-    autoRun?: boolean;
-    /** Optional pre-built hook collection. */
-    hooks?: HookCollection<any>;
-  };
+  migrations: MigrationsNamespace;
 }
 
 /**
  * Minimal synchronous or asynchronous string key/value store, adapted by
  * {@link MigrationLedger} implementations. Deliberately matches neither MMKV
- * nor `localStorage` — a two-line lambda adapts either.
+ * nor `localStorage`; a two-line lambda adapts either.
  */
 export interface KeyValueStore {
   get(key: string): string | null | undefined | Promise<string | null | undefined>;

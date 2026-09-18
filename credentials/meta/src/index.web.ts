@@ -1,4 +1,7 @@
 /**
+ * @module default
+ * @packageDocumentation
+ *
  * Browser condition entry for `@algorandfoundation/credentials`.
  *
  * Resolved via the `browser` export condition; delegates to

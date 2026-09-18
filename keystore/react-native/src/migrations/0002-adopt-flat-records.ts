@@ -16,21 +16,21 @@ import type { KeystoreMigrationContext } from "../types.ts";
  * records silently vanish from the reactive store after an upgrade.
  *
  * Unlike revision `0001` this **decrypts material**: each flat record is
- * opened with the master key (one read for the whole pass — the only step
+ * opened with the master key (one read for the whole pass, the only step
  * that can raise a biometric/passcode prompt), its material re-sealed under
  * `m/<id>` and its metadata written in plaintext under `k/<id>`. Decrypted
  * buffers never leave {@link adoptLegacyRecords}, which zeroes them in its own
- * `finally` — the run-scoped secret scratch is therefore not needed here.
+ * `finally`; the run-scoped secret scratch is therefore not needed here.
  *
  * A record that cannot be decoded, decrypted, or carries no `privateKey`/`seed`
  * material (e.g. a native credential wrapped by a biometric cipher this
  * package cannot open) is left untouched and reported through the provider's
- * log — never deleted, and never fatal for the revision.
+ * log: never deleted, and never fatal for the revision.
  *
  * Finally the (idempotent, metadata-only) legacy-passkey flag pass runs again:
  * revision `0001` executed before any flat record was visible under `k/`, so
  * a legacy passkey that was still flat at that point would otherwise escape
- * flagging forever — the ledger records `0001` as applied and never re-runs it.
+ * flagging forever; the ledger records `0001` as applied and never re-runs it.
  */
 export const migration: Migration<KeystoreMigrationContext> = {
   id: 2,

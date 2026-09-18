@@ -14,7 +14,7 @@ import {
   RemoteAccountsMirror,
   WithAccounts,
 } from "@algorandfoundation/accounts";
-import { type LogMessage, WithLogStore, type LogStoreApi } from "@algorandfoundation/logs";
+import { type LogMessage, WithLogs, type LogStoreApi } from "@algorandfoundation/logs";
 import { keyStoreHooks } from "@/stores/before-after";
 import {
   KeystoreAccount,
@@ -39,6 +39,7 @@ import {
   WithPasskeys,
   type ReactNativePasskeysExtension,
 } from "@algorandfoundation/react-native-passkeys";
+import { WithPasskeysKeystore } from "@algorandfoundation/passkeys-keystore-extension";
 import type { Passkey } from "@algorandfoundation/passkeys-core";
 import { WithWatchedAccount, WatchedAccount } from "@/extensions/example";
 
@@ -56,7 +57,7 @@ export type AppAccount = WatchedAccount | AlgorandAccount | KeystoreAccount | Ac
 export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXTENSIONS> {
   static EXTENSIONS = [
     WithMigrations,
-    WithLogStore,
+    WithLogs,
     WithKeyStore,
     WithAccounts<AppAccount>,
     WithAccountsKeystore,
@@ -65,6 +66,7 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
     WithCredentials,
     WithConnections,
     WithPasskeys,
+    WithPasskeysKeystore,
     WithWatchedAccount,
   ] as const;
 
@@ -91,8 +93,13 @@ export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXT
 
   /** API for account operations (store + the session-scoped remote mirror) */
   account!: {
-    store: AccountStoreApi<AppAccount>;
-    remote: RemoteAccountsMirror<AppAccount>;
+    store: AccountStoreApi<AppAccount> & { ready: Promise<void> };
+    /**
+     * The session-scoped remote mirror, attached once the accounts meta's
+     * connections bridge resolves; `await account.store.ready` guarantees
+     * it is mounted.
+     */
+    remote?: RemoteAccountsMirror<AppAccount>;
   };
   /**
    * API for cryptographic key operations.

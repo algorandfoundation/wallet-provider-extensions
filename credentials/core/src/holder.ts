@@ -12,11 +12,18 @@
  * Both are captured by the {@link HolderBinding} contract instead of a hard
  * dependency on the identities extension. Today the canonical binding is
  * {@link identityHolderBinding} (an adapter over an
- * `@algorandfoundation/identities-store`-shaped store), but a holder can be
- * **any** domain that signs as the user — an identity key, or a formal
- * document that represents the user, such as an mDoc obtained through the
- * Digital Credentials API. Bindings for those sources plug in through the
- * same seam without touching this package.
+ * `@algorandfoundation/identities-core`-shaped store), but a holder can be
+ * **any** domain that signs as the user: an identity key, or a formal
+ * document that represents the user, such as an mDoc. Bindings for those
+ * sources plug in through the same seam without touching this package.
+ *
+ * Note the mDoc caveat: an mDoc-backed holder is signer-capable only when
+ * the mDoc is **self-held** (its DeviceKey is a wallet keystore key). An
+ * **OS-held** mDoc (e.g. a Google Wallet mDL surfaced through the Digital
+ * Credentials API) keeps its DeviceKey inside the OS wallet, which will
+ * never sign arbitrary payloads with it — such a holder can only be
+ * **watch-only** ({@link HolderIdentity.sign} absent). See
+ * `credentials/docs/mdoc-key-model.md` for the full key model.
  */
 
 import { didKeyToJwk, parseDidKey } from "./utils/did-key.ts";
@@ -26,16 +33,28 @@ import type { JwsSigner } from "./utils/signer.ts";
  * The minimal, structural shape of a holder record a binding resolves.
  *
  * Deliberately a subset of `Identity` from
- * `@algorandfoundation/identities-store` so that identity stores satisfy it
- * without this package importing that one — and so non-identity holders
+ * `@algorandfoundation/identities-core` so that identity stores satisfy it
+ * without this package importing that one, and so that non-identity holders
  * (e.g. mDoc-backed) can satisfy it too.
+ *
+ * @example
+ * ```typescript
+ * const holder: HolderIdentity = {
+ *   address: "did:key:z6Mk...",
+ *   sign: (payloads) => keystore.signAll(payloads),
+ * };
+ * ```
  */
 export interface HolderIdentity {
   /** Wallet-local address of the holder (typically a `did:key` URL). */
   address: string;
   /** The DID form, when different from the address. */
   did?: string;
-  /** Signs each payload in the batch; absent for watch-only holders. */
+  /**
+   * Signs each payload in the batch; absent for watch-only holders
+   * (e.g. an OS-held mDoc whose DeviceKey never leaves the OS wallet —
+   * see `credentials/docs/mdoc-key-model.md`).
+   */
   sign?: (data: Uint8Array[]) => Promise<Uint8Array[]>;
   /** Free-form metadata; `publicKeyJwk`/`kid`/`alg` are honoured as signer fallbacks. */
   metadata?: Record<string, unknown>;
@@ -44,8 +63,13 @@ export interface HolderIdentity {
 /**
  * The structural surface {@link identityHolderBinding} needs from an
  * identity store: lookup by address plus a `before("remove")` hook seam.
- * `@algorandfoundation/identities-store`'s `identity.store` API satisfies
+ * `@algorandfoundation/identities-core`'s `identity.store` API satisfies
  * this shape as-is.
+ *
+ * @example
+ * ```typescript
+ * const binding = identityHolderBinding(provider.identity.store satisfies HolderIdentityStore);
+ * ```
  */
 export interface HolderIdentityStore {
   /** Resolves a holder by wallet-local address. */
@@ -63,8 +87,20 @@ export interface HolderIdentityStore {
  * This is the decoupling seam between the credentials domain and the
  * identities domain: the store never imports an identity package, it only
  * consumes this contract. It is intentionally minimal so future holder
- * sources (Digital Credentials API mDocs, remote custodians, ...) can
- * implement it as well.
+ * sources (self-held mDocs, remote custodians, ...) can implement it as
+ * well. OS-held mDocs cannot: {@link HolderBinding.getSigner} requires
+ * signing arbitrary payloads, which the OS never does with an mDoc's
+ * DeviceKey, so those holders stay watch-only (see
+ * `credentials/docs/mdoc-key-model.md`).
+ *
+ * @example
+ * ```typescript
+ * const binding: HolderBinding = {
+ *   getSigner: async (address) => signers.get(address),
+ *   onRemoved: (evict) => holders.on("removed", evict),
+ * };
+ * const { api } = createCredentialStore({ binding });
+ * ```
  */
 export interface HolderBinding {
   /**
@@ -98,6 +134,14 @@ export interface HolderBinding {
  *
  * @param holder - The holder record to adapt.
  * @returns A {@link JwsSigner}, or `undefined` when the holder cannot sign.
+ *
+ * @example
+ * ```typescript
+ * const signer = buildSignerFromHolder(await provider.identity.store.getIdentity(address));
+ * if (signer) {
+ *   const jwt = await signCompactJwt({ signer, payload: { nonce } });
+ * }
+ * ```
  */
 export function buildSignerFromHolder(holder: HolderIdentity): JwsSigner | undefined {
   if (!holder.sign) return undefined;
@@ -143,7 +187,7 @@ export function buildSignerFromHolder(holder: HolderIdentity): JwsSigner | undef
 
 /**
  * The canonical {@link HolderBinding}: adapts an identities store (the
- * `identity.store` API from `@algorandfoundation/identities-store` or
+ * `identity.store` API from `@algorandfoundation/identities-core` or
  * anything matching {@link HolderIdentityStore}) to the holder seam.
  *
  * - `getSigner` resolves the identity and adapts it via
@@ -154,6 +198,13 @@ export function buildSignerFromHolder(holder: HolderIdentity): JwsSigner | undef
  *
  * @param identityStore - The identity store to bind against.
  * @returns A {@link HolderBinding} backed by the identity store.
+ *
+ * @example
+ * ```typescript
+ * const { api } = createCredentialStore({
+ *   binding: identityHolderBinding(provider.identity.store),
+ * });
+ * ```
  */
 export function identityHolderBinding(identityStore: HolderIdentityStore): HolderBinding {
   return {

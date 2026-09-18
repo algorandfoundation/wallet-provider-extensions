@@ -1,0 +1,49 @@
+---
+title: Wallet Provider Extensions
+description: Modular extensions for the Wallet Provider. Keystore, accounts, identities, and more.
+template: splash
+hero:
+  tagline: Composable building blocks for wallets. Keys, accounts, and identities as small, reactive extensions on a shared provider.
+  actions:
+    - text: Get started
+      link: /tutorials/getting-started/
+      icon: right-arrow
+    - text: API Reference
+      link: /reference/
+      icon: open-book
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## Standalone first, Provider optional
+
+Every package in this workspace is a pure engine or store you can use entirely on its own, such as `createWebKeyStore` for keys, `addAccount` over a plain [@tanstack/store](https://tanstack.com/store) for accounts, `createConnectionsStore` for sessions, and so on, with no `WalletProvider` required. The `WalletProvider` is the optional, first-class composition layer: each package's `With*` extension mounts the same engine on a shared provider when you want several domains in one context. Read [Provider](/concepts/provider/) for how the two modes relate.
+
+## Find what you need
+
+This documentation follows the [Diátaxis](https://diataxis.fr/) model. Pick the section that matches what you are trying to do right now.
+
+<CardGrid stagger>
+  <Card title="Tutorials" icon="rocket">
+    New here? Work through [Getting started](/tutorials/getting-started/) and build your first
+    provider with a keystore, an account, and a signed message.
+  </Card>
+  <Card title="How-to guides" icon="list-format">
+    Already building? Follow focused, goal-oriented steps to [compose a
+    provider](/guides/compose-a-provider/), manage [keys](/guides/manage-keys/),
+    [accounts](/guides/manage-accounts/), and [identities](/guides/manage-identities/), [connect a
+    wallet and a dapp](/guides/connect-a-dapp/), or [integrate with
+    use-wallet](/guides/integrate-use-wallet/).
+  </Card>
+  <Card title="Explanation" icon="open-book">
+    Want the why? Read about the [architecture](/concepts/architecture/), how the
+    [Provider](/concepts/provider/) moves state through the system, each domain from
+    [Keys](/concepts/keys/) to [connections](/concepts/connections/), and how
+    [dApps](/concepts/dapps/) reach a wallet.
+  </Card>
+  <Card title="Reference" icon="document">
+    Looking something up? The [API reference](/reference/) is generated straight from the TypeScript
+    source of every package, so it always matches the code.
+  </Card>
+</CardGrid>

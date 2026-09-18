@@ -38,11 +38,11 @@ export const DP256_DEFAULT_KEY_LENGTH_BYTES = 64;
  * There are two derivation levels, and both must be reproduced identically by
  * every party that regenerates a passkey:
  *
- * 1. `genDerivedMainKey` — PBKDF2-HMAC-SHA512 over the entropy, producing the
+ * 1. `genDerivedMainKey`: PBKDF2-HMAC-SHA512 over the entropy, producing the
  *    **derived main key** (the parent/root of the deterministic hierarchy). Run
  *    once per device; the result is what {@link withSubtleDP256.generateKey}
  *    persists.
- * 2. `genDomainSpecificKeyPair` — `SHA-512(mainKey ‖ origin ‖ userHandle ‖
+ * 2. `genDomainSpecificKeyPair`: `SHA-512(mainKey ‖ origin ‖ userHandle ‖
  *    counter)[0..32]`, producing the domain-specific P-256 private scalar.
  */
 export interface DP256Binding {
@@ -97,13 +97,13 @@ export interface DP256Binding {
  * hash: "SHA-512" })`).
  *
  * This is the same PBKDF2-HMAC-SHA512 contract as
- * {@link DP256Binding.genDerivedMainKey} — WebCrypto's PBKDF2 is fully
+ * {@link DP256Binding.genDerivedMainKey}: WebCrypto's PBKDF2 is fully
  * parameterised by hash, salt and iteration count, so the output is
  * byte-identical to the bundled `@algorandfoundation/dp256` implementation. The
  * difference is *where* it runs: every real host Subtle (Node's
  * `crypto.subtle`, browsers, `react-native-quick-crypto`) implements PBKDF2
- * natively, while the bundled binding runs it in pure JS (`@noble/hashes`) —
- * at the default 210,000 iterations that can block a slower JS runtime (React
+ * natively, while the bundled binding runs it in pure JS (`@noble/hashes`),
+ * which at the default 210,000 iterations can block a slower JS runtime (React
  * Native's Hermes) for minutes.
  *
  * @param subtle - A Subtle implementation with PBKDF2 + SHA-512 support.
@@ -146,7 +146,7 @@ export async function genDerivedMainKeyWithSubtle(
  * implementation when the host does not support PBKDF2 with SHA-512.
  *
  * All other operations (domain-key derivation, signing, public-key extraction)
- * are single SHA-512/ECDSA steps and pass through unchanged — only the
+ * are single SHA-512/ECDSA steps and pass through unchanged; only the
  * 210,000-iteration main-key derivation is worth routing to the host.
  *
  * @param host - The Subtle implementation whose PBKDF2 to prefer.
@@ -274,7 +274,7 @@ function toUncompressedPoint(publicKey: Uint8Array): Uint8Array {
  * injected just-in-time via the `mainKey` parameter and wiped when the operation
  * completes, and `verify` reads only the (non-secret) `publicKey` parameter, so
  * decrypted material lives only inside the operation call frame.
- * `importKey`/`exportKey` throw {@link MaterialAccessError} — material never
+ * `importKey`/`exportKey` throw {@link MaterialAccessError}: material never
  * moves *through* the public surface after birth.
  *
  * @param host - The Subtle implementation to extend (e.g. `crypto.subtle`). Its

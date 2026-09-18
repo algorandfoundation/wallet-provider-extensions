@@ -6,9 +6,9 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
-  ActivityIndicator,
   Alert,
 } from "react-native";
+import React from "react";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import {
@@ -16,23 +16,28 @@ import {
   useKeys,
   useKeystoreStatus,
   useRootColors,
-  useSelectedSeedId,
-  useSelectedRootKeyId,
   useShims,
 } from "@/hooks/useProvider";
-import { setSelectedSeedId, setSelectedRootKeyId } from "@/stores/selection";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect } from "react";
 import { HeaderCard, CapabilityList } from "@/components";
-import {
-  createWalletSeed,
-  generateFalconKey,
-  deriveAccountKey,
-  nextAccountIndex,
-  formatKeyData,
-  bytesToHex,
-  FALCON_ALGORITHM,
-} from "@/stores/keystore";
+import { createWalletSeed, mintEd25519Key, formatKeyData, bytesToHex } from "@/stores/keystore";
+import { syncPasskeyProviderKeys } from "@/lib/passkeyProvider";
+
+type IconName = React.ComponentProps<typeof MaterialCommunityIcons>["name"];
+
+/**
+ * Per-key-type icon for the flat key list. Every key the keystore holds is
+ * listed in one place (seeds, roots, HD children, standalone ed25519 and
+ * post-quantum Falcon keys) with its type as the label.
+ */
+const KEY_TYPE_ICONS: Record<string, IconName> = {
+  seed: "seed-outline",
+  "hd-seed": "seed-outline",
+  "hd-root-key": "key-chain",
+  "hd-derived-ed25519": "key",
+  ed25519: "key-outline",
+  "falcon-1024": "atom-variant",
+};
 
 export default function Index() {
   const { key } = useProvider();
@@ -40,109 +45,53 @@ export default function Index() {
   const status = useKeystoreStatus();
   const router = useRouter();
 
-  const selectedSeedId = useSelectedSeedId();
-  const selectedRootKeyId = useSelectedRootKeyId();
-
   // The keystore's active capabilities (host algorithms + composable shim
-  // add-ons), tagged by source. Falcon key generation is only offered when the
-  // Falcon-1024 add-on actually resolved on this device.
+  // add-ons), tagged by source.
   const capabilities = useShims();
-  const canGenerateFalcon = capabilities.some((c) => c.algorithm === FALCON_ALGORITHM);
-
-  const seeds = keys.filter((k) => k.type === "seed" || k.type === "hd-seed");
-  const rootKeys = keys.filter((k) => k.type === "hd-root-key");
-  const falconKeys = keys.filter((k) => k.type === "falcon-1024");
-  const derivedKeys = keys.filter(
-    (k) =>
-      k.type !== "seed" &&
-      k.type !== "hd-seed" &&
-      k.type !== "hd-root-key" &&
-      k.type !== "falcon-1024",
-  );
 
   // Stable color mapping: every key is colored by the seed it descends from.
-  const { byKeyId: rootKeyColors, colorFor } = useRootColors();
-
-  // Root keys reference their originating seed via `metadata.rootKeyId`
-  // (older flows used `parentKeyId`, kept as a fallback for compatibility).
-  const seedIdForRoot = (k: (typeof rootKeys)[number]): string | undefined =>
-    (k.metadata?.rootKeyId as string | undefined) ??
-    (k.metadata?.parentKeyId as string | undefined);
-
-  // Selecting a seed should also select its child root (if one exists)
-  // so derived-key generation downstream has a sensible default.
-  const handleSelectSeed = (seedId: string) => {
-    setSelectedSeedId(seedId);
-    const childRoot = rootKeys.find((k) => seedIdForRoot(k) === seedId);
-    setSelectedRootKeyId(childRoot ? childRoot.id : null);
-  };
-
-  const handleSelectRootKey = (rootKeyId: string) => {
-    setSelectedRootKeyId(rootKeyId);
-    // Keep the parent seed selection in sync if available.
-    const root = rootKeys.find((k) => k.id === rootKeyId);
-    const parentSeedId = root ? seedIdForRoot(root) : undefined;
-    if (parentSeedId) setSelectedSeedId(parentSeedId);
-  };
-
-  // Keep selections valid when the underlying keys change (e.g. removal).
-  useEffect(() => {
-    if (selectedSeedId && !seeds.some((s) => s.id === selectedSeedId)) {
-      setSelectedSeedId(null);
-    }
-    if (selectedRootKeyId && !rootKeys.some((r) => r.id === selectedRootKeyId)) {
-      setSelectedRootKeyId(null);
-    }
-  }, [seeds, rootKeys, selectedSeedId, selectedRootKeyId]);
+  const { colorFor } = useRootColors();
 
   const handleImportSeed = async () => {
     try {
       // Delegate the multi-step mnemonic → seed → XHD root flow to the keystore
       // domain module, keeping the screen free of orchestration logic.
-      const { seedId, rootKeyId, mnemonic } = await createWalletSeed(key.store);
-
-      // Auto-select the newly created seed + its child root.
-      setSelectedSeedId(seedId);
-      setSelectedRootKeyId(rootKeyId);
+      const { mnemonic } = await createWalletSeed(key.store);
 
       Alert.alert(
         "Wallet Seed Created",
         `Your 24-word recovery phrase:\n\n${mnemonic}\n\nKeep this phrase safe!`,
-        [{ text: "OK" }],
+        [
+          {
+            text: "OK",
+            // Set up the credential provider in the same pass: derive the
+            // deterministic-P256 passkey main key from the new seed and share
+            // it (plus the keystore master key) with the autofill service;
+            // without this, Credential Manager shows "No passkeys available"
+            // for every get/create request. Best-effort: a failure here can
+            // be retried from the Passkeys screen's Sync action.
+            onPress: () => {
+              void syncPasskeyProviderKeys(key.store).catch((error) =>
+                console.warn("passkey provider sync failed", error),
+              );
+            },
+          },
+        ],
       );
     } catch (error: any) {
       Alert.alert("Import Failed", error.message);
     }
   };
 
-  const handleGenerateFalcon = async () => {
-    if (!selectedSeedId) {
-      Alert.alert("Select a Seed", "Choose a seed to derive the Falcon key from.");
-      return;
-    }
+  // Mint a fresh standalone ed25519 key: the accounts-keystore bridge
+  // auto-populates a keystore account for it, so this is the "new ed25519
+  // key account" action (HD and Falcon accounts are generated from the
+  // Accounts screen).
+  const handleMintEd25519 = async () => {
     try {
-      await generateFalconKey(key.store, selectedSeedId);
+      await mintEd25519Key(key.store);
     } catch (error: any) {
-      Alert.alert("Falcon Generation Failed", error.message);
-    }
-  };
-
-  // Mirror the web example's "Generate account" flow: derive the next standard
-  // BIP32-Ed25519 account from the selected root key (falling back to the first
-  // root). The accounts extension auto-populates an on-chain account from it.
-  const handleGenerateAccount = async () => {
-    const rootKeyId = selectedRootKeyId ?? rootKeys[0]?.id;
-    if (!rootKeyId) {
-      Alert.alert("No Root Key", "Generate a seed first to create a root key.");
-      return;
-    }
-    try {
-      await deriveAccountKey(key.store, {
-        rootKeyId,
-        index: nextAccountIndex(keys, rootKeyId),
-      });
-    } catch (error: any) {
-      Alert.alert("Derive Account Failed", error.message);
+      Alert.alert("Mint Ed25519 Failed", error.message);
     }
   };
 
@@ -167,7 +116,11 @@ export default function Index() {
   const handleRemoveKey = (id: string) => {
     Alert.alert("Remove Key", "Are you sure you want to remove this key?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: () => key.store.remove(id) },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => key.store.remove(id),
+      },
     ]);
   };
 
@@ -228,7 +181,7 @@ export default function Index() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <HeaderCard
           label="Keystore Extension"
-          title={seeds.length + rootKeys.length}
+          title={keys.length}
           icon="key-variant"
           accentColor="#007AFF"
           actions={[
@@ -239,16 +192,10 @@ export default function Index() {
               disabled: status !== "idle",
             },
             {
-              label: "Account",
-              icon: "account-plus-outline",
-              onPress: handleGenerateAccount,
-              disabled: status !== "idle" || rootKeys.length === 0,
-            },
-            {
-              label: "Falcon",
-              icon: "atom-variant",
-              onPress: handleGenerateFalcon,
-              disabled: status !== "idle" || !selectedSeedId || !canGenerateFalcon,
+              label: "Ed25519",
+              icon: "key-plus",
+              onPress: handleMintEd25519,
+              disabled: status !== "idle",
             },
             {
               label: "Clear",
@@ -262,138 +209,19 @@ export default function Index() {
         <Text style={styles.sectionTitle}>Available Algorithms</Text>
         <CapabilityList capabilities={capabilities} accentColor="#007AFF" />
 
-        <Text style={styles.sectionTitle}>Seeds</Text>
-        {seeds.length === 0 ? (
-          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No seeds yet.</Text>
-          </Animated.View>
-        ) : (
-          seeds.map((item, i) => {
-            const rootColor = rootKeyColors[item.id] || "#666";
-            return (
-              <Animated.View
-                key={item.id || i}
-                entering={FadeIn.duration(300)}
-                exiting={FadeOut.duration(300)}
-                layout={LinearTransition.springify()}
-              >
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  style={[
-                    styles.keyCard,
-                    selectedSeedId === item.id && styles.activeKeyCard,
-                    selectedSeedId === item.id && { borderColor: rootColor },
-                  ]}
-                  onPress={() => handleSelectSeed(item.id)}
-                >
-                  <View style={styles.keyInfo}>
-                    <View style={[styles.keyIconContainer, { backgroundColor: `${rootColor}15` }]}>
-                      <MaterialCommunityIcons
-                        name="seed-outline"
-                        size={20}
-                        color={selectedSeedId === item.id ? rootColor : `${rootColor}80`}
-                      />
-                    </View>
-                    <View>
-                      <Text
-                        style={[
-                          styles.keyType,
-                          selectedSeedId === item.id && styles.activeKeyType,
-                          selectedSeedId === item.id && { color: rootColor },
-                        ]}
-                      >
-                        {item.type}
-                        {(item as any).privateKey && (
-                          <MaterialCommunityIcons
-                            name="alert-circle"
-                            size={16}
-                            color="#FF3B30"
-                            style={styles.warningIcon}
-                          />
-                        )}
-                      </Text>
-                      <Text style={styles.keyAddress}>{item.algorithm}</Text>
-                    </View>
-                  </View>
-                  {renderKeyActions(item)}
-                </TouchableOpacity>
-              </Animated.View>
-            );
-          })
-        )}
-
-        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Root Keys</Text>
-        {rootKeys.length === 0 ? (
-          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No root keys yet.</Text>
-          </Animated.View>
-        ) : (
-          rootKeys.map((item, i) => {
-            const rootColor = rootKeyColors[item.id] || "#666";
-            return (
-              <Animated.View
-                key={item.id || i}
-                entering={FadeIn.duration(300)}
-                exiting={FadeOut.duration(300)}
-                layout={LinearTransition.springify()}
-              >
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  style={[
-                    styles.keyCard,
-                    selectedRootKeyId === item.id && styles.activeKeyCard,
-                    selectedRootKeyId === item.id && { borderColor: rootColor },
-                  ]}
-                  onPress={() => handleSelectRootKey(item.id)}
-                >
-                  <View style={styles.keyInfo}>
-                    <View style={[styles.keyIconContainer, { backgroundColor: `${rootColor}15` }]}>
-                      <MaterialCommunityIcons
-                        name="key-chain"
-                        size={20}
-                        color={selectedRootKeyId === item.id ? rootColor : `${rootColor}80`}
-                      />
-                    </View>
-                    <View>
-                      <Text
-                        style={[
-                          styles.keyType,
-                          selectedRootKeyId === item.id && styles.activeKeyType,
-                          selectedRootKeyId === item.id && { color: rootColor },
-                        ]}
-                      >
-                        {item.type}
-                        {(item as any).privateKey && (
-                          <MaterialCommunityIcons
-                            name="alert-circle"
-                            size={16}
-                            color="#FF3B30"
-                            style={styles.warningIcon}
-                          />
-                        )}
-                      </Text>
-                      <Text style={styles.keyAddress}>{item.algorithm}</Text>
-                    </View>
-                  </View>
-                  {renderKeyActions(item)}
-                </TouchableOpacity>
-              </Animated.View>
-            );
-          })
-        )}
-
-        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Falcon Keys</Text>
-        {falconKeys.length === 0 ? (
+        <Text style={styles.sectionTitle}>Available Keys</Text>
+        {keys.length === 0 ? (
           <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.emptyState}>
             <Text style={styles.emptyStateText}>
-              {canGenerateFalcon
-                ? "No Falcon keys yet. Select a seed and tap “Falcon Key”."
-                : "Falcon-1024 is not available on this device."}
+              No keys yet. Create a seed or mint an ed25519 key to get started.
             </Text>
           </Animated.View>
         ) : (
-          falconKeys.map((item, i) => {
-            const parentColor = colorFor(item.metadata?.parentKeyId as string);
+          keys.map((item, i) => {
+            // Color by the seed/root the key descends from (fallback for
+            // standalone keys with no ancestor).
+            const keyColor = colorFor(item.id);
+            const iconName = KEY_TYPE_ICONS[item.type] ?? "key";
             return (
               <Animated.View
                 key={item.id || i}
@@ -403,52 +231,17 @@ export default function Index() {
               >
                 <View style={styles.keyCard}>
                   <View style={styles.keyInfo}>
-                    <View
-                      style={[styles.keyIconContainer, { backgroundColor: `${parentColor}15` }]}
-                    >
-                      <MaterialCommunityIcons name="atom-variant" size={20} color={parentColor} />
+                    <View style={[styles.keyIconContainer, { backgroundColor: `${keyColor}15` }]}>
+                      <MaterialCommunityIcons name={iconName} size={20} color={keyColor} />
                     </View>
                     <View>
-                      <Text style={[styles.keyType, { color: parentColor }]}>{item.type}</Text>
-                      <Text style={styles.keyAddress}>{item.algorithm}</Text>
-                    </View>
-                  </View>
-                  {renderKeyActions(item)}
-                </View>
-              </Animated.View>
-            );
-          })
-        )}
-
-        <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Derived Keys</Text>
-        {derivedKeys.length === 0 ? (
-          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No derived keys yet.</Text>
-          </Animated.View>
-        ) : (
-          derivedKeys.map((item, i) => {
-            const parentColor = rootKeyColors[item.metadata?.parentKeyId as string] || "#666";
-            return (
-              <Animated.View
-                key={item.id || i}
-                entering={FadeIn.duration(300)}
-                exiting={FadeOut.duration(300)}
-                layout={LinearTransition.springify()}
-              >
-                <View style={styles.keyCard}>
-                  <View style={styles.keyInfo}>
-                    <View
-                      style={[styles.keyIconContainer, { backgroundColor: `${parentColor}15` }]}
-                    >
-                      <MaterialCommunityIcons name="key" size={20} color={parentColor} />
-                    </View>
-                    <View>
-                      <Text style={[styles.keyType, { color: parentColor }]}>
+                      <Text style={[styles.keyType, { color: keyColor }]}>
                         {item.type}
                         {item.type === "hd-derived-ed25519" && item.metadata && (
                           <Text style={styles.keyIndex}>
                             {" "}
-                            (a:{item.metadata.account as number} i:{item.metadata.index as number})
+                            (a:{item.metadata.account as number} i:
+                            {item.metadata.index as number})
                           </Text>
                         )}
                         {(item as any).privateKey && (
@@ -525,10 +318,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  activeKeyCard: {
-    borderColor: "#007AFF",
-    backgroundColor: "#F0F7FF",
-  },
   keyInfo: {
     flexDirection: "row",
     alignItems: "center",
@@ -543,17 +332,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-  activeKeyIconContainer: {
-    backgroundColor: "#E3F2FD",
-  },
   keyType: {
     fontSize: 12,
     fontWeight: "bold",
     color: "#666",
     marginBottom: 2,
-  },
-  activeKeyType: {
-    color: "#007AFF",
   },
   keyIndex: {
     fontSize: 10,

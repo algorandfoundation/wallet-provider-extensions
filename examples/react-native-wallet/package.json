@@ -21,6 +21,7 @@
     "@algorandfoundation/keystore": "workspace:*",
     "@algorandfoundation/logs": "workspace:*",
     "@algorandfoundation/passkeys-core": "workspace:*",
+    "@algorandfoundation/passkeys-keystore-extension": "workspace:*",
     "@algorandfoundation/provider-migrations": "workspace:*",
     "@algorandfoundation/react-native-credentials": "workspace:*",
     "@algorandfoundation/react-native-passkey-autofill": "link:../../../react-native-passkey-autofill",

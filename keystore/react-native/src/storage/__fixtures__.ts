@@ -1,7 +1,7 @@
 /**
  * Shared test fixtures for the Keychain/MMKV storage surface.
  *
- * Excluded from the published build (see `tsconfig.build.json`) — these are
+ * Excluded from the published build (see `tsconfig.build.json`): these are
  * test-only helpers and must never ship in `dist/`.
  */
 

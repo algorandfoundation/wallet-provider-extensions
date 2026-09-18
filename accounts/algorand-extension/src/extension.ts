@@ -27,6 +27,17 @@ import type {
 import { createSubscriberWithWatchlist, getAlgorandBalances } from "./algorand.ts";
 import { algorandAddressForKey } from "./address.ts";
 
+/**
+ * Type guard narrowing an {@link Account} to an {@link AlgorandAccount}.
+ *
+ * @param account - The account to test.
+ * @returns Whether the account was populated by this extension.
+ *
+ * @example
+ * ```typescript
+ * const algorandAccounts = provider.accounts.filter(isAlgorandAccount);
+ * ```
+ */
 export function isAlgorandAccount(account: Account): account is AlgorandAccount {
   return account.type === "algorand-account";
 }
@@ -36,7 +47,36 @@ export function isAlgorandAccount(account: Account): account is AlgorandAccount 
  *
  * It subscribes to the keystore, derives canonical Algorand addresses for
  * compatible keys, seeds balances / assets from algod and keeps them in
- * sync through a contained algokit-subscriber watchlist.
+ * sync through a contained algokit-subscriber watchlist. The only surface it
+ * contributes is `provider.algorand` (shared algod / indexer clients); the
+ * accounts themselves are written into the shared accounts store.
+ *
+ * @param provider - The host provider; must already carry `WithAccounts` and a
+ *   keystore extension (`provider.account`, `provider.key`). Reports through
+ *   `provider.log` when present and reuses an existing `provider.algorand`.
+ * @param options - {@link AlgorandAccountsExtensionOptions};
+ *   `options.algorand`, `options.keystore.store` and `options.accounts.store`
+ *   are required.
+ * @returns The {@link AlgorandAccountsExtension} surface (`algorand` clients).
+ * @throws When `provider.account`, `provider.key` or a wallet key is missing.
+ *
+ * @example
+ * ```typescript
+ * const MyProvider = Provider.withExtensions([WithAccounts, WithKeyStore, WithAlgorandAccounts]);
+ * const provider = new MyProvider(
+ *   { id: "my-provider", name: "My Provider" },
+ *   {
+ *     accounts: { store: accountStore },
+ *     keystore: { store: keyStore, hooks: keyStoreHooks },
+ *     algorand: {
+ *       network: "testnet-v1.0",
+ *       algodConfig: { server: "https://testnet-api.algonode.cloud", port: 443, token: "" },
+ *     },
+ *   },
+ * );
+ *
+ * const info = await provider.algorand.algod.accountInformation(provider.accounts[0].address).do();
+ * ```
  */
 export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
   provider: KeyStoreExtension &
@@ -81,7 +121,7 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
   const hooks = options.algorand.hooks ?? new Hook.Collection<any>();
 
   // Accounts are written under a wallet key, mirroring use-wallet's
-  // per-wallet partitioning. Defaults to the provider's id — the same key
+  // per-wallet partitioning. Defaults to the provider's id, the same key
   // WithAccounts scopes to.
   const walletKey: WalletKey | undefined = options.accounts.walletKey ?? provider.id;
   if (!walletKey) {
@@ -272,7 +312,7 @@ export const WithAlgorandAccounts: Extension<AlgorandAccountsExtension> = (
                       return { ...a, balance: (a.balance ?? 0n) + amount };
                     }
 
-                    // ASA balance update — find by assetId string match and add delta
+                    // ASA balance update: find by assetId string match and add delta
                     const assetIdStr = assetId.toString();
                     return {
                       ...a,

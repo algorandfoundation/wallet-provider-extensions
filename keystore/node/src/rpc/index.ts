@@ -5,11 +5,11 @@
  * hosts a {@link import("../engine.ts").createNodeKeyStore} keystore, and a
  * drop-in client engine third parties use to drive it as if it were in-process.
  *
- * - {@link createKeyStoreRpcServer} — run (by the `keystore serve` CLI) to expose
+ * - {@link createKeyStoreRpcServer}: run (by the `keystore serve` CLI) to expose
  *   a keystore to other processes.
- * - {@link createRpcKeyStore} — a `KeyStore` client that forwards every call over
+ * - {@link createRpcKeyStore}: a `KeyStore` client that forwards every call over
  *   the socket; plug it into the extension via `options.api.keystore`.
- * - {@link defaultRpcSocketPath} — the shared default socket path both ends use.
+ * - {@link defaultRpcSocketPath}: the shared default socket path both ends use.
  */
 
 export { createRpcKeyStore, type RpcKeyStore, type RpcKeyStoreOptions } from "./client.ts";

@@ -104,6 +104,22 @@ describe("createCredentialStore", () => {
     expect(beforeHook).toHaveBeenCalled();
   });
 
+  it("exposes hydration as api.ready (the same promise the engine returns)", async () => {
+    const memory = createCredentialStore();
+    expect(memory.api.ready).toBe(memory.ready);
+    await expect(memory.api.ready).resolves.toBeUndefined();
+
+    const driver = memoryCredentialDriver({
+      [DEFAULT_CREDENTIALS_KEY]: JSON.stringify([
+        { ...mockCredential, raw: { kind: "string", value: "persisted" } },
+      ]),
+    });
+    const hydrated = createCredentialStore({ driver });
+    expect(hydrated.api.ready).toBe(hydrated.ready);
+    await hydrated.api.ready;
+    expect(await hydrated.api.getCredentials()).toHaveLength(1);
+  });
+
   it("reuses an injected store and hooks", () => {
     const store = new Store<CredentialStoreState>({
       credentials: [mockCredential],

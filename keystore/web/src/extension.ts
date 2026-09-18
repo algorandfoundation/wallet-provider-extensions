@@ -1,25 +1,33 @@
 import type { KeyStoreExtension, KeyStoreOptions } from "@algorandfoundation/keystore-core";
-import type { LogStoreExtension } from "@algorandfoundation/log-store";
+import type { LogStoreExtension } from "@algorandfoundation/logs";
 import type { Extension, Provider } from "@algorandfoundation/wallet-provider";
 
 import { createWebKeyStore } from "./engine.ts";
 
-/**
- * Browser keystore extension options.
- *
- * Extends the base {@link KeyStoreOptions} `keystore` block with the pieces the
- * {@link createWebKeyStore} engine needs, following the Provider/Extensions
- * pattern: the reactive state store, hooks, host `subtle` and composable `shims`
- * come from the base options, while the IndexedDB seams are injected here.
- */
-export interface WebKeystoreOptions extends KeyStoreOptions {
-  keystore: KeyStoreOptions["keystore"] & {
+declare module "@algorandfoundation/keystore-core" {
+  /**
+   * Browser additions to the shared `options.keystore` namespace: the
+   * IndexedDB seams the {@link createWebKeyStore} engine needs. The reactive
+   * state store, hooks, host `subtle` and composable `shims` come from the base
+   * {@link KeyStoreNamespace}.
+   */
+  interface KeyStoreNamespace {
     /** IndexedDB factory; defaults to `globalThis.indexedDB`. Injectable for tests. */
     indexedDB?: IDBFactory;
     /** Database name; defaults to `"keystore"`. */
     databaseName?: string;
-  };
+  }
 }
+
+/**
+ * Browser keystore extension options.
+ *
+ * The same {@link KeyStoreOptions} shape; this package augments the shared
+ * {@link KeyStoreNamespace} with the IndexedDB seams, so `options.keystore`
+ * accepts `indexedDB` and `databaseName` alongside the base
+ * `store`/`hooks`/`subtle`/`shims`.
+ */
+export type WebKeystoreOptions = KeyStoreOptions;
 
 /**
  * Wallet Provider Extension that adds browser Keystore functionality.
@@ -32,8 +40,8 @@ export interface WebKeystoreOptions extends KeyStoreOptions {
  *   is injected via `options.api.keystore`, it is used as-is.
  * - Otherwise the extension **builds** the browser engine from the
  *   `options.keystore` block (the reactive `store`, the `hooks` collection, an
- *   optional host `subtle`, the composable `shims` — which default to the full
- *   set — and optional IndexedDB seams). The keystore hooks are applied when the
+ *   optional host `subtle`, the composable `shims`, which default to the full
+ *   set, and optional IndexedDB seams). The keystore hooks are applied when the
  *   engine is created, so every material-touching operation is interceptable.
  *
  * The reactive `keys`/`status` getters mirror the engine's metadata store. The

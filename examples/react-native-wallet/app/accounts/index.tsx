@@ -85,7 +85,7 @@ export default function Accounts() {
     }
   };
 
-  // Generate a post-quantum Falcon-1024 key from the wallet seed — the
+  // Generate a post-quantum Falcon-1024 key from the wallet seed; the
   // accounts-keystore bridge auto-populates a Falcon account for it, keyed
   // by its public key. Only offered when the Falcon-1024 add-on resolved
   // on this device.
@@ -148,7 +148,7 @@ export default function Accounts() {
             let subtitle: string | null = null;
             if (isKeystoreAccount(item)) {
               // Label the account by the kind of key backing it (HD vs
-              // Ed25519 vs Falcon) — `keyType` travels in the metadata the
+              // Ed25519 vs Falcon): `keyType` travels in the metadata the
               // bridge records (and the wallet transmits on connect).
               const keyType = item.metadata?.keyType as string | undefined;
               const kind = (keyType && KEYSTORE_ACCOUNT_KINDS[keyType]) || {

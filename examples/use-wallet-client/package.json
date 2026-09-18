@@ -1,0 +1,45 @@
+{
+  "name": "use-wallet-client-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@algorandfoundation/accounts": "workspace:*",
+    "@algorandfoundation/connections": "workspace:*",
+    "@algorandfoundation/credentials": "workspace:*",
+    "@algorandfoundation/identities": "workspace:*",
+    "@algorandfoundation/keystore": "workspace:*",
+    "@algorandfoundation/liquid-client": "catalog:",
+    "@algorandfoundation/passkeys": "workspace:*",
+    "@algorandfoundation/passkeys-core": "workspace:*",
+    "@algorandfoundation/wallet-provider": "catalog:",
+    "@tanstack/react-store": "^0.9.3",
+    "@tanstack/store": "catalog:",
+    "@txnlab/use-wallet": "catalog:",
+    "@txnlab/use-wallet-lute": "^5.0.0",
+    "@txnlab/use-wallet-mnemonic": "^5.0.0",
+    "@txnlab/use-wallet-pera": "^5.0.0",
+    "@txnlab/use-wallet-react": "^5.0.0",
+    "algosdk": "^3.6.0",
+    "before-after-hook": "catalog:",
+    "qr-code-styling": "^1.9.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@noble/curves": "catalog:",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "typescript": "catalog:",
+    "vite": "^6.4.3",
+    "vite-plugin-node-polyfills": "^0.22.0",
+    "vitest": "catalog:"
+  }
+}

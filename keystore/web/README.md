@@ -9,13 +9,17 @@ the universal `globalThis.crypto` (`crypto.subtle` / `crypto.getRandomValues`)
 and pure-JS primitives, so it runs unchanged in the browser and is re-exported
 here.
 
+Both usage modes are first-class: the `createWebKeyStore` engine runs entirely
+standalone, and the same engine ships first-class support for the Algorand
+Wallet Provider via the `WithKeyStore` extension.
+
 Most applications should depend on the meta package
 [`@algorandfoundation/keystore`](../meta/README.md), which selects this package
 automatically via the `browser` export condition.
 
 ## IndexedDB storage engine
 
-This package ships `createWebKeyStore` — the browser `withIndexDB` storage
+This package ships `createWebKeyStore`, which is the browser `withIndexDB` storage
 engine. It implements the platform-neutral `KeyStoreAPI` on top of the core
 composable Subtle shims (`withSubtleXHD` / `withSubtleFalcon1024`):
 
@@ -27,7 +31,7 @@ composable Subtle shims (`withSubtleXHD` / `withSubtleFalcon1024`):
   at rest** with a non-extractable AES-GCM master key (itself a `CryptoKey`
   persisted in IndexedDB).
 - The reactive [`@tanstack/store`](https://tanstack.com/store) holds **only
-  UI-safe metadata** — never private material. Secrets are decrypted
+  UI-safe metadata** and never private material. Secrets are decrypted
   just-in-time and injected into the shim algorithm parameters for a single
   operation, then wiped.
 
@@ -42,7 +46,7 @@ import { createWebKeyStore } from "@algorandfoundation/keystore-web";
 
 const store = new Store({ keys: [], status: "idle" });
 
-// All shims on by default — no bindings to wire up.
+// All shims on by default; no bindings to wire up.
 const keystore = createWebKeyStore({ store });
 await keystore.ready;
 
@@ -61,10 +65,10 @@ const ok = await keystore.verify(acctId, message, signature);
 
 ## `WithKeyStore` provider extension
 
-For the Provider/Extensions pattern this package also ships a `WithKeyStore`
-extension (mirroring the React Native one). When no backend is injected via
-`options.api.keystore`, it builds the browser engine from `options.keystore`
-(the reactive `store`, `hooks`, and — optionally — `subtle`/`shims`/IndexedDB
+For the Provider/Extensions pattern this package ships first-class support via
+a `WithKeyStore` extension (mirroring the React Native one). When no backend is
+injected via `options.api.keystore`, it builds the browser engine from `options.keystore`
+(the reactive `store`, `hooks`, and, optionally, `subtle`/`shims`/IndexedDB
 seams), applies the keystore hooks at creation, and exposes the API (plus
 `hooks`) on `key.store`.
 
@@ -73,7 +77,10 @@ import { Provider } from "@algorandfoundation/wallet-provider";
 import { WithKeyStore } from "@algorandfoundation/keystore-web";
 
 const ProviderWithKeystore = Provider.withExtensions([WithKeyStore]);
-const provider = new ProviderWithKeystore({ keystore: { store, hooks } });
+const provider = new ProviderWithKeystore(
+  { id: "my-wallet", name: "My Wallet" },
+  { keystore: { store, hooks } },
+);
 
 provider.key.store.hooks.before("sign", ({ args }) => console.log("signing", args));
 ```

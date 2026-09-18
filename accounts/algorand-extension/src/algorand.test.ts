@@ -119,10 +119,10 @@ describe("createSubscriberWithWatchlist", () => {
 
     contained.start();
 
-    await vi.advanceTimersByTimeAsync(0); // poll #1 — fails, retry 1 scheduled
-    await vi.advanceTimersByTimeAsync(2_000); // poll #2 (retry 1) — fails, retry 2 scheduled
-    await vi.advanceTimersByTimeAsync(2_000); // poll #3 (retry 2) — fails, retry 3 scheduled
-    await vi.advanceTimersByTimeAsync(2_000); // poll #4 (retry 3) — fails, retries exhausted
+    await vi.advanceTimersByTimeAsync(0); // poll #1 fails, retry 1 scheduled
+    await vi.advanceTimersByTimeAsync(2_000); // poll #2 (retry 1) fails, retry 2 scheduled
+    await vi.advanceTimersByTimeAsync(2_000); // poll #3 (retry 2) fails, retry 3 scheduled
+    await vi.advanceTimersByTimeAsync(2_000); // poll #4 (retry 3) fails, retries exhausted
 
     expect(sub.pollOnce).toHaveBeenCalledTimes(4); // initial + 3 retries
     expect(onError).toHaveBeenCalledTimes(1);
@@ -139,7 +139,7 @@ describe("createSubscriberWithWatchlist", () => {
     await vi.advanceTimersByTimeAsync(2_000);
     await vi.advanceTimersByTimeAsync(2_000);
     await vi.advanceTimersByTimeAsync(2_000);
-    // No error thrown — reaching this line means the test passes
+    // No error thrown; reaching this line means the test passes
   });
 
   it("resets retry count after a successful poll", async () => {
@@ -164,11 +164,11 @@ describe("createSubscriberWithWatchlist", () => {
     await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(2_000);
     await vi.advanceTimersByTimeAsync(2_000);
-    await vi.advanceTimersByTimeAsync(2_000); // 4th call succeeds — retry count resets
+    await vi.advanceTimersByTimeAsync(2_000); // 4th call succeeds, so the retry count resets
 
     expect(onError).not.toHaveBeenCalled();
 
-    // Now fail again — should get another full set of retries
+    // Now fail again; should get another full set of retries
     sub.pollOnce.mockRejectedValue(error);
     await vi.advanceTimersByTimeAsync(4_000); // poll after success interval
     await vi.advanceTimersByTimeAsync(2_000);

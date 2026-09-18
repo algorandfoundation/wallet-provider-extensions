@@ -2,7 +2,7 @@
  * The React Native Keychain/MMKV {@link KeyStoreDriver}: the mobile "material
  * custodian" for the shared {@link createKeyStore} orchestrator.
  *
- * Unlike IndexedDB, MMKV is a string/number/bytes key-value store — it cannot
+ * Unlike IndexedDB, MMKV is a string/number/bytes key-value store: it cannot
  * hold a live {@link CryptoKey}, so this driver's
  * {@link DriverCapabilities.nativeCryptoKey} is `false` and every secret is
  * serialized to bytes, sealed with a Keychain-backed AES-256-GCM master key and
@@ -219,8 +219,8 @@ export const PASSKEY_MIGRATION_NEEDED = "needs-migration";
  * scheme.
  *
  * The record is updated in place (no copy is created), so the user acts on the
- * very same passkey instance. The scan is metadata-only (`k/` bucket) — no
- * material is decrypted and no biometric prompt is raised — and it is
+ * very same passkey instance. The scan is metadata-only (`k/` bucket): no
+ * material is decrypted and no biometric prompt is raised. It is also
  * idempotent: a record already flagged `needs-migration` is skipped.
  *
  * @param storage - The MMKV-style store holding this keystore's metadata.

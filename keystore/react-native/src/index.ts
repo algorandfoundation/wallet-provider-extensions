@@ -1,7 +1,7 @@
 // Like the other platform packages (`keystore-node`, `keystore-web`), re-export
 // the platform-neutral core (types, errors, shims, `createKeyStore`, constants)
 // so a React Native app has a single import surface and never needs the
-// `@algorandfoundation/keystore` meta package — whose dependency tree drags the
+// `@algorandfoundation/keystore` meta package, whose dependency tree drags the
 // wasm-backed web build into React Native installs.
 export * from "@algorandfoundation/keystore-core";
 export * from "./engine.ts";

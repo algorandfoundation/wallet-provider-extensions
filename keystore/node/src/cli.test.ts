@@ -142,7 +142,7 @@ describe("runCli", () => {
 /**
  * The `bin` entry itself: package managers install it as a symlink (or a shim)
  * in `node_modules/.bin`, so the entry-point guard must still fire when the CLI
- * is invoked through that indirection — comparing `import.meta.url` against
+ * is invoked through that indirection; comparing `import.meta.url` against
  * `` `file://${process.argv[1]}` `` did not, which made the published binary a
  * silent no-op. Runs against the built `dist/cli.js` and is skipped when the
  * package has not been built.

@@ -61,7 +61,7 @@ export function validateMigrations(
  * consulted, the manifest validated, and the context resolved **only** when
  * something is pending. Each revision runs with a fresh secret scratch that is
  * wiped once it settles, and the ledger is written immediately after each
- * success — never once at the end — so a killed run resumes exactly where it
+ * success (never once at the end), so a killed run resumes exactly where it
  * stopped.
  *
  * A failing revision halts only its own module; the ledger keeps that module's

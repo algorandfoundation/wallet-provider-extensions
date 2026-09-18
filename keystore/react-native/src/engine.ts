@@ -6,7 +6,7 @@
  * {@link createKeyStore} orchestrator in `@algorandfoundation/keystore-core`.
  * All crypto orchestration lives in core and is shared with every other
  * backend; this
- * package only supplies the mobile persistence — MMKV for storage,
+ * package only supplies the mobile persistence: MMKV for storage,
  * `react-native-keychain` for the master key and the host `SubtleCrypto`
  * (`react-native-quick-crypto`'s `subtle`) for AES-256-GCM sealing, the same
  * scheme used by the web and node engines.
@@ -14,7 +14,7 @@
  * The engine's per-operation context is {@link AuthenticationOptions}, so a
  * biometric/passcode prompt can be requested exactly when a secret is needed
  * (e.g. `keystore.sign(id, data, undefined, { biometrics: true })`). `verify`
- * stays context-free — it only touches the public key and never unlocks.
+ * stays context-free: it only touches the public key and never unlocks.
  */
 
 import {
@@ -92,7 +92,7 @@ export interface ReactNativeKeyStoreOptions {
    * Work that must complete before the engine reads any persisted state.
    *
    * The keystore hydrates its reactive store from the driver during `ready`, so
-   * anything that rewrites persisted metadata — notably a migration run — has to
+   * anything that rewrites persisted metadata (notably a migration run) has to
    * finish first or the store mirrors pre-migration data. `WithKeyStore` passes
    * `provider.migrations?.ready` here.
    *
@@ -130,7 +130,7 @@ interface OperationBinding {
  * signatures in `keystore/core/src/types/backend.ts`. `verify` is absent on
  * purpose: it only touches the public key and never unlocks.
  *
- * `batchSign` carries no `keyId` — it spans many keys, and naming one of them
+ * `batchSign` carries no `keyId`: it spans many keys, and naming one of them
  * in the prompt would be misleading.
  */
 const OPERATION_BINDINGS: Record<string, OperationBinding> = {
@@ -174,7 +174,7 @@ type AnyMethod = (...args: unknown[]) => Promise<unknown>;
  *
  * @param keystore - The keystore returned by `createKeyStore`.
  * @param store - The reactive store, used to look up key metadata for the
- *   prompt formatter. Metadata only — nothing is ever decrypted for a prompt.
+ *   prompt formatter. Metadata only; nothing is ever decrypted for a prompt.
  * @param defaults - The app-wide authentication policy, if configured.
  * @returns A keystore with the same surface whose calls are operation-tagged.
  */
@@ -245,7 +245,7 @@ function withOperationTags(
  * Because MMKV cannot hold a {@link CryptoKey}, every key (standard, HD root,
  * Falcon and seeds alike) is serialized to bytes and sealed at rest via the
  * host `SubtleCrypto` AES-256-GCM with a Keychain-backed master key; the key
- * is created on first write and unlocked — optionally behind biometrics — on
+ * is created on first write and unlocked (optionally behind biometrics) on
  * read. The reactive `store` mirrors only UI-safe metadata.
  *
  * @param options - {@link ReactNativeKeyStoreOptions}.
@@ -341,7 +341,7 @@ export function createReactNativeKeyStore(
 
   // An application is free never to await `keystore.ready` (e.g. it renders a
   // "migration failed" screen and never touches `key.store`). Core's `ready`
-  // awaits `driver.ready` — the `before`-gated promise above — internally, so
+  // awaits `driver.ready` (the `before`-gated promise above) internally, so
   // when `before` rejects, that rejection propagates to `keystore.ready`
   // itself; without a handler attached to it, that would surface as an
   // unhandled promise rejection. `.catch()` registers a handler on this exact

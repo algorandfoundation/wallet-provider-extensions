@@ -8,6 +8,11 @@ import type { JwsSigner } from "./signer.ts";
  * profile) or the verifier passes a JAR `request` / `request_uri` that
  * must be dereferenced and JWT-decoded. The intermezzo verifier emits
  * the authorization request via Credo's `/oid4vp/*` routes.
+ *
+ * @example
+ * ```typescript
+ * const request: AuthorizationRequest = { client_id: "https://verifier.example.com", nonce: "n-0S6_WzA2Mj" };
+ * ```
  */
 export interface AuthorizationRequest {
   client_id?: string;
@@ -25,6 +30,17 @@ export interface AuthorizationRequest {
   [k: string]: unknown;
 }
 
+/**
+ * The result of {@link parseAuthorizationRequestUrl}: the request passed
+ * by value, by value as a signed JAR JWT (already decoded), or by
+ * reference (`request_uri`) still to be dereferenced.
+ *
+ * @example
+ * ```typescript
+ * const parsed: ParsedAuthorizationRequest = parseAuthorizationRequestUrl(uri);
+ * if (parsed.kind !== "reference") console.log(parsed.request.nonce);
+ * ```
+ */
 export type ParsedAuthorizationRequest =
   | { kind: "value"; request: AuthorizationRequest }
   | { kind: "jar"; jwt: string; request: AuthorizationRequest }
@@ -34,12 +50,17 @@ export type ParsedAuthorizationRequest =
  * Parses an OID4VP authorization request URL. Handles three shapes:
  *
  * 1. Inlined parameters (`openid4vp://?response_type=...&...`).
- * 2. JAR-by-value (`?request=<signed-JWT>`) — the JWT payload is
+ * 2. JAR-by-value (`?request=<signed-JWT>`): the JWT payload is
  *    returned alongside the raw JWT (signature verification is the
  *    relying-party's job).
- * 3. JAR-by-reference (`?request_uri=<URL>`) — the caller is
+ * 3. JAR-by-reference (`?request_uri=<URL>`): the caller is
  *    expected to GET the URI and re-parse the resulting JWT with
  *    {@link parseAuthorizationRequestJwt}.
+ *
+ * @example
+ * ```typescript
+ * const parsed = parseAuthorizationRequestUrl("openid4vp://?client_id=...&nonce=...");
+ * ```
  */
 export function parseAuthorizationRequestUrl(url: string): ParsedAuthorizationRequest {
   const queryStart = url.indexOf("?");
@@ -74,8 +95,13 @@ export function parseAuthorizationRequestUrl(url: string): ParsedAuthorizationRe
 
 /**
  * Decodes the payload of a JAR-style authorization request JWT.
- * Signature verification is deliberately out of scope here — the
+ * Signature verification is deliberately out of scope here; the
  * wallet UI just needs the claim set to render consent.
+ *
+ * @example
+ * ```typescript
+ * const request = parseAuthorizationRequestJwt(await (await fetch(requestUri)).text());
+ * ```
  */
 export function parseAuthorizationRequestJwt(jwt: string): AuthorizationRequest {
   return decodeJwt<AuthorizationRequest>(jwt).payload;
@@ -88,6 +114,17 @@ export function parseAuthorizationRequestJwt(jwt: string): AuthorizationRequest 
  * proof) by-value in `verifiableCredential`.
  *
  * This is the body the wallet POSTs to the verifier's `response_uri`.
+ *
+ * @example
+ * ```typescript
+ * const vpToken = await buildVpTokenJwt({
+ *   signer,
+ *   audience: request.client_id!,
+ *   nonce: request.nonce!,
+ *   holder: "did:key:z6Mk...",
+ *   verifiableCredential: [rawCredential],
+ * });
+ * ```
  */
 export async function buildVpTokenJwt(params: {
   signer: JwsSigner;

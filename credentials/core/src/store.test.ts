@@ -18,6 +18,7 @@ import {
 } from "./store.ts";
 import type {
   Credential,
+  CredentialQuery,
   CredentialStoreState,
   IssuanceSession,
   VerificationSession,
@@ -108,11 +109,37 @@ describe("Credential Store", () => {
         credential: { ...mockCredential, id: "cred-2", type: ["VerifiableCredential"] },
       });
 
+      const queries: CredentialQuery[] = [
+        { type: "QueryByExample", example: { type: "DeviceAttestationCredential" } },
+      ];
+      const matched = queryCredentials({ store, queries });
+      expect(matched.map((c) => c.id)).toEqual(["cred-1"]);
+    });
+
+    it("matches everything for unrecognized query shapes (forward compatible)", () => {
+      addCredential({ store, credential: mockCredential });
+      addCredential({
+        store,
+        credential: { ...mockCredential, id: "cred-2", type: ["VerifiableCredential"] },
+      });
+
+      const queries: CredentialQuery[] = [{ type: "QueryByFrame", frame: { "@context": [] } }];
+      const matched = queryCredentials({ store, queries });
+      expect(matched.map((c) => c.id).sort()).toEqual(["cred-1", "cred-2"]);
+    });
+
+    it("lets the nested credentialQuery.example win over the flat example", () => {
+      addCredential({ store, credential: mockCredential });
       const matched = queryCredentials({
         store,
-        queries: [{ example: { type: "DeviceAttestationCredential" } }],
+        queries: [
+          {
+            example: { type: "DeviceAttestationCredential" },
+            credentialQuery: { example: { type: "SomethingElse" } },
+          },
+        ],
       });
-      expect(matched.map((c) => c.id)).toEqual(["cred-1"]);
+      expect(matched).toEqual([]);
     });
 
     it("supports credentialQuery.example and array types", () => {

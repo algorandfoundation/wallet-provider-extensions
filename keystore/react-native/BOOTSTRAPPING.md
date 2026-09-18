@@ -64,7 +64,7 @@ import { keyStore } from "@/stores/keystore";
 export class ReactNativeProvider extends Provider<typeof ReactNativeProvider.EXTENSIONS> {
     static EXTENSIONS = [
         WithKeyStore,
-        // other extensions like WithLogStore or WithAccountStore
+        // other extensions like WithLogs or WithAccounts
     ] as const
 
     keys!: Key[]
@@ -183,7 +183,7 @@ export default function RootLayout() {
 
 ### 5. Advanced: Using with Account Store
 
-If you are using the `WithAccountStore` and `WithAccountsKeystore` extensions, you can enable `autoPopulate` to automatically add derived keys to your account store.
+If you are using the `WithAccounts` and `WithAccountsKeystore` extensions, you can enable `autoPopulate` to automatically add derived keys to your account store.
 
 ```typescript
 const provider = new ReactNativeProvider(

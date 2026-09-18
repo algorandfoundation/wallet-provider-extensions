@@ -3,11 +3,12 @@
  *
  * Mirrors the keystore architecture: this package exports no mounted
  * extension of its own. Platform packages
- * (`@algorandfoundation/credentials-web`,
- * `@algorandfoundation/react-native-credentials`, the
+ * (`@algorandfoundation/credentials-node`,
+ * `@algorandfoundation/credentials-web`,
+ * `@algorandfoundation/react-native-credentials`, resolved by the
  * `@algorandfoundation/credentials` meta) each export a `WithCredentials`
  * extension that builds this engine with a platform-appropriate
- * persistence driver — exactly like `WithKeyStore` builds `createKeyStore`
+ * persistence driver, exactly like `WithKeyStore` builds `createKeyStore`
  * with a platform storage driver.
  *
  * Persistence is a deliberately tiny key/value seam
@@ -15,12 +16,11 @@
  * `KeyValueStore` used by `@algorandfoundation/provider-migrations` so it
  * can graduate into a shared core primitive for any API surface once a
  * second consumer lands. Only the durable `credentials` slice is
- * persisted — OID4VC `issuanceSessions` / `verificationSessions` are
+ * persisted; OID4VC `issuanceSessions` / `verificationSessions` are
  * transient protocol state and intentionally are not.
  */
 
-import type { ExtensionOptions } from "@algorandfoundation/wallet-provider";
-import type { LogStoreApi } from "@algorandfoundation/log-store";
+import type { LogStoreApi } from "@algorandfoundation/logs";
 import { Store } from "@tanstack/store";
 import Hook from "before-after-hook";
 import type { HookCollection } from "before-after-hook";
@@ -44,6 +44,7 @@ import {
 } from "./store.ts";
 import type {
   Credential,
+  CredentialQuery,
   CredentialStoreApi,
   CredentialStoreState,
   IssuanceSession,
@@ -54,10 +55,18 @@ import type {
  * A string key/value persistence seam for the credential store.
  *
  * Shaped after the `KeyValueStore` contract of
- * `@algorandfoundation/provider-migrations` — MMKV, `localStorage`,
- * AsyncStorage, IndexedDB or a file wrapper all adapt in two lines — and
+ * `@algorandfoundation/provider-migrations` (MMKV, `localStorage`,
+ * AsyncStorage, IndexedDB or a file wrapper all adapt in two lines) and
  * intended to be extracted into a shared core primitive once more API
  * surfaces consume it.
+ *
+ * @example
+ * ```typescript
+ * const driver: CredentialKeyValueStore = {
+ *   get: (key) => localStorage.getItem(key),
+ *   set: (key, value) => localStorage.setItem(key, value),
+ * };
+ * ```
  */
 export interface CredentialKeyValueStore {
   /** Reads the serialized snapshot; absent keys read as `null`/`undefined`. */
@@ -66,7 +75,14 @@ export interface CredentialKeyValueStore {
   set(key: string, value: string): void | Promise<void>;
 }
 
-/** Default storage key under which the credentials snapshot is serialized. */
+/**
+ * Default storage key under which the credentials snapshot is serialized.
+ *
+ * @example
+ * ```typescript
+ * const raw = await driver.get(DEFAULT_CREDENTIALS_KEY);
+ * ```
+ */
 export const DEFAULT_CREDENTIALS_KEY: string = "@algorandfoundation/credentials";
 
 /**
@@ -78,6 +94,11 @@ export const DEFAULT_CREDENTIALS_KEY: string = "@algorandfoundation/credentials"
  *
  * @param initial - Key/value pairs to seed the driver with.
  * @returns An in-memory {@link CredentialKeyValueStore}.
+ *
+ * @example
+ * ```typescript
+ * const { api, ready } = createCredentialStore({ driver: memoryCredentialDriver() });
+ * ```
  */
 export function memoryCredentialDriver(
   initial: Record<string, string> = {},
@@ -119,6 +140,15 @@ function deserialiseCredential(c: SerialisedCredential): Credential {
 
 /**
  * Options accepted by {@link createCredentialStore}.
+ *
+ * @example
+ * ```typescript
+ * const options: CreateCredentialStoreOptions = {
+ *   driver: memoryCredentialDriver(),
+ *   binding: identityHolderBinding(provider.identity.store),
+ *   log: provider.log,
+ * };
+ * ```
  */
 export interface CreateCredentialStoreOptions {
   /** Reactive store backing the engine; created when not provided. */
@@ -126,7 +156,7 @@ export interface CreateCredentialStoreOptions {
   /**
    * Hook collection bound at creation. Every store operation is
    * interceptable via `before`/`after` hooks and is exposed as
-   * `api.hooks` — this is how the platform `WithCredentials` extensions
+   * `api.hooks`; this is how the platform `WithCredentials` extensions
    * thread application hooks into the engine.
    */
   hooks?: HookCollection<any>;
@@ -152,9 +182,19 @@ export interface CreateCredentialStoreOptions {
  * The credential store engine: the hooks-wrapped {@link CredentialStoreApi},
  * the reactive store backing it, and a `ready` promise that resolves once
  * hydration from the persistence driver has completed.
+ *
+ * @example
+ * ```typescript
+ * const engine: CredentialStore = createCredentialStore({ driver });
+ * await engine.ready;
+ * engine.store.subscribe(() => render(engine.store.state.credentials));
+ * ```
  */
 export interface CredentialStore {
-  /** The API surface extensions expose at `provider.credential.store`. */
+  /**
+   * The API surface extensions expose at `provider.credential.store`. Its
+   * `ready` member is the same promise as {@link CredentialStore.ready}.
+   */
   api: CredentialStoreApi;
   /** The reactive tanstack store backing the engine. */
   store: Store<CredentialStoreState>;
@@ -231,7 +271,7 @@ export function createCredentialStore(options: CreateCredentialStoreOptions = {}
       log?.debug(`getCredentialsByIdentity called: address=${address}`, {}, "CredentialStore");
       return hooks("listByIdentity", getCredentialsByIdentity, { store, address });
     },
-    query: async (queries: any[]) => {
+    query: async (queries: CredentialQuery[]) => {
       log?.debug("query called", { queries }, "CredentialStore");
       return hooks("query", queryCredentials, { store, queries });
     },
@@ -342,29 +382,10 @@ export function createCredentialStore(options: CreateCredentialStoreOptions = {}
       })()
     : Promise.resolve();
 
-  return { api, store, ready };
-}
+  // Surface hydration on the API itself so standalone consumers (and the
+  // platform extensions, which replace it with a composite that also awaits
+  // their optional bridge import) find `ready` where the docs say it lives.
+  api.ready = ready;
 
-/**
- * Options accepted by the platform `WithCredentials` extensions.
- *
- * Everything is optional: the platform extension fills in a default
- * reactive store, hook collection and (where the platform has one) a
- * default persistence driver, and auto-binds
- * {@link import("./holder.ts").identityHolderBinding} when an identities
- * extension is present on the provider.
- */
-export interface CredentialStoreOptions extends ExtensionOptions {
-  credentials?: {
-    /** Reactive store backing the engine; created when not provided. */
-    store?: Store<CredentialStoreState>;
-    /** Hook collection guarding every store operation. */
-    hooks?: HookCollection<any>;
-    /** Persistence driver; platform default (or in-memory) when omitted. */
-    driver?: CredentialKeyValueStore;
-    /** Holder binding override; auto-derived from `provider.identity.store` when omitted. */
-    binding?: HolderBinding;
-    /** Storage key override; defaults to {@link DEFAULT_CREDENTIALS_KEY}. */
-    storageKey?: string;
-  };
+  return { api, store, ready };
 }
