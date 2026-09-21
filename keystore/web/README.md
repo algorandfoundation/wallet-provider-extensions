@@ -21,7 +21,8 @@ composable Subtle shims (`withSubtleXHD` / `withSubtleFalcon1024`):
 
 - **Standard host keys** (Ed25519, ECDSA, AES, …) are persisted as
   **non-extractable `CryptoKey`s**, structured-cloned into IndexedDB, so their
-  private bytes never exist as exportable material in JS.
+  private bytes never exist as exportable material in JS. (Supplying your own
+  master key, below, seals these as bytes instead.)
 - **Shim key material** (BIP32-Ed25519 roots, Falcon private keys) and **raw
   seeds** cannot be structured-cloned, so they are stored as bytes **encrypted
   at rest** with a non-extractable AES-GCM master key (itself a `CryptoKey`
@@ -58,6 +59,41 @@ const acctId = await keystore.deriveFromSeed(rootId, "m/44'/283'/0'/0/0");
 const signature = await keystore.sign(acctId, new TextEncoder().encode("hi"));
 const ok = await keystore.verify(acctId, message, signature);
 ```
+
+### Supplying your own master key
+
+By default the vault mints its AES-GCM master key itself and keeps it in the
+same database as the material it seals, which makes a copy of the profile
+directory enough to open that material. Pass a `masterKey` provider to bind it
+to a secret the browser cannot produce on its own instead — one derived from a
+user password, or held by another context:
+
+```typescript
+const keystore = createWebKeyStore({ store, masterKey: () => unlockedKey() });
+```
+
+The provider is called for every operation that seals or opens byte material,
+never captured, so it may reject while the vault is locked and resolve once it
+is open. With one set the vault mints no master key of its own, and the driver
+reports `nativeCryptoKey: false` so that keys which would otherwise persist as
+non-extractable `CryptoKey`s are sealed with the supplied key as well.
+
+Two limits are worth knowing before you reach for it:
+
+- **It is not a migration.** Byte material the default vault already sealed —
+  seeds, HD roots, Falcon keys — **stops opening** once a provider is set:
+  `use()` asks the provider for a key that did not seal it and AES-GCM
+  rejects. It cannot be re-imported either, because it can no longer be read.
+  Migrate such a database by reading that material out under the default
+  driver and re-writing it under the provider before switching, or the user
+  re-imports from their recovery phrase. Records written natively as
+  `CryptoKey`s are unaffected and keep working — which is its own caveat,
+  since they were never sealed and stay openable from a profile copy.
+- Sealing standard keys instead of storing them natively means their bytes are
+  decrypted into JS memory for each use, where a `CryptoKey` never is. Core
+  handles the switch transparently, but the trade is real.
+
+It is also accepted by the `WithKeyStore` extension, under `keystore`.
 
 ## `WithKeyStore` provider extension
 
