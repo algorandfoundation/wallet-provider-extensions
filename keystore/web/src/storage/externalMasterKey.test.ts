@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createIndexedDBDriver } from "./driver.ts";
 import { MASTER_KEY_ID } from "./vault.ts";
 import { MATERIAL_STORE, openDatabase } from "./db.ts";
-import type { KeyId } from "@algorandfoundation/keystore-core";
+import { KeyStoreError, type KeyId } from "@algorandfoundation/keystore-core";
+
+// Staged for an `UnlockingError` in keystore-core: until it lands, the driver
+// raises a `KeyStoreError` carrying that name.
+async function expectUnlockingError(pending: Promise<unknown>): Promise<void> {
+  await expect(pending).rejects.toThrow(KeyStoreError);
+  await expect(pending).rejects.toHaveProperty("name", "UnlockingError");
+}
 
 describe("IndexedDBDriver with an external master key", () => {
   let host: SubtleCrypto;
@@ -54,7 +61,11 @@ describe("IndexedDBDriver with an external master key", () => {
       masterKey: () => Promise.resolve(other),
     });
     await wrongKey.ready;
-    await expect(wrongKey.use(id, {}, () => undefined)).rejects.toThrow();
+    const opening = wrongKey.use(id, {}, () => undefined);
+    await expectUnlockingError(opening);
+    // AES-GCM cannot tell a wrong key from a damaged record; the host's own
+    // verdict rides along as the cause.
+    await expect(opening).rejects.toHaveProperty("cause.name", "OperationError");
 
     const rightKey = createIndexedDBDriver({ host, databaseName, masterKey });
     await rightKey.ready;
@@ -119,6 +130,63 @@ describe("IndexedDBDriver with an external master key", () => {
     await expect(driver.use(id, {}, () => undefined)).rejects.toThrow("locked");
   });
 
+  it("passes a provider's own OperationError through rather than blaming the record", async () => {
+    // A provider that unwraps its key under a wrong password rejects with an
+    // `OperationError` of its own, which says nothing about the record.
+    const sealer = createIndexedDBDriver({ host, databaseName, masterKey });
+    await sealer.ready;
+    await sealer.put(id, { kind: "bytes", bytes: new Uint8Array([1]) });
+
+    const refusal = new DOMException("wrong password", "OperationError");
+    const driver = createIndexedDBDriver({
+      host,
+      databaseName,
+      masterKey: () => Promise.reject(refusal),
+    });
+    await driver.ready;
+
+    await expect(driver.use(id, {}, () => undefined)).rejects.toBe(refusal);
+  });
+
+  it.each<[string, AesKeyGenParams, KeyUsage[]]>([
+    ["is not AES-GCM", { name: "AES-CBC", length: 256 }, ["encrypt", "decrypt"]],
+    // The one that would otherwise get through: it seals material that no
+    // key this provider hands back can open again.
+    ["cannot decrypt", { name: "AES-GCM", length: 256 }, ["encrypt"]],
+    ["cannot encrypt", { name: "AES-GCM", length: 256 }, ["decrypt"]],
+  ])("refuses a supplied key that %s, sealing or opening", async (_, alg, usages) => {
+    const sealer = createIndexedDBDriver({ host, databaseName, masterKey });
+    await sealer.ready;
+    await sealer.put(id, { kind: "bytes", bytes: new Uint8Array([1]) });
+
+    const unfit = await host.generateKey(alg, false, usages);
+    const driver = createIndexedDBDriver({
+      host,
+      databaseName,
+      masterKey: () => Promise.resolve(unfit),
+    });
+    await driver.ready;
+
+    const bytes = new Uint8Array([1, 2, 3]);
+    await expectUnlockingError(driver.put(id, { kind: "bytes", bytes }));
+    expect(Array.from(bytes)).toEqual([0, 0, 0]);
+    await expectUnlockingError(driver.use(id, {}, () => undefined));
+  });
+
+  it.each<[string, unknown]>([
+    ["nothing", undefined],
+    ["raw key bytes", new Uint8Array(32)],
+  ])("refuses a provider that resolves %s instead of a CryptoKey", async (_, resolved) => {
+    const driver = createIndexedDBDriver({
+      host,
+      databaseName,
+      masterKey: () => Promise.resolve(resolved as CryptoKey),
+    });
+    await driver.ready;
+
+    await expectUnlockingError(driver.put(id, { kind: "bytes", bytes: new Uint8Array([1]) }));
+  });
+
   it("serves a pre-existing native CryptoKey record without the provider", async () => {
     // The limit the option carries, pinned: records an earlier release wrote
     // natively predate the provider and are returned untouched, so adopting
@@ -154,7 +222,7 @@ describe("IndexedDBDriver with an external master key", () => {
     const supplied = createIndexedDBDriver({ host, databaseName, masterKey });
     await supplied.ready;
 
-    await expect(supplied.use(id, {}, () => undefined)).rejects.toThrow();
+    await expectUnlockingError(supplied.use(id, {}, () => undefined));
   });
 
   it("clears the vault's own master record once a provider owns the key", async () => {

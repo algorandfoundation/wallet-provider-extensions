@@ -26,7 +26,9 @@ composable Subtle shims (`withSubtleXHD` / `withSubtleFalcon1024`):
 - **Shim key material** (BIP32-Ed25519 roots, Falcon private keys) and **raw
   seeds** cannot be structured-cloned, so they are stored as bytes **encrypted
   at rest** with a non-extractable AES-GCM master key (itself a `CryptoKey`
-  persisted in IndexedDB).
+  persisted in IndexedDB). A record that fails to open under it — damaged, or
+  sealed under another key — rejects with a `KeyStoreError` named
+  `UnlockingError`.
 - The reactive [`@tanstack/store`](https://tanstack.com/store) holds **only
   UI-safe metadata** — never private material. Secrets are decrypted
   just-in-time and injected into the shim algorithm parameters for a single
@@ -77,6 +79,13 @@ never captured, so it may reject while the vault is locked and resolve once it
 is open. With one set the vault mints no master key of its own, and the driver
 reports `nativeCryptoKey: false` so that keys which would otherwise persist as
 non-extractable `CryptoKey`s are sealed with the supplied key as well.
+
+It must resolve to an AES-GCM `CryptoKey` with both `encrypt` and `decrypt`
+usages; anything else is refused before it seals anything. A key that fails to
+open a record is refused the same way, with the host's `OperationError` as the
+`cause` — AES-GCM cannot tell a wrong key from a damaged record. Both surface
+as a `KeyStoreError` named `UnlockingError`; a rejection from the provider
+itself surfaces unchanged.
 
 Two limits are worth knowing before you reach for it:
 

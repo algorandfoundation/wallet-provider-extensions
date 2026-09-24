@@ -22,7 +22,11 @@ import type {
   KeyId,
   KeyStoreDriver,
 } from "@algorandfoundation/keystore-core";
-import { InvalidKeyDataError, KeyNotFoundError } from "@algorandfoundation/keystore-core";
+import {
+  InvalidKeyDataError,
+  KeyNotFoundError,
+  KeyStoreError,
+} from "@algorandfoundation/keystore-core";
 
 import {
   type KeyStoreDatabase,
@@ -68,7 +72,15 @@ export interface IndexedDBDriverOptions {
    *
    * It is called afresh for every operation that seals or opens byte material,
    * never captured: a provider is free to reject while the key is unavailable
-   * (a locked vault) and to resolve again once it is not.
+   * (a locked vault) and to resolve again once it is not. Its rejection
+   * surfaces unchanged.
+   *
+   * The key it resolves must be an AES-GCM `CryptoKey` with both `encrypt`
+   * and `decrypt` usages; anything else is refused before a byte is sealed. A
+   * key that fails to open a record is refused the same way, with the host's
+   * `OperationError` as the `cause` — AES-GCM cannot tell a wrong key from a
+   * damaged record. Both surface as a {@link KeyStoreError} named
+   * `"UnlockingError"`.
    */
   masterKey?: () => Promise<CryptoKey>;
 }
@@ -102,6 +114,11 @@ function assertNotReserved(id: KeyId): void {
  * encrypted at rest with a non-extractable AES-GCM master key held in the same
  * database. Intended to be handed to {@link createKeyStore}.
  *
+ * Byte material that fails to open — damaged, or sealed under another master
+ * key — rejects with a {@link KeyStoreError} named `"UnlockingError"`, with the
+ * host's `OperationError` as its `cause`, whether or not a `masterKey`
+ * provider is set.
+ *
  * @param options - {@link IndexedDBDriverOptions}.
  * @returns A ready-to-use {@link KeyStoreDriver}. Its `ready` promise resolves
  *   once the database is open and, unless a `masterKey` provider supplies one,
@@ -126,7 +143,25 @@ export function createIndexedDBDriver(options: IndexedDBDriverOptions): KeyStore
   // unable to answer yet — a vault the user has not unlocked — and a key
   // captured at startup would outlive the next lock; awaiting it in `ready`
   // would instead reject the driver for good in a context that boots locked.
-  const resolveMaster = (): Promise<CryptoKey> => (provided ? provided() : Promise.resolve(master));
+  const resolveMaster = async (): Promise<CryptoKey> => {
+    if (!provided) return master;
+    const key = await provided();
+    // Checked before anything is sealed: an encrypt-only key would otherwise
+    // write material that nothing can open again. Optional chains because a
+    // provider can resolve anything at runtime, raw key bytes included.
+    if (
+      key?.algorithm?.name !== "AES-GCM" ||
+      !key.usages?.includes("encrypt") ||
+      !key.usages?.includes("decrypt")
+    ) {
+      // TODO: throw keystore-core's `UnlockingError` once it moves there.
+      throw new KeyStoreError(
+        "masterKey must resolve to an AES-GCM CryptoKey with encrypt and decrypt usages",
+        "UnlockingError",
+      );
+    }
+    return key;
+  };
 
   // An externally supplied key is only worth supplying if everything is bound
   // to it: left on, the native path would persist private keys as
@@ -177,7 +212,25 @@ export function createIndexedDBDriver(options: IndexedDBDriverOptions): KeyStore
           publicKey: record.publicKey,
         });
       }
-      const bytes = await open(host, await resolveMaster(), record);
+      // Resolved outside the `try` below: a provider's own rejection is about
+      // the provider, not this record, and surfaces as itself.
+      const key = await resolveMaster();
+      let bytes: Uint8Array;
+      try {
+        bytes = await open(host, key, record);
+      } catch (error) {
+        // AES-GCM's authentication failure. The cipher cannot tell a key that
+        // did not seal this record from a damaged record, so neither can we.
+        if (error instanceof DOMException && error.name === "OperationError") {
+          // TODO: throw keystore-core's `UnlockingError` once it moves there.
+          throw new KeyStoreError(
+            `master key cannot open ${id} (wrong key or damaged record)`,
+            "UnlockingError",
+            error,
+          );
+        }
+        throw error;
+      }
       try {
         return await fn({ kind: "bytes", bytes });
       } finally {
