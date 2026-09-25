@@ -55,5 +55,14 @@
     "@algorandfoundation/log-store": {
       "optional": true
     }
+  },
+  "release": {
+    "branches": [
+      {
+        "name": "main",
+        "prerelease": "canary",
+        "channel": "next"
+      }
+    ]
   }
 }
