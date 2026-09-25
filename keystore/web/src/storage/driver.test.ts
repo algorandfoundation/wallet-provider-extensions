@@ -126,3 +126,22 @@ describe("IndexedDBDriver put() material hygiene", () => {
     expect(Array.from(bytes)).toEqual([0, 0, 0, 0]);
   });
 });
+
+describe("IndexedDBDriver use() failures", () => {
+  it("passes a host failure through rather than blaming the key", async () => {
+    // Only AES-GCM's authentication failure says the key cannot open the
+    // record; any other rejection from the host must surface as itself.
+    const refusal = new DOMException("host refused", "NotSupportedError");
+    const subtle = globalThis.crypto.subtle;
+    const host = {
+      generateKey: subtle.generateKey.bind(subtle),
+      encrypt: subtle.encrypt.bind(subtle),
+      decrypt: () => Promise.reject(refusal),
+    } as unknown as SubtleCrypto;
+    const driver = createIndexedDBDriver({ host, databaseName: "test-open-failure" });
+    await driver.ready;
+    await driver.put("host-failure" as any, { kind: "bytes", bytes: new Uint8Array([1]) });
+
+    await expect(driver.use("host-failure" as any, {}, () => undefined)).rejects.toBe(refusal);
+  });
+});

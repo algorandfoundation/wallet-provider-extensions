@@ -18,6 +18,11 @@ export interface WebKeystoreOptions extends KeyStoreOptions {
     indexedDB?: IDBFactory;
     /** Database name; defaults to `"keystore"`. */
     databaseName?: string;
+    /**
+     * Supplies the AES-GCM key sealing byte material, in place of the one the
+     * vault mints itself; see {@link createWebKeyStore}.
+     */
+    masterKey?: () => Promise<CryptoKey>;
   };
 }
 
@@ -79,6 +84,7 @@ export const WithKeyStore: Extension<KeyStoreExtension> = (
       shims: options.keystore.shims,
       indexedDB: options.keystore.indexedDB,
       databaseName: options.keystore.databaseName,
+      masterKey: options.keystore.masterKey,
       hooks: options.keystore.hooks,
     });
 
