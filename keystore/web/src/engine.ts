@@ -40,6 +40,11 @@ export interface WebKeyStoreOptions {
   /** Database name; defaults to `"keystore"`. */
   databaseName?: string;
   /**
+   * Supplies the AES-GCM key sealing byte material, in place of the one the
+   * vault mints itself; see the `masterKey` option on {@link createIndexedDBDriver}.
+   */
+  masterKey?: () => Promise<CryptoKey>;
+  /**
    * Optional hook collection bound at creation. When provided, every
    * material-touching operation is interceptable via `before`/`after` hooks and
    * is exposed as `keystore.hooks`. This is how the Wallet Provider
@@ -60,7 +65,8 @@ export type WebKeyStore = KeyStore<void>;
  * shims.
  *
  * Standard host keys (Ed25519, AES, …) are persisted as non-extractable
- * {@link CryptoKey}s so their private bytes never live in JS. Shim keys
+ * {@link CryptoKey}s so their private bytes never live in JS — unless a
+ * `masterKey` provider is supplied, which seals them as bytes too. Shim keys
  * (BIP32-Ed25519 roots, Falcon private keys) and raw seeds are stored as bytes
  * encrypted at rest with a non-extractable AES-GCM master key. The reactive
  * `store` mirrors only UI-safe metadata.
@@ -107,6 +113,7 @@ export function createWebKeyStore(options: WebKeyStoreOptions): WebKeyStore {
     host,
     indexedDB: options.indexedDB,
     databaseName: options.databaseName,
+    masterKey: options.masterKey,
   });
   return createKeyStore<void>({
     driver,

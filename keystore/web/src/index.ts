@@ -14,7 +14,8 @@
  * persistence adapter (the `withIndexDB` storage engine) that implements the
  * {@link KeyStoreAPI} on top of the core composable Subtle shims. Standard host
  * keys are persisted as non-extractable `CryptoKey`s (structured-cloned into
- * IndexedDB, so their bytes never live in JS); shim key material (BIP32-Ed25519
+ * IndexedDB, so their bytes never live in JS — unless a `masterKey` provider
+ * is supplied, which seals them as bytes too); shim key material (BIP32-Ed25519
  * roots, Falcon private keys) and raw seeds are stored encrypted at rest with a
  * non-extractable AES-GCM master key. The reactive store holds only metadata.
  */

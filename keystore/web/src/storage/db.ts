@@ -74,6 +74,11 @@ export class KeyStoreDatabase {
     this.#db = db;
   }
 
+  /** Name of the underlying IndexedDB database. */
+  get name(): string {
+    return this.#db.name;
+  }
+
   /** Reads a single record from a store, or `undefined` when absent. */
   async get<T>(store: string, id: string): Promise<T | undefined> {
     const tx = this.#db.transaction(store, "readonly");

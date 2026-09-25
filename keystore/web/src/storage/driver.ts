@@ -5,7 +5,8 @@
  * IndexedDB's defining capability is that it can structured-clone a
  * **non-extractable {@link CryptoKey}**, so standard-algorithm keys are
  * persisted as real keys that never become raw bytes in JS
- * ({@link DriverCapabilities.nativeCryptoKey} is `true`). Shim key material
+ * ({@link DriverCapabilities.nativeCryptoKey} is `true`, unless a `masterKey`
+ * provider is supplied — see {@link IndexedDBDriverOptions.masterKey}). Shim key material
  * (BIP32-Ed25519 roots, Falcon private keys) and raw seeds cannot be
  * structured-cloned, so those are sealed with the vault master key and stored
  * as bytes encrypted at rest.
@@ -21,7 +22,11 @@ import type {
   KeyId,
   KeyStoreDriver,
 } from "@algorandfoundation/keystore-core";
-import { InvalidKeyDataError, KeyNotFoundError } from "@algorandfoundation/keystore-core";
+import {
+  InvalidKeyDataError,
+  KeyNotFoundError,
+  KeyStoreError,
+} from "@algorandfoundation/keystore-core";
 
 import {
   type KeyStoreDatabase,
@@ -30,7 +35,7 @@ import {
   METADATA_STORE,
   openDatabase,
 } from "./db.ts";
-import { getMasterKey, MASTER_KEY_ID, open, seal } from "./vault.ts";
+import { getMasterKey, MASTER_KEY_ID, open, seal, type SealedBytes } from "./vault.ts";
 
 /** Options for {@link createIndexedDBDriver}. */
 export interface IndexedDBDriverOptions {
@@ -40,6 +45,44 @@ export interface IndexedDBDriverOptions {
   indexedDB?: IDBFactory;
   /** Database name; defaults to `"keystore"`. */
   databaseName?: string;
+  /**
+   * Supplies the AES-GCM key that seals byte material, in place of the one the
+   * vault mints and persists itself.
+   *
+   * Hand this in to bind material to a secret the browser cannot produce on
+   * its own — one derived from a user password, or held by another context —
+   * so that a copy of the profile directory is not enough to open material
+   * written from here on. `ready` then only opens the database, the reserved
+   * {@link MASTER_KEY_ID} record is never minted, and the driver reports
+   * `nativeCryptoKey: false` so that keys which would otherwise persist as
+   * non-extractable `CryptoKey`s are sealed with this key as well. That trade
+   * is deliberate but real: sealed keys are decrypted into JS memory for each
+   * use, where a native `CryptoKey` never is.
+   *
+   * It is not a migration, and switching it on over a database the default
+   * vault wrote splits that database in two. Byte material the vault already
+   * sealed — seeds, HD roots, Falcon keys — stops opening, because `use()`
+   * asks the provider for a key that did not seal it and AES-GCM rejects; it
+   * cannot be re-imported either, since it can no longer be read. Migrate by
+   * reading such material out under the default driver and re-writing it
+   * under the provider before switching, or the user re-imports from their
+   * recovery phrase. Records persisted natively as `CryptoKey`s keep working,
+   * which is its own caveat: they were never sealed, so they stay openable
+   * from a copy of the profile.
+   *
+   * It is called afresh for every operation that seals or opens byte material,
+   * never captured: a provider is free to reject while the key is unavailable
+   * (a locked vault) and to resolve again once it is not. Its rejection
+   * surfaces unchanged.
+   *
+   * The key it resolves must be an AES-GCM `CryptoKey` with both `encrypt`
+   * and `decrypt` usages; anything else is refused before a byte is sealed. A
+   * key that fails to open a record is refused the same way, with the host's
+   * `OperationError` as the `cause` — AES-GCM cannot tell a wrong key from a
+   * damaged record. Both surface as a {@link KeyStoreError} named
+   * `"UnlockingError"`.
+   */
+  masterKey?: () => Promise<CryptoKey>;
 }
 
 const CAPABILITIES: DriverCapabilities = {
@@ -71,25 +114,65 @@ function assertNotReserved(id: KeyId): void {
  * encrypted at rest with a non-extractable AES-GCM master key held in the same
  * database. Intended to be handed to {@link createKeyStore}.
  *
+ * Byte material that fails to open — damaged, or sealed under another master
+ * key — rejects with a {@link KeyStoreError} named `"UnlockingError"`, with the
+ * host's `OperationError` as its `cause`, whether or not a `masterKey`
+ * provider is set.
+ *
  * @param options - {@link IndexedDBDriverOptions}.
  * @returns A ready-to-use {@link KeyStoreDriver}. Its `ready` promise resolves
- *   once the database is open and the master key is available.
+ *   once the database is open and, unless a `masterKey` provider supplies one,
+ *   the vault master key is available.
  */
 export function createIndexedDBDriver(options: IndexedDBDriverOptions): KeyStoreDriver {
   const host = options.host;
   const factory = options.indexedDB ?? globalThis.indexedDB;
   const databaseName = options.databaseName ?? "keystore";
 
+  const provided = options.masterKey;
+
   let db!: KeyStoreDatabase;
   let master!: CryptoKey;
 
   const ready = (async (): Promise<void> => {
     db = await openDatabase(databaseName, factory);
-    master = await getMasterKey(db, host);
+    if (!provided) master = await getMasterKey(db, host);
   })();
 
+  // Resolved per operation rather than once in `ready`. A provider may be
+  // unable to answer yet — a vault the user has not unlocked — and a key
+  // captured at startup would outlive the next lock; awaiting it in `ready`
+  // would instead reject the driver for good in a context that boots locked.
+  const resolveMaster = async (): Promise<CryptoKey> => {
+    if (!provided) return master;
+    const key = await provided();
+    // Checked before anything is sealed: an encrypt-only key would otherwise
+    // write material that nothing can open again. Optional chains because a
+    // provider can resolve anything at runtime, raw key bytes included.
+    if (
+      key?.algorithm?.name !== "AES-GCM" ||
+      !key.usages?.includes("encrypt") ||
+      !key.usages?.includes("decrypt")
+    ) {
+      // TODO: throw keystore-core's `UnlockingError` once it moves there.
+      throw new KeyStoreError(
+        "masterKey must resolve to an AES-GCM CryptoKey with encrypt and decrypt usages",
+        "UnlockingError",
+      );
+    }
+    return key;
+  };
+
+  // An externally supplied key is only worth supplying if everything is bound
+  // to it: left on, the native path would persist private keys as
+  // non-extractable `CryptoKey`s the vault never seals, openable from a copy
+  // of the profile without the secret behind the provider.
+  const capabilities: DriverCapabilities = provided
+    ? { ...CAPABILITIES, nativeCryptoKey: false }
+    : CAPABILITIES;
+
   return {
-    capabilities: CAPABILITIES,
+    capabilities,
     ready,
 
     async put(id: KeyId, material: DriverMaterial): Promise<void> {
@@ -103,8 +186,15 @@ export function createIndexedDBDriver(options: IndexedDBDriverOptions): KeyStore
         });
         return;
       }
-      const sealed = await seal(host, master, material.bytes);
-      material.bytes.fill(0);
+      let sealed: SealedBytes;
+      try {
+        sealed = await seal(host, await resolveMaster(), material.bytes);
+      } finally {
+        // Defence-in-depth, as in `use()`: the driver owns the buffer from
+        // here, so neither a provider that rejects nor a host that rejects the
+        // encrypt may leave the plaintext behind.
+        material.bytes.fill(0);
+      }
       await db.put<MaterialRecord>(MATERIAL_STORE, { id, kind: "bytes", ...sealed });
     },
 
@@ -122,7 +212,25 @@ export function createIndexedDBDriver(options: IndexedDBDriverOptions): KeyStore
           publicKey: record.publicKey,
         });
       }
-      const bytes = await open(host, master, record);
+      // Resolved outside the `try` below: a provider's own rejection is about
+      // the provider, not this record, and surfaces as itself.
+      const key = await resolveMaster();
+      let bytes: Uint8Array;
+      try {
+        bytes = await open(host, key, record);
+      } catch (error) {
+        // AES-GCM's authentication failure. The cipher cannot tell a key that
+        // did not seal this record from a damaged record, so neither can we.
+        if (error instanceof DOMException && error.name === "OperationError") {
+          // TODO: throw keystore-core's `UnlockingError` once it moves there.
+          throw new KeyStoreError(
+            `master key cannot open ${id} (wrong key or damaged record)`,
+            "UnlockingError",
+            error,
+          );
+        }
+        throw error;
+      }
       try {
         return await fn({ kind: "bytes", bytes });
       } finally {
@@ -144,10 +252,14 @@ export function createIndexedDBDriver(options: IndexedDBDriverOptions): KeyStore
     /**
      * Empties the keystore, removing all user keys and metadata. The vault
      * master key is preserved so that subsequently written material remains
-     * openable after a reload.
+     * openable after a reload — unless a `masterKey` provider supplies one, in
+     * which case the vault's own record seals nothing this driver writes and
+     * goes with everything it did seal. That is safe because the provider
+     * holds the key independently of the database — but it would orphan a
+     * driver still running *without* a provider over the same database.
      */
     async clear(): Promise<void> {
-      await db.clear([MASTER_KEY_ID]);
+      await db.clear(provided ? [] : [MASTER_KEY_ID]);
     },
 
     async putMeta(key: Key): Promise<void> {

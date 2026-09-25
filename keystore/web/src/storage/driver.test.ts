@@ -105,3 +105,43 @@ describe("IndexedDBDriver clear() regression", () => {
     db.close();
   });
 });
+
+describe("IndexedDBDriver put() material hygiene", () => {
+  it("wipes the caller's buffer when sealing fails", async () => {
+    // A host whose encrypt rejects: the master key is still minted normally,
+    // so `ready` resolves and the failure lands where the material is sealed.
+    const host = {
+      generateKey: (...args: Parameters<SubtleCrypto["generateKey"]>) =>
+        (globalThis.crypto.subtle.generateKey as any)(...args),
+      encrypt: () => Promise.reject(new Error("host refused")),
+    } as unknown as SubtleCrypto;
+    const driver = createIndexedDBDriver({ host, databaseName: "test-seal-failure" });
+    await driver.ready;
+
+    const bytes = new Uint8Array([1, 2, 3, 4]);
+    await expect(driver.put("failing-key" as any, { kind: "bytes", bytes })).rejects.toThrow(
+      "host refused",
+    );
+
+    expect(Array.from(bytes)).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe("IndexedDBDriver use() failures", () => {
+  it("passes a host failure through rather than blaming the key", async () => {
+    // Only AES-GCM's authentication failure says the key cannot open the
+    // record; any other rejection from the host must surface as itself.
+    const refusal = new DOMException("host refused", "NotSupportedError");
+    const subtle = globalThis.crypto.subtle;
+    const host = {
+      generateKey: subtle.generateKey.bind(subtle),
+      encrypt: subtle.encrypt.bind(subtle),
+      decrypt: () => Promise.reject(refusal),
+    } as unknown as SubtleCrypto;
+    const driver = createIndexedDBDriver({ host, databaseName: "test-open-failure" });
+    await driver.ready;
+    await driver.put("host-failure" as any, { kind: "bytes", bytes: new Uint8Array([1]) });
+
+    await expect(driver.use("host-failure" as any, {}, () => undefined)).rejects.toBe(refusal);
+  });
+});
