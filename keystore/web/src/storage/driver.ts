@@ -30,7 +30,7 @@ import {
   METADATA_STORE,
   openDatabase,
 } from "./db.ts";
-import { getMasterKey, MASTER_KEY_ID, open, seal } from "./vault.ts";
+import { getMasterKey, MASTER_KEY_ID, open, seal, type SealedBytes } from "./vault.ts";
 
 /** Options for {@link createIndexedDBDriver}. */
 export interface IndexedDBDriverOptions {
@@ -103,8 +103,15 @@ export function createIndexedDBDriver(options: IndexedDBDriverOptions): KeyStore
         });
         return;
       }
-      const sealed = await seal(host, master, material.bytes);
-      material.bytes.fill(0);
+      let sealed: SealedBytes;
+      try {
+        sealed = await seal(host, master, material.bytes);
+      } finally {
+        // Defence-in-depth, as in `use()`: the driver owns the buffer from
+        // here, so a host that rejects the encrypt must not leave the
+        // plaintext behind in the caller's array.
+        material.bytes.fill(0);
+      }
       await db.put<MaterialRecord>(MATERIAL_STORE, { id, kind: "bytes", ...sealed });
     },
 
