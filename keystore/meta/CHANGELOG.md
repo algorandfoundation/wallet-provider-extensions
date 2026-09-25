@@ -1,3 +1,15 @@
+# [keystore@1.0.0-canary.25](https://github.com/algorandfoundation/wallet-provider-extensions/compare/keystore@1.0.0-canary.24...keystore@1.0.0-canary.25) (2026-09-25)
+
+### Bug Fixes
+
+- serialise vault master-key creation across contexts ([93793e0](https://github.com/algorandfoundation/wallet-provider-extensions/commit/93793e0099ee0902f652528cbad91f0ff5933084))
+- wipe byte material when sealing rejects ([21f4a1e](https://github.com/algorandfoundation/wallet-provider-extensions/commit/21f4a1e2040623f131e5df3f3c73ddfce04faa98))
+
+### Features
+
+- allow an externally supplied vault master key ([56825aa](https://github.com/algorandfoundation/wallet-provider-extensions/commit/56825aa12062cb7ced7956bfd1a60b9d6ef75e85))
+- refuse a master key that cannot seal or open material ([9a9708d](https://github.com/algorandfoundation/wallet-provider-extensions/commit/9a9708da072f45a78633fde2b89eaeec78007a07))
+
 # [keystore@1.0.0-canary.24](https://github.com/algorandfoundation/wallet-provider-extensions/compare/keystore@1.0.0-canary.23...keystore@1.0.0-canary.24) (2026-09-16)
 
 ### Bug Fixes
