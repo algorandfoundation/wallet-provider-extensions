@@ -54,3 +54,4 @@ updates:
         patterns:
           - "actions/*"
           - "pnpm/*"
+          - "danielroe/*"
