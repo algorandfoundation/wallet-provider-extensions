@@ -437,6 +437,30 @@ async function resolveEcdhPair(
   return { privateKey, publicKey: await toRawP256Point(host, key.publicKey) };
 }
 
+/** Whether `key` is a genuine host {@link CryptoKey} rather than a shim's look-alike handle. */
+function isHostCryptoKey(key: unknown): key is CryptoKey {
+  return typeof CryptoKey !== "undefined" && key instanceof CryptoKey;
+}
+
+/** Whether every key in a `generateKey` result is a genuine host {@link CryptoKey}. */
+function isHostKeyResult(result: CryptoKey | CryptoKeyPair): boolean {
+  return "privateKey" in result
+    ? isHostCryptoKey(result.privateKey) && isHostCryptoKey(result.publicKey)
+    : isHostCryptoKey(result);
+}
+
+/** Wipes any birth material a discarded shim handle (or pair) still carries. */
+function discardHandles(result: CryptoKey | CryptoKeyPair): void {
+  const keys = "privateKey" in result ? [result.privateKey, result.publicKey] : [result];
+  for (const key of keys) {
+    try {
+      consumeKeyMaterial(key, () => undefined);
+    } catch {
+      // No material attached (or not a shim handle): nothing to wipe.
+    }
+  }
+}
+
 /**
  * Creates a keystore that fulfils the {@link KeyStoreAPI} by orchestrating an
  * injected host {@link SubtleCrypto} (with any composable {@link SubtleShim}
@@ -979,16 +1003,25 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     // inputs; the one RECORDED for later verification must not (see
     // `publicParams`).
     const signAlgorithm = { name: options.algorithm, ...publicParams(options.params) };
-    if (native && !options.extractable) {
-      const result = (await host.generateKey(algorithm, false, options.keyUsages)) as
-        | CryptoKey
-        | CryptoKeyPair;
+    const nativeResult =
+      native && !options.extractable
+        ? ((await subtle.generateKey(algorithm, false, options.keyUsages)) as
+            | CryptoKey
+            | CryptoKeyPair)
+        : undefined;
+    // A shim may answer with its own CryptoKey-shaped handle rather than a real
+    // host key. Such a handle cannot be persisted natively (structured clone
+    // drops its birth material, or writes plain fields unsealed), so discard it
+    // and fall through to the sealed-bytes path below.
+    if (nativeResult && !isHostKeyResult(nativeResult)) discardHandles(nativeResult);
+    else if (nativeResult) {
+      const result: CryptoKey | CryptoKeyPair = nativeResult;
       // Public halves are always extractable: mirror the SPKI bytes into the
       // metadata (like the byte branch below) so a peer can be handed this
       // key's public key, e.g. as an encryptWithKey recipient.
       let publicKey: Uint8Array | undefined;
       if ("privateKey" in result) {
-        publicKey = new Uint8Array(await host.exportKey("spki", result.publicKey));
+        publicKey = new Uint8Array(await subtle.exportKey("spki", result.publicKey));
         await driver.put(
           id,
           { kind: "cryptokey", privateKey: result.privateKey, publicKey: result.publicKey },
@@ -1017,18 +1050,18 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
     // Byte-only backend or an `extractable: true` request: generate
     // extractable, serialize and seal the private key (pkcs8 for asymmetric,
     // raw for symmetric), keeping the public bytes.
-    const result = (await host.generateKey(algorithm, true, options.keyUsages)) as
+    const result = (await subtle.generateKey(algorithm, true, options.keyUsages)) as
       | CryptoKey
       | CryptoKeyPair;
     let publicKey: Uint8Array | undefined;
     let format: KeyFormat;
     if ("privateKey" in result) {
-      publicKey = new Uint8Array(await host.exportKey("spki", result.publicKey));
-      const pkcs8 = new Uint8Array(await host.exportKey("pkcs8", result.privateKey));
+      publicKey = new Uint8Array(await subtle.exportKey("spki", result.publicKey));
+      const pkcs8 = new Uint8Array(await subtle.exportKey("pkcs8", result.privateKey));
       await putBytes(id, pkcs8, ctx);
       format = "pkcs8";
     } else {
-      const raw = new Uint8Array(await host.exportKey("raw", result));
+      const raw = new Uint8Array(await subtle.exportKey("raw", result));
       await putBytes(id, raw, ctx);
       format = "raw";
     }
@@ -1307,7 +1340,7 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
               } else {
                 // Byte-only backend: re-import the serialized private key.
                 const format = (key.format as "pkcs8" | "raw") ?? "pkcs8";
-                privateKey = await host.importKey(format, bs(m.bytes), signAlgorithm, false, [
+                privateKey = await subtle.importKey(format, bs(m.bytes), signAlgorithm, false, [
                   "sign",
                 ]);
               }
@@ -1391,14 +1424,14 @@ export function createKeyStore<Ctx = unknown>(options: CreateKeyStoreOptions<Ctx
               ({ name: key.algorithm } as AlgorithmIdentifier);
             // A public SPKI is recorded in metadata on byte-only backends.
             if (key.publicKey && key.metadata?.spki) {
-              const publicKey = await host.importKey(
+              const publicKey = await subtle.importKey(
                 "spki",
                 bs(key.publicKey),
                 verifyAlgorithm,
                 true,
                 ["verify"],
               );
-              return await host.verify(verifyAlgorithm, publicKey, bs(signature), bs(data));
+              return await subtle.verify(verifyAlgorithm, publicKey, bs(signature), bs(data));
             }
             // Otherwise the public key rides on the persisted CryptoKey material.
             return await driver.use(id, undefined, async (m) => {

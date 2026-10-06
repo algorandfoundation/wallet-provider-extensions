@@ -4,6 +4,8 @@ import {
   type KeyStoreState,
   type SubtleShim,
   type XHDBinding,
+  consumeKeyMaterial,
+  createKeyHandle,
   withSubtleFalcon1024,
   withSubtleXHD,
 } from "@algorandfoundation/keystore-core";
@@ -45,10 +47,12 @@ function newStore(): Store<KeyStoreState> {
 async function makeKeyStore(
   store: Store<KeyStoreState>,
   databaseName: string,
+  extraShims: SubtleShim[] = [],
 ): Promise<WebKeyStore> {
   const shims: SubtleShim[] = [
     (h) => withSubtleXHD(h, xhd),
     (h) => withSubtleFalcon1024(h, falcon),
+    ...extraShims,
   ];
   const keystore = createWebKeyStore({ store, shims, databaseName });
   await keystore.ready;
@@ -313,6 +317,228 @@ describe("createWebKeyStore", () => {
     expect(store.state.keys.some((k) => k.id === id)).toBe(false);
     const db = await openDatabase(databaseName, globalThis.indexedDB);
     expect(await db.get<MaterialRecord>(MATERIAL_STORE, id)).toBeUndefined();
+  });
+});
+
+describe("createWebKeyStore (custom shim algorithm)", () => {
+  // A toy shim that claims a brand-new algorithm name and backs it with the
+  // host's ECDSA P-256, so the key handles it hands out are real CryptoKeys.
+  const MY_ALG = "My-Alg";
+  const ECDSA_KEYGEN = { name: "ECDSA", namedCurve: "P-256" } as EcKeyGenParams;
+  const ECDSA_SIGN = { name: "ECDSA", hash: "SHA-256" } as EcdsaParams;
+  const isMyAlg = (alg: unknown) =>
+    (typeof alg === "string" ? alg : (alg as Algorithm | undefined)?.name) === MY_ALG;
+  const withMyAlg: SubtleShim = (target) =>
+    new Proxy(target, {
+      get(t, prop) {
+        if (prop === "generateKey") {
+          return (alg: AlgorithmIdentifier, extractable: boolean, usages: KeyUsage[]) =>
+            t.generateKey(isMyAlg(alg) ? ECDSA_KEYGEN : alg, extractable, usages);
+        }
+        if (prop === "importKey") {
+          return (
+            format: Exclude<KeyFormat, "jwk">,
+            data: BufferSource,
+            alg: AlgorithmIdentifier,
+            extractable: boolean,
+            usages: KeyUsage[],
+          ) => t.importKey(format, data, isMyAlg(alg) ? ECDSA_KEYGEN : alg, extractable, usages);
+        }
+        if (prop === "sign") {
+          return (alg: AlgorithmIdentifier, key: CryptoKey, data: BufferSource) =>
+            t.sign(isMyAlg(alg) ? ECDSA_SIGN : alg, key, data);
+        }
+        if (prop === "verify") {
+          return (
+            alg: AlgorithmIdentifier,
+            key: CryptoKey,
+            signature: BufferSource,
+            data: BufferSource,
+          ) => t.verify(isMyAlg(alg) ? ECDSA_SIGN : alg, key, signature, data);
+        }
+        const v = Reflect.get(t, prop, t);
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    });
+
+  let store: Store<KeyStoreState>;
+  let databaseName: string;
+  let keystore: WebKeyStore;
+
+  beforeEach(async () => {
+    store = newStore();
+    databaseName = `keystore-test-${dbCounter++}`;
+    keystore = await makeKeyStore(store, databaseName, [withMyAlg]);
+  });
+
+  it("persists a non-extractable shim key as a CryptoKey in IndexedDB and signs after reopen", async () => {
+    const id = await keystore.generate({
+      type: "my-type",
+      algorithm: MY_ALG,
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    expect(store.state.keys.find((k) => k.id === id)?.metadata?.storage).toBe("cryptokey");
+    const db = await openDatabase(databaseName, globalThis.indexedDB);
+    const record = await db.get<MaterialRecord>(MATERIAL_STORE, id);
+    expect(record?.kind).toBe("cryptokey");
+    if (record?.kind === "cryptokey") {
+      expect(record.privateKey).toBeInstanceOf(CryptoKey);
+      expect(record.privateKey.extractable).toBe(false);
+    }
+    const signature = await keystore.sign(id, message);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+
+    // A fresh engine against the same database reads the structured-cloned key back.
+    const store2 = newStore();
+    const keystore2 = await makeKeyStore(store2, databaseName, [withMyAlg]);
+    expect(store2.state.keys.find((k) => k.id === id)?.algorithm).toBe(MY_ALG);
+    expect(await keystore2.verify(id, message, signature)).toBe(true);
+    const signature2 = await keystore2.sign(id, message);
+    expect(await keystore2.verify(id, message, signature2)).toBe(true);
+    const tampered = new Uint8Array(message);
+    tampered[0] ^= 0xff;
+    expect(await keystore2.verify(id, tampered, signature2)).toBe(false);
+  });
+
+  it("persists an extractable shim key as sealed bytes in IndexedDB and signs after reopen", async () => {
+    const id = await keystore.generate({
+      type: "my-type",
+      algorithm: MY_ALG,
+      extractable: true,
+      keyUsages: ["sign", "verify"],
+    });
+    const meta = store.state.keys.find((k) => k.id === id);
+    expect(meta?.metadata?.storage).toBe("bytes");
+    expect(meta?.format).toBe("pkcs8");
+    const db = await openDatabase(databaseName, globalThis.indexedDB);
+    expect((await db.get<MaterialRecord>(MATERIAL_STORE, id))?.kind).not.toBe("cryptokey");
+
+    const store2 = newStore();
+    const keystore2 = await makeKeyStore(store2, databaseName, [withMyAlg]);
+    const signature = await keystore2.sign(id, message);
+    expect(await keystore2.verify(id, message, signature)).toBe(true);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+  });
+});
+
+describe("createWebKeyStore (shim handle algorithm)", () => {
+  // A toy shim in the house style: opaque `createKeyHandle` handles carrying
+  // birth material under the private symbol, never a real CryptoKey. The
+  // "signature" is SHA-256(secret || data) and the public key is the secret
+  // itself — insecure, but enough to exercise persistence.
+  const HANDLE_ALG = "Handle-Alg";
+  let lastSecret: Uint8Array;
+  const isHandleAlg = (alg: unknown) =>
+    (typeof alg === "string" ? alg : (alg as Algorithm | undefined)?.name) === HANDLE_ALG;
+  const u8 = (d: BufferSource) =>
+    ArrayBuffer.isView(d)
+      ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength)
+      : new Uint8Array(d);
+  const mac = async (key: CryptoKey, data: BufferSource) => {
+    const secret = consumeKeyMaterial(key, (m) => Uint8Array.from(m));
+    const input = new Uint8Array([...secret, ...u8(data)]);
+    return new Uint8Array(await crypto.subtle.digest("SHA-256", input));
+  };
+  const withHandleAlg: SubtleShim = (target) =>
+    new Proxy(target, {
+      get(t, prop) {
+        if (prop === "generateKey") {
+          return async (alg: AlgorithmIdentifier, extractable: boolean, usages: KeyUsage[]) => {
+            if (!isHandleAlg(alg)) return t.generateKey(alg, extractable, usages);
+            lastSecret = crypto.getRandomValues(new Uint8Array(32));
+            const name = HANDLE_ALG;
+            return {
+              privateKey: createKeyHandle(
+                "private",
+                { name },
+                extractable,
+                ["sign"],
+                lastSecret.slice(),
+              ),
+              publicKey: createKeyHandle("public", { name }, true, ["verify"], lastSecret.slice()),
+            };
+          };
+        }
+        if (prop === "exportKey") {
+          return async (format: KeyFormat, key: CryptoKey) =>
+            isHandleAlg(key.algorithm)
+              ? consumeKeyMaterial(key, (m) => Uint8Array.from(m).buffer)
+              : t.exportKey(format as Exclude<KeyFormat, "jwk">, key);
+        }
+        if (prop === "importKey") {
+          return async (
+            format: Exclude<KeyFormat, "jwk">,
+            data: BufferSource,
+            alg: AlgorithmIdentifier,
+            extractable: boolean,
+            usages: KeyUsage[],
+          ) => {
+            if (!isHandleAlg(alg)) return t.importKey(format, data, alg, extractable, usages);
+            const type = format === "spki" ? "public" : "private";
+            return createKeyHandle(
+              type,
+              { name: HANDLE_ALG },
+              extractable,
+              usages,
+              u8(data).slice(),
+            );
+          };
+        }
+        if (prop === "sign") {
+          return async (alg: AlgorithmIdentifier, key: CryptoKey, data: BufferSource) =>
+            isHandleAlg(alg) ? (await mac(key, data)).buffer : t.sign(alg, key, data);
+        }
+        if (prop === "verify") {
+          return async (
+            alg: AlgorithmIdentifier,
+            key: CryptoKey,
+            signature: BufferSource,
+            data: BufferSource,
+          ) => {
+            if (!isHandleAlg(alg)) return t.verify(alg, key, signature, data);
+            const expected = await mac(key, data);
+            const actual = u8(signature);
+            return expected.length === actual.length && expected.every((b, i) => b === actual[i]);
+          };
+        }
+        const v = Reflect.get(t, prop, t);
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    });
+
+  it("seals a non-extractable shim handle key with the vault instead of cloning the handle", async () => {
+    const store = newStore();
+    const databaseName = `keystore-test-${dbCounter++}`;
+    const keystore = await makeKeyStore(store, databaseName, [withHandleAlg]);
+    const id = await keystore.generate({
+      type: "handle-type",
+      algorithm: HANDLE_ALG,
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    const meta = store.state.keys.find((k) => k.id === id);
+    expect(meta?.metadata?.storage).toBe("bytes");
+    expect(meta?.extractable).toBe(false);
+
+    const db = await openDatabase(databaseName, globalThis.indexedDB);
+    const record = await db.get<MaterialRecord>(MATERIAL_STORE, id);
+    expect(record?.kind).toBe("bytes");
+    if (record?.kind === "bytes") {
+      expect(containsSubarray(record.ciphertext, lastSecret)).toBe(false);
+    }
+
+    const signature = await keystore.sign(id, message);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+
+    // A fresh engine against the same database opens the sealed bytes.
+    const keystore2 = await makeKeyStore(newStore(), databaseName, [withHandleAlg]);
+    const signature2 = await keystore2.sign(id, message);
+    expect(signature2).toEqual(signature);
+    expect(await keystore2.verify(id, message, signature2)).toBe(true);
+    const tampered = new Uint8Array(message);
+    tampered[0] ^= 0xff;
+    expect(await keystore2.verify(id, tampered, signature2)).toBe(false);
   });
 });
 

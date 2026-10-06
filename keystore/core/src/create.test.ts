@@ -1311,3 +1311,112 @@ describe("createKeyStore (default shims)", () => {
     );
   });
 });
+
+describe("createKeyStore (custom shim algorithm)", () => {
+  // A toy shim that claims a brand-new algorithm name and backs it with the
+  // host's ECDSA P-256, recording every call it handles. Anything else passes
+  // straight through to the layer below.
+  const MY_ALG = "My-Alg";
+  const ECDSA_KEYGEN = { name: "ECDSA", namedCurve: "P-256" } as EcKeyGenParams;
+  const ECDSA_SIGN = { name: "ECDSA", hash: "SHA-256" } as EcdsaParams;
+  const isMyAlg = (alg: unknown) =>
+    (typeof alg === "string" ? alg : (alg as Algorithm | undefined)?.name) === MY_ALG;
+
+  let calls: string[];
+  const withMyAlg: SubtleShim = (target) =>
+    new Proxy(target, {
+      get(t, prop) {
+        if (prop === "generateKey") {
+          return (alg: AlgorithmIdentifier, extractable: boolean, usages: KeyUsage[]) => {
+            if (!isMyAlg(alg)) return t.generateKey(alg, extractable, usages);
+            calls.push("generateKey");
+            return t.generateKey(ECDSA_KEYGEN, extractable, usages);
+          };
+        }
+        if (prop === "importKey") {
+          return (
+            format: Exclude<KeyFormat, "jwk">,
+            data: BufferSource,
+            alg: AlgorithmIdentifier,
+            extractable: boolean,
+            usages: KeyUsage[],
+          ) => {
+            if (!isMyAlg(alg)) return t.importKey(format, data, alg, extractable, usages);
+            calls.push(`importKey:${format}`);
+            return t.importKey(format, data, ECDSA_KEYGEN, extractable, usages);
+          };
+        }
+        if (prop === "sign") {
+          return (alg: AlgorithmIdentifier, key: CryptoKey, data: BufferSource) => {
+            if (!isMyAlg(alg)) return t.sign(alg, key, data);
+            calls.push("sign");
+            return t.sign(ECDSA_SIGN, key, data);
+          };
+        }
+        if (prop === "verify") {
+          return (
+            alg: AlgorithmIdentifier,
+            key: CryptoKey,
+            signature: BufferSource,
+            data: BufferSource,
+          ) => {
+            if (!isMyAlg(alg)) return t.verify(alg, key, signature, data);
+            calls.push("verify");
+            return t.verify(ECDSA_SIGN, key, signature, data);
+          };
+        }
+        const v = Reflect.get(t, prop, t);
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    });
+
+  let store: Store<KeyStoreState>;
+  let keystore: KeyStore<void>;
+  let materials: Map<KeyId, SealedRecord>;
+
+  beforeEach(async () => {
+    calls = [];
+    store = new Store<KeyStoreState>({ keys: [], status: "idle" });
+    const built = await createMemoryByteDriver();
+    materials = built.materials;
+    keystore = createKeyStore<void>({
+      driver: built.driver,
+      store,
+      subtle: host,
+      shims: [...shims, withMyAlg],
+    });
+    await keystore.ready;
+  });
+
+  it("routes generate/sign/verify of an unknown algorithm through the shims", async () => {
+    const id = await keystore.generate({
+      type: "my-type",
+      algorithm: MY_ALG,
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    const meta = store.state.keys.find((k) => k.id === id);
+    expect(meta?.algorithm).toBe(MY_ALG);
+    expect(meta?.metadata?.storage).toBe("bytes");
+    expect(meta?.metadata?.spki).toBe(true);
+    expect(meta?.format).toBe("pkcs8");
+    expect(materials.has(id)).toBe(true);
+
+    const signature = await keystore.sign(id, message);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+
+    const tampered = new Uint8Array(message);
+    tampered[0] ^= 0xff;
+    expect(await keystore.verify(id, tampered, signature)).toBe(false);
+
+    expect(calls).toEqual([
+      "generateKey",
+      "importKey:pkcs8",
+      "sign",
+      "importKey:spki",
+      "verify",
+      "importKey:spki",
+      "verify",
+    ]);
+  });
+});

@@ -178,6 +178,18 @@ export function createIndexedDBDriver(options: IndexedDBDriverOptions): KeyStore
     async put(id: KeyId, material: DriverMaterial): Promise<void> {
       assertNotReserved(id);
       if (material.kind === "cryptokey") {
+        // Only a genuine CryptoKey keeps its secret across a structured clone.
+        // A shim's look-alike handle would lose its material, or write plain
+        // fields into IndexedDB unsealed; shim material must arrive as bytes.
+        const isCryptoKey = (k: unknown) => k instanceof CryptoKey;
+        if (
+          !isCryptoKey(material.privateKey) ||
+          (material.publicKey !== undefined && !isCryptoKey(material.publicKey))
+        ) {
+          throw new InvalidKeyDataError(
+            `refusing to persist ${id}: "cryptokey" material must be a host CryptoKey (seal shim keys as bytes)`,
+          );
+        }
         await db.put<MaterialRecord>(MATERIAL_STORE, {
           id,
           kind: "cryptokey",

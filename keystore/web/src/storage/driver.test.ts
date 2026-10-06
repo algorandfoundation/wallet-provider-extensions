@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createIndexedDBDriver } from "./driver.ts";
 import { MASTER_KEY_ID } from "./vault.ts";
 import { MATERIAL_STORE, openDatabase } from "./db.ts";
+import { InvalidKeyDataError } from "@algorandfoundation/keystore-core";
 import type { DriverMaterial, KeyId } from "@algorandfoundation/keystore-core";
 
 describe("IndexedDBDriver clear() regression", () => {
@@ -103,6 +104,45 @@ describe("IndexedDBDriver clear() regression", () => {
     const all = await db.getAll<{ id: string }>(MATERIAL_STORE, ["b"]);
     expect(all.map((r) => r.id)).toEqual(["a", "c"]);
     db.close();
+  });
+});
+
+describe("IndexedDBDriver put() cryptokey guard", () => {
+  it("refuses look-alike handles and writes nothing", async () => {
+    const databaseName = "test-cryptokey-guard";
+    const driver = createIndexedDBDriver({ host: globalThis.crypto.subtle, databaseName });
+    await driver.ready;
+    const id: KeyId = "fake-handle" as any;
+    const handle = {
+      type: "private",
+      extractable: false,
+      algorithm: { name: "My-Alg" },
+      usages: ["sign"],
+      secret: new Uint8Array(32).fill(0xab),
+    } as unknown as CryptoKey;
+
+    await expect(driver.put(id, { kind: "cryptokey", privateKey: handle })).rejects.toBeInstanceOf(
+      InvalidKeyDataError,
+    );
+    const db = await openDatabase(databaseName, globalThis.indexedDB);
+    expect(await db.get(MATERIAL_STORE, id)).toBeUndefined();
+  });
+
+  it("still persists a genuine CryptoKey", async () => {
+    const driver = createIndexedDBDriver({
+      host: globalThis.crypto.subtle,
+      databaseName: "test-cryptokey-guard-ok",
+    });
+    await driver.ready;
+    const id: KeyId = "real-key" as any;
+    const privateKey = (await globalThis.crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt"],
+    )) as CryptoKey;
+    await driver.put(id, { kind: "cryptokey", privateKey });
+    const kind = await driver.use(id, {}, (m) => m.kind);
+    expect(kind).toBe("cryptokey");
   });
 });
 
