@@ -1,4 +1,4 @@
-import type { KeyStoreState } from "@algorandfoundation/keystore-core";
+import type { KeyStoreState, SubtleShim } from "@algorandfoundation/keystore-core";
 import { Store } from "@tanstack/store";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -236,5 +236,87 @@ describe("createNodeKeyStore", () => {
     expect(keyring.accounts().some((a) => a.startsWith("m/"))).toBe(false);
     // The master key is retained so future writes reuse it.
     expect(keyring.get("__keystore.master__")).not.toBeNull();
+  });
+});
+
+describe("createNodeKeyStore (custom shim algorithm)", () => {
+  // A toy shim that claims a brand-new algorithm name and backs it with the
+  // host's ECDSA P-256; everything else passes straight through.
+  const MY_ALG = "My-Alg";
+  const ECDSA_KEYGEN = { name: "ECDSA", namedCurve: "P-256" } as EcKeyGenParams;
+  const ECDSA_SIGN = { name: "ECDSA", hash: "SHA-256" } as EcdsaParams;
+  const isMyAlg = (alg: unknown) =>
+    (typeof alg === "string" ? alg : (alg as Algorithm | undefined)?.name) === MY_ALG;
+  const withMyAlg: SubtleShim = (target) =>
+    new Proxy(target, {
+      get(t, prop) {
+        if (prop === "generateKey") {
+          return (alg: AlgorithmIdentifier, extractable: boolean, usages: KeyUsage[]) =>
+            t.generateKey(isMyAlg(alg) ? ECDSA_KEYGEN : alg, extractable, usages);
+        }
+        if (prop === "importKey") {
+          return (
+            format: Exclude<KeyFormat, "jwk">,
+            data: BufferSource,
+            alg: AlgorithmIdentifier,
+            extractable: boolean,
+            usages: KeyUsage[],
+          ) => t.importKey(format, data, isMyAlg(alg) ? ECDSA_KEYGEN : alg, extractable, usages);
+        }
+        if (prop === "sign") {
+          return (alg: AlgorithmIdentifier, key: CryptoKey, data: BufferSource) =>
+            t.sign(isMyAlg(alg) ? ECDSA_SIGN : alg, key, data);
+        }
+        if (prop === "verify") {
+          return (
+            alg: AlgorithmIdentifier,
+            key: CryptoKey,
+            signature: BufferSource,
+            data: BufferSource,
+          ) => t.verify(isMyAlg(alg) ? ECDSA_SIGN : alg, key, signature, data);
+        }
+        const v = Reflect.get(t, prop, t);
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    });
+
+  it("persists a shim key in the keychain and signs/verifies after reopen", async () => {
+    const store = new Store<KeyStoreState>({ keys: [], status: "idle" });
+    const keyring = memoryKeyring();
+    const metadata = memoryMetadata();
+    const keystore = createNodeKeyStore({ store, subtle, keyring, metadata, shims: [withMyAlg] });
+    await keystore.ready;
+
+    const id = await keystore.generate({
+      type: "my-type",
+      algorithm: MY_ALG,
+      extractable: false,
+      keyUsages: ["sign", "verify"],
+    });
+    const meta = store.state.keys.find((k) => k.id === id);
+    expect(meta?.algorithm).toBe(MY_ALG);
+    expect(meta?.metadata?.storage).toBe("bytes");
+    expect(meta?.format).toBe("pkcs8");
+    expect(keyring.get(`m/${id}`)).not.toBeNull();
+    const signature = await keystore.sign(id, message);
+    expect(await keystore.verify(id, message, signature)).toBe(true);
+
+    // A fresh engine over the same keychain + sealed file reads the key back.
+    const store2 = new Store<KeyStoreState>({ keys: [], status: "idle" });
+    const keystore2 = createNodeKeyStore({
+      store: store2,
+      subtle,
+      keyring,
+      metadata,
+      shims: [withMyAlg],
+    });
+    await keystore2.ready;
+    expect(store2.state.keys.find((k) => k.id === id)?.algorithm).toBe(MY_ALG);
+    expect(await keystore2.verify(id, message, signature)).toBe(true);
+    const signature2 = await keystore2.sign(id, message);
+    expect(await keystore2.verify(id, message, signature2)).toBe(true);
+    const tampered = new Uint8Array(message);
+    tampered[0] ^= 0xff;
+    expect(await keystore2.verify(id, tampered, signature2)).toBe(false);
   });
 });
