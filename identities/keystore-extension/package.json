@@ -46,5 +46,14 @@
   "peerDependencies": {
     "@tanstack/store": "catalog:",
     "before-after-hook": "catalog:"
+  },
+  "release": {
+    "branches": [
+      {
+        "name": "main",
+        "prerelease": "canary",
+        "channel": "next"
+      }
+    ]
   }
 }
