@@ -1,3 +1,9 @@
+# [accounts-keystore-extension@1.0.0-canary.12](https://github.com/algorandfoundation/wallet-provider-extensions/compare/accounts-keystore-extension@1.0.0-canary.11...accounts-keystore-extension@1.0.0-canary.12) (2026-10-06)
+
+### Bug Fixes
+
+- **keystore:** web storage support of custom shim material, prefer subtle shims over host subtle, adds tests for shim cases ([740ea85](https://github.com/algorandfoundation/wallet-provider-extensions/commit/740ea85c622db9a47b9f85672926c82bce77cbd5))
+
 # [accounts-keystore-extension@1.0.0-canary.11](https://github.com/algorandfoundation/wallet-provider-extensions/compare/accounts-keystore-extension@1.0.0-canary.10...accounts-keystore-extension@1.0.0-canary.11) (2026-09-16)
 
 ### Bug Fixes
