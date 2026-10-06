@@ -61,5 +61,14 @@
     "@algorandfoundation/react-native-passkey-autofill": {
       "optional": true
     }
+  },
+  "release": {
+    "branches": [
+      {
+        "name": "main",
+        "prerelease": "canary",
+        "channel": "next"
+      }
+    ]
   }
 }

@@ -51,5 +51,14 @@
     "@algorandfoundation/passkeys-connections-extension": {
       "optional": true
     }
+  },
+  "release": {
+    "branches": [
+      {
+        "name": "main",
+        "prerelease": "canary",
+        "channel": "next"
+      }
+    ]
   }
 }

@@ -115,7 +115,7 @@ Note: `semantic-release` requires at least one non-prerelease branch in `branche
 To promote the stable-ready packages to `1.0.0` (npm `latest`):
 
 1. **Preconditions**:
-   - `@algorandfoundation/wallet-provider@1.0.0` must be published to npm. Then bump the catalog entry in `pnpm-workspace.yaml` from `"^1.0.0-canary.5"` to `"^1.0.0"`, run `pnpm install`, and commit the lockfile update.
+   - `@algorandfoundation/wallet-provider@1.0.0` must be published to npm. Then bump the catalog entry in `pnpm-workspace.yaml` from `"^1.0.0-canary.7"` to `"^1.0.0"`, run `pnpm install`, and commit the lockfile update.
    - Check whether a stable `@algorandfoundation/xhd-wallet-api` matching `^2.0.0` exists; bump the catalog if so, otherwise it remains an accepted prerelease dependency.
    - Optionally verify version computation with a dry-run: `pnpm run release:dry-run`.
 2. **Create and push the release branch** from `main`:
